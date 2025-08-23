@@ -36,5 +36,8 @@ export default defineConfig({
       devOptions: { enabled: false }
     })
   ],
+  build: {
+    outDir: 'docs',
+  },
   server: { port: 5173 }
 })

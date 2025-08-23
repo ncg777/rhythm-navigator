@@ -11,10 +11,6 @@ A PWA for exploring rhythms across binary, octal, and hexadecimal modes, using s
 - Build: `pnpm build`
 - Preview: `pnpm preview`
 
-## Deploy
-
-GitHub Pages is configured via Actions (see `.github/workflows/pages.yml`). On push to `main`, Pages deploys to `https://<owner>.github.io/rhythm-navigator/`.
-
 ## Notes
 
 - PWA manifest name: Rhythm Navigator

@@ -4,20 +4,21 @@ export type ContourOptions = {
   reflectionInvariant: boolean
 }
 
-export function canonicalContourForBits(bits: Uint8Array, opts: ContourOptions): string {
-  const onsets: number[] = []
-  for (let i = 0; i < bits.length; i++) if (bits[i]) onsets.push(i)
+/**
+ * New fast canonical contour: accepts onset positions and total length.
+ */
+export function canonicalContourFromOnsets(onsets: number[], totalLength: number, opts: ContourOptions): string {
   if (onsets.length < 2) return ''
 
   // Build interval sequence
   const intervals: number[] = []
   if (opts.circular) {
     const n = onsets.length
-    const L = bits.length
+    const L = totalLength
     for (let i = 0; i < n; i++) {
       const a = onsets[i]
       const b = onsets[(i + 1) % n]
-      const d = (b - a + L) % L || L // ensure wrap for last interval if equal positions
+      const d = (b - a + L) % L || L
       intervals.push(d)
     }
   } else {
@@ -25,7 +26,6 @@ export function canonicalContourForBits(bits: Uint8Array, opts: ContourOptions):
     if (intervals.length < 2) return ''
   }
 
-  // Convert intervals to contour comparisons: U/D/S for next vs current
   const contour = compareSequence(intervals, opts.circular)
 
   // Canonicalization: rotation and optional reflection invariance
@@ -38,6 +38,15 @@ export function canonicalContourForBits(bits: Uint8Array, opts: ContourOptions):
     candidates.push(refl, ...rotations(refl))
   }
   return minLex(candidates)
+}
+
+/**
+ * Back-compat wrapper used by tests: converts bits to onsets, then calls the fast function.
+ */
+export function canonicalContourForBits(bits: Uint8Array, opts: ContourOptions): string {
+  const onsets: number[] = []
+  for (let i = 0; i < bits.length; i++) if (bits[i]) onsets.push(i)
+  return canonicalContourFromOnsets(onsets, bits.length, opts)
 }
 
 function compareSequence(intervals: number[], circular: boolean): string {
@@ -59,13 +68,8 @@ function rotations(s: string): string[] {
 }
 
 function reflectContour(s: string): string {
-  // Reflection reverses order and inverts U<->D, S stays S
   const inv = (c: string) => (c === 'U' ? 'D' : c === 'D' ? 'U' : 'S')
-  return s
-    .split('')
-    .reverse()
-    .map(inv)
-    .join('')
+  return s.split('').reverse().map(inv).join('')
 }
 
 function minLex(arr: string[]): string {

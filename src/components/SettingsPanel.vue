@@ -21,8 +21,11 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Max representatives</label>
-        <input v-model.number="maxReps" type="number" min="1" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-32" />
+        <label class="block text-xs uppercase tracking-wide text-slate-400">
+          Max representatives
+          <span class="text-[10px] text-slate-500 ml-1">(0 = unlimited)</span>
+        </label>
+        <input v-model.number="maxReps" type="number" min="0" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-32" />
       </div>
 
       <div class="flex items-center gap-3">
@@ -35,13 +38,26 @@
         <input v-model.number="maxOnsets" type="number" min="0" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
       </div>
 
+      <label class="flex items-center gap-2">
+        <input type="checkbox" v-model="onlyIsomorphic" />
+        <span class="text-sm text-slate-300">Only shadow-contour isomorphic</span>
+      </label>
+
       <div class="flex-1"></div>
 
       <div class="flex items-center gap-3">
-        <button class="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-500 transition" @click="generate" :disabled="isGenerating">
-          {{ isGenerating ? 'Generating…' : 'Generate' }}
+        <button
+          class="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-500 transition"
+          @click="isGenerating ? stop() : generate()"
+        >
+          {{ isGenerating ? 'Stop' : 'Generate' }}
         </button>
-        <button class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition" @click="clear" :disabled="isGenerating" title="Clear generated results">
+        <button
+          class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
+          @click="clear"
+          :disabled="isGenerating"
+          title="Clear generated results"
+        >
           Clear
         </button>
       </div>
@@ -50,7 +66,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <label class="flex items-center gap-2">
         <input type="checkbox" v-model="circular" />
-        <span class="text-sm text-slate-300">Circular contour</span>
+        <span class="text-sm text-slate-300">Circular</span>
       </label>
       <label class="flex items-center gap-2">
         <input type="checkbox" v-model="rotationInvariant" />
@@ -66,10 +82,11 @@
       </label>
     </div>
 
-    <p class="text-xs text-slate-400">
-      Total digits: <b>{{ totalDigits }}</b> (base {{ base }}); total bits: <b>{{ totalBits }}</b>.
-      Beware of combinatorial explosion: base^digits = {{ formatBig(approxTotal) }}.
-    </p>
+    <div class="text-xs text-slate-400 flex items-center gap-4">
+      <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
+      <span>Processed: <b>{{ processed }}</b></span>
+      <span>Emitted: <b>{{ emitted }}</b></span>
+    </div>
   </div>
 </template>
 
@@ -79,22 +96,27 @@ import { useRhythmStore } from '@/stores/rhythmStore'
 import { computed } from 'vue'
 
 const store = useRhythmStore()
-const { mode, numerator, denominator, maxReps, minOnsets, maxOnsets, circular, rotationInvariant, reflectionInvariant, excludeTrivial, isGenerating } = storeToRefs(store)
+const {
+  mode,
+  numerator,
+  denominator,
+  maxReps,
+  minOnsets,
+  maxOnsets,
+  circular,
+  rotationInvariant,
+  reflectionInvariant,
+  excludeTrivial,
+  onlyIsomorphic,
+  isGenerating,
+  processed,
+  emitted
+} = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
 const base = computed(() => (store.mode === 'binary' ? 2 : store.mode === 'octal' ? 8 : 16))
-const bitsPerDigit = computed(() => (store.mode === 'binary' ? 1 : store.mode === 'octal' ? 3 : 4))
-const totalBits = computed(() => totalDigits.value * bitsPerDigit.value)
-const approxTotal = computed(() => BigInt(base.value) ** BigInt(totalDigits.value))
 
 function generate() { store.generate() }
+function stop() { store.stop() }
 function clear() { store.clear() }
-
-function formatBig(n: bigint) {
-  if (n > 10_000_000_000n) {
-    const s = n.toString()
-    return `${s[0]}.${s.slice(1, 4)}e+${s.length - 1}`
-  }
-  return n.toString()
-}
 </script>

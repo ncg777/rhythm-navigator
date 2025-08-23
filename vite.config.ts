@@ -7,7 +7,6 @@ import { fileURLToPath, URL } from 'node:url'
 const base = process.env.BASE_URL || '/'
 
 export default defineConfig({
-  base,
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -36,6 +35,7 @@ export default defineConfig({
       devOptions: { enabled: false }
     })
   ],
+  base: '/rhythm-navigator/',
   build: {
     outDir: 'docs',
   },

@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
-import { canonicalContourFromOnsets } from '@/utils/contour'
+import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 
 type StartPayload = {
   mode: Mode
@@ -98,24 +98,19 @@ async function run(p: StartPayload) {
         let passes = true
 
         if (p.onlyIsomorphic) {
-          // Construct shadow (complement) onset positions
-          const shadow = complementOnsets(onsets, totalBits)
-          // Both need at least 2 onsets to have a non-empty contour
-          if (shadow.length < 2 || onsets.length < 2) {
-            passes = false
+          // Mirror Java predicate: compare canonical contour to shadow contour
+          if (onsets.length < 2) {
+            passes = true
           } else {
-            const c1 = canonicalContourFromOnsets(onsets, totalBits, {
-              circular: p.circular,
-              rotationInvariant: p.rotationInvariant,
-              reflectionInvariant: p.reflectionInvariant
-            })
-            const c2 = canonicalContourFromOnsets(shadow, totalBits, {
-              circular: p.circular,
-              rotationInvariant: p.rotationInvariant,
-              reflectionInvariant: p.reflectionInvariant
-            })
-            // Require equality of canonical contours (isomorphism under invariances)
-            passes = c1.length > 0 && c1 === c2
+            // Use circular + dihedral invariance to match Java predicate semantics
+            const canonicalOpts = {
+              circular: true,
+              rotationInvariant: true,
+              reflectionInvariant: true
+            }
+            const c1 = canonicalContourFromOnsets(onsets, totalBits, canonicalOpts)
+            const s1 = shadowContourFromOnsets(onsets, totalBits, canonicalOpts)
+            passes = c1.length > 0 && c1 === s1
           }
         }
 
@@ -166,19 +161,7 @@ async function run(p: StartPayload) {
   ;(self as unknown as Worker).postMessage({ type: 'done' })
 }
 
-function complementOnsets(onsets: number[], L: number): number[] {
-  const out = new Array<number>(L - onsets.length)
-  let j = 0
-  let idx = 0
-  for (let i = 0; i < L; i++) {
-    if (j < onsets.length && onsets[j] === i) {
-      j++
-    } else {
-      out[idx++] = i
-    }
-  }
-  return out
-}
+// (no-op) legacy helper removed; shadow contour no longer uses complement onsets.
 
 function groupDigits(digits: number[], mode: Mode, perGroup: number): string {
   const enc = (d: number) => (mode === 'hex' ? d.toString(16).toUpperCase() : String(d))

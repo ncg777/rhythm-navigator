@@ -87,9 +87,9 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
-import { canonicalContourFromOnsets } from '@/utils/contour'
+import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
-import { bitsPerBeat, computeSyncopationMetrics, onsetsFromGroupedDigits } from '@/utils/syncopation'
+import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
 
 const store = useRhythmStore()
 const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator } = storeToRefs(store)
@@ -108,15 +108,6 @@ function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[
   return { onsets, totalBits }
 }
 
-function complementOnsets(onsets: number[], L: number): number[] {
-  const out: number[] = []
-  let k = 0
-  for (let i = 0; i < L; i++) {
-    if (k < onsets.length && onsets[k] === i) k++
-    else out.push(i)
-  }
-  return out
-}
 
 const details = computed(() => {
   const sel = selected.value
@@ -146,8 +137,7 @@ const details = computed(() => {
   }
 
   const contour = canonicalContourFromOnsets(onsets, totalBits, opts)
-  const shadow = complementOnsets(onsets, totalBits)
-  const shadowContour = shadow.length >= 2 ? canonicalContourFromOnsets(shadow, totalBits, opts) : ''
+  const shadowContour = shadowContourFromOnsets(onsets, totalBits, opts)
   const shadowIsomorphic = contour.length > 0 && contour === shadowContour
 
   const spb = bitsPerBeat(sel.base, denominator.value)

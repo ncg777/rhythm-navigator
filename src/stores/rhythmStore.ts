@@ -13,7 +13,7 @@ export const useRhythmStore = defineStore('rhythm', {
     denominator: 2,
 
     // 0 = unlimited (runs until stopped or space exhausted)
-    maxReps: 60,
+    maxReps: 0,
     // Default to 2 to avoid empty-contour cases by default
     minOnsets: 2,
     maxOnsets: 99,

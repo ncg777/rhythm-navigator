@@ -22,11 +22,61 @@ export function canonicalContourFromOnsets(onsets: number[], totalLength: number
       intervals.push(d)
     }
   } else {
+  for (let i = 0; i < onsets.length - 1; i++) intervals.push(onsets[i + 1] - onsets[i])
+  // For linear contours, require at least 3 intervals (4 onsets) to compare two adjacent IOI pairs
+  if (intervals.length < 3) return ''
+  }
+
+  const contour = compareSequence(intervals, opts.circular)
+
+  // Canonicalization: rotation and optional reflection invariance
+  const candidates: string[] = [contour]
+  if (opts.rotationInvariant) {
+    candidates.push(...rotations(contour))
+  }
+  if (opts.reflectionInvariant) {
+    const refl = reflectContour(contour)
+    candidates.push(refl, ...rotations(refl))
+  }
+  return minLex(candidates)
+}
+
+/**
+ * Shadow contour per Java reference:
+ * - Build interval sequence a (IOIs, circular or linear like canonicalContourFromOnsets)
+ * - Build mid[i] = a[i-1] + a[i] (circular neighbor sum)
+ * - Take signs of cyclical differences of mid
+ * - Canonicalize with the same rotation/reflection options
+ */
+export function shadowContourFromOnsets(onsets: number[], totalLength: number, opts: ContourOptions): string {
+  if (onsets.length < 2) return ''
+
+  // Build interval sequence (same as above)
+  const intervals: number[] = []
+  if (opts.circular) {
+    const n = onsets.length
+    const L = totalLength
+    for (let i = 0; i < n; i++) {
+      const a = onsets[i]
+      const b = onsets[(i + 1) % n]
+      const d = (b - a + L) % L || L
+      intervals.push(d)
+    }
+  } else {
     for (let i = 0; i < onsets.length - 1; i++) intervals.push(onsets[i + 1] - onsets[i])
     if (intervals.length < 2) return ''
   }
 
-  const contour = compareSequence(intervals, opts.circular)
+  // mid[i] = a[i-1] + a[i] (circular previous + current)
+  const n = intervals.length
+  const mid: number[] = new Array(n)
+  for (let i = 0; i < n; i++) {
+    const prev = intervals[(i - 1 + n) % n]
+    const cur = intervals[i]
+    mid[i] = prev + cur
+  }
+
+  const contour = compareSequence(mid, opts.circular)
 
   // Canonicalization: rotation and optional reflection invariance
   const candidates: string[] = [contour]

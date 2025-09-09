@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
+import { bitsPerDigitForMode } from '@/utils/rhythm'
+import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { canonicalContourFromOnsets } from '@/utils/contour'
+import { isShadowContourIsomorphicFromDigits } from '@/utils/shadow'
 
 type WorkerMessage =
   | { type: 'batch'; items: RhythmItem[] }
@@ -25,6 +29,9 @@ export const useRhythmStore = defineStore('rhythm', {
 
     // Only include rhythms that are shadow-contour isomorphic
     onlyIsomorphic: true,
+
+  // Agglutination
+  agglSegments: 4,
 
     // generation state
     isGenerating: false,
@@ -99,6 +106,96 @@ export const useRhythmStore = defineStore('rhythm', {
           onlyIsomorphic: this.onlyIsomorphic
         }
       })
+    },
+
+    // Concatenate randomly chosen rhythms ensuring each prefix remains shadow-contour isomorphic.
+    agglutinate() {
+      const pool = this.items
+      if (!pool.length) return
+
+      const segments = Math.max(1, Math.floor(this.agglSegments))
+      const mode = this.mode
+      const bpd = bitsPerDigitForMode(mode)
+      const perGroup = this.denominator
+      const predicateOpts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
+
+      const parseItemDigits = (item: RhythmItem) => parseDigitsFromGroupedString(item.groupedDigitsString, item.base)
+      const digitsToOnsets = (digits: number[]) => {
+        const totalBits = digits.length * bpd
+        const onsets: number[] = []
+        const max = (1 << bpd) - 1
+        for (let j = 0; j < digits.length; j++) {
+          const v = Math.max(0, Math.min(digits[j], max))
+          const base = j * bpd
+          for (let i = 0; i < bpd; i++) {
+            const bit = (v >> (bpd - 1 - i)) & 1
+            if (bit) onsets.push(base + i)
+          }
+        }
+        return { onsets, totalBits }
+      }
+      const groupDigits = (digits: number[]) => {
+        const enc = (d: number) => (mode === 'hex' ? d.toString(16).toUpperCase() : String(d))
+        const parts: string[] = []
+        for (let i = 0; i < digits.length; i += perGroup) {
+          parts.push(digits.slice(i, i + perGroup).map(enc).join(''))
+        }
+        return parts.join(' ')
+      }
+      const isIso = (digits: number[]) => isShadowContourIsomorphicFromDigits(digits, mode, predicateOpts)
+      const pickRandom = () => pool[Math.floor(Math.random() * pool.length)]
+
+      const MAX_TRIES_PER_STEP = 5000
+      let aggregated: number[] = []
+
+      // pick the first ISO segment
+      {
+        let seg = pickRandom()
+        let d = parseItemDigits(seg)
+        let tries = 0
+        while (tries < MAX_TRIES_PER_STEP && !isIso(d)) {
+          seg = pickRandom()
+          d = parseItemDigits(seg)
+          tries++
+        }
+        if (!isIso(d)) return // no valid starting segment found
+        aggregated = d.slice()
+      }
+
+      // grow with ISO-preserving concatenations
+      for (let s = 1; s < segments; s++) {
+        let found = false
+        for (let t = 0; t < MAX_TRIES_PER_STEP; t++) {
+          const cand = pickRandom()
+          const dc = parseItemDigits(cand)
+          const next = aggregated.concat(dc)
+          if (isIso(next)) {
+            aggregated = next
+            found = true
+            break
+          }
+        }
+        if (!found) break
+      }
+
+      // build resulting RhythmItem
+      const groupedDigitsString = groupDigits(aggregated)
+      const { onsets, totalBits } = digitsToOnsets(aggregated)
+      const canonicalContour = canonicalContourFromOnsets(onsets, totalBits, {
+        circular: this.circular,
+        rotationInvariant: this.rotationInvariant,
+        reflectionInvariant: this.reflectionInvariant
+      })
+      const item: RhythmItem = {
+        id: `aggl:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        base: mode,
+        groupedDigitsString,
+        onsets: onsets.length,
+        canonicalContour,
+        digits: aggregated
+      }
+      this.items = [item, ...this.items]
+      this.selectedId = item.id
     }
   }
 })

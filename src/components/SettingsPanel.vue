@@ -82,6 +82,17 @@
       </label>
     </div>
 
+    <div class="flex flex-wrap items-end gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400">Agglutinate segments</label>
+        <input v-model.number="agglSegments" type="number" min="1" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28" />
+      </div>
+      <button class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 transition" @click="agglutinate" :disabled="!canAgglutinate">
+        Agglutinate
+      </button>
+      <span class="text-xs text-slate-500">Concatenate random segments; each prefix remains shadow-iso.</span>
+    </div>
+
     <div class="text-xs text-slate-400 flex items-center gap-4">
       <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
       <span>Processed: <b>{{ processed }}</b></span>
@@ -111,6 +122,7 @@ const {
   isGenerating,
   processed,
   emitted
+  , agglSegments
 } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
@@ -119,4 +131,6 @@ const base = computed(() => (store.mode === 'binary' ? 2 : store.mode === 'octal
 function generate() { store.generate() }
 function stop() { store.stop() }
 function clear() { store.clear() }
+function agglutinate() { store.agglutinate() }
+const canAgglutinate = computed(() => store.items.length > 0)
 </script>

@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
-import { canonicalContourFromOnsets } from '@/utils/contour'
-import { isShadowContourIsomorphicFromDigits } from '@/utils/shadow'
+import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
+import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
 
 type WorkerMessage =
   | { type: 'batch'; items: RhythmItem[] }
@@ -124,7 +124,7 @@ export const useRhythmStore = defineStore('rhythm', {
       })
     },
 
-    // Concatenate randomly chosen rhythms ensuring each prefix remains shadow-contour isomorphic.
+  // Concatenate randomly chosen rhythms ensuring each prefix remains valid under current filters.
     agglutinate() {
       const pool = this.items
       if (!pool.length) return
@@ -133,7 +133,7 @@ export const useRhythmStore = defineStore('rhythm', {
       const mode = this.mode
       const bpd = bitsPerDigitForMode(mode)
       const perGroup = this.denominator
-      const predicateOpts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
+  const opts = () => ({ circular: this.circular, rotationInvariant: this.rotationInvariant, reflectionInvariant: this.reflectionInvariant })
 
       const parseItemDigits = (item: RhythmItem) => parseDigitsFromGroupedString(item.groupedDigitsString, item.base)
       const digitsToOnsets = (digits: number[]) => {
@@ -158,7 +158,42 @@ export const useRhythmStore = defineStore('rhythm', {
         }
         return parts.join(' ')
       }
-      const isIso = (digits: number[]) => isShadowContourIsomorphicFromDigits(digits, mode, predicateOpts)
+      const isValid = (digits: number[]) => {
+        const { onsets, totalBits } = digitsToOnsets(digits)
+        const onsetsCount = onsets.length
+        // respect onsets constraints
+        if (onsetsCount < this.minOnsets || onsetsCount > this.maxOnsets) return false
+        // exclude trivial if enabled
+        if (this.excludeTrivial) {
+          const allZero = onsetsCount === 0
+          const allOne = onsetsCount === totalBits
+          if (allZero || allOne) return false
+        }
+
+        // apply filters
+        if (this.onlyIsomorphic) {
+          const co = canonicalContourFromOnsets(onsets, totalBits, opts())
+          const so = shadowContourFromOnsets(onsets, totalBits, opts())
+          if (!(co.length > 0 && co === so)) return false
+        }
+        if (this.onlyMaximallyEven && !isMaximallyEven(onsets, totalBits)) return false
+        switch (this.oddityType) {
+          case 'rop23':
+            if (!hasROP23(onsets, totalBits)) return false
+            break
+          case 'odd-intervals':
+            if (!hasOddIntervalsOddity(onsets, totalBits)) return false
+            break
+          case 'no-antipodes':
+            if (!noAntipodalPairs(onsets, totalBits)) return false
+            break
+        }
+        if (this.onlyLowEntropy && !isLowEntropy(onsets, totalBits)) return false
+        if (this.onlyHasNoGaps && !hasNoGaps(onsets, totalBits)) return false
+        if (this.onlyRelativelyFlat && !relativelyFlat(onsets, totalBits)) return false
+        if (this.ordinalEnabled && this.ordinalN >= 2 && !hasOrdinal(onsets, totalBits, this.ordinalN)) return false
+        return true
+      }
       const pickRandom = () => pool[Math.floor(Math.random() * pool.length)]
 
       const MAX_TRIES_PER_STEP = 5000
@@ -169,12 +204,12 @@ export const useRhythmStore = defineStore('rhythm', {
         let seg = pickRandom()
         let d = parseItemDigits(seg)
         let tries = 0
-        while (tries < MAX_TRIES_PER_STEP && !isIso(d)) {
+  while (tries < MAX_TRIES_PER_STEP && !isValid(d)) {
           seg = pickRandom()
           d = parseItemDigits(seg)
           tries++
         }
-        if (!isIso(d)) return // no valid starting segment found
+  if (!isValid(d)) return // no valid starting segment found
         aggregated = d.slice()
       }
 
@@ -185,7 +220,7 @@ export const useRhythmStore = defineStore('rhythm', {
           const cand = pickRandom()
           const dc = parseItemDigits(cand)
           const next = aggregated.concat(dc)
-          if (isIso(next)) {
+          if (isValid(next)) {
             aggregated = next
             found = true
             break

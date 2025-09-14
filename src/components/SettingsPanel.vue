@@ -131,7 +131,7 @@
       <button class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 transition" @click="agglutinate" :disabled="!canAgglutinate">
         Agglutinate
       </button>
-      <span class="text-xs text-slate-500">Concatenate random segments; each prefix remains shadow-iso.</span>
+  <span class="text-xs text-slate-500">Concatenate random segments; each prefix respects current filters.</span>
     </div>
 
     <div class="text-xs text-slate-400 flex items-center gap-4">

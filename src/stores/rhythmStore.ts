@@ -30,6 +30,10 @@ export const useRhythmStore = defineStore('rhythm', {
     // Only include rhythms that are shadow-contour isomorphic
     onlyIsomorphic: true,
 
+    // Music theory predicates
+    onlyMaximallyEven: false,
+    oddityType: 'off' as 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes',
+
   // Agglutination
   agglSegments: 4,
 
@@ -103,7 +107,9 @@ export const useRhythmStore = defineStore('rhythm', {
           rotationInvariant: this.rotationInvariant,
           reflectionInvariant: this.reflectionInvariant,
           excludeTrivial: this.excludeTrivial,
-          onlyIsomorphic: this.onlyIsomorphic
+          onlyIsomorphic: this.onlyIsomorphic,
+          onlyMaximallyEven: this.onlyMaximallyEven,
+          oddityType: this.oddityType
         }
       })
     },

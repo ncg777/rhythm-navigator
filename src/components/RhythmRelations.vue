@@ -73,6 +73,39 @@
         </div>
       </div>
 
+      <div class="glass rounded p-3">
+        <div class="text-slate-400 text-xs mb-2">Music Theory Properties</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">Maximally even</div>
+            <div class="font-mono text-sm" :class="details.predicates.maximallyEven ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.maximallyEven ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">ROP {2,3}</div>
+            <div class="font-mono text-sm" :class="details.predicates.rop23 ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.rop23 ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">Odd-interval oddity</div>
+            <div class="font-mono text-sm" :class="details.predicates.oddIntervalsOddity ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.oddIntervalsOddity ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">No antipodes</div>
+            <div class="font-mono text-sm" :class="details.predicates.noAntipodes ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.noAntipodes ? 'Yes' : 'No' }}
+            </div>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">
+          Current oddity filter: <span class="font-mono">{{ oddityType === 'off' ? 'Off' : oddityType === 'rop23' ? 'ROP (2/3)' : oddityType === 'odd-intervals' ? 'Odd-interval oddity' : 'No antipodal pairs' }}</span>
+        </div>
+      </div>
+
       <div class="text-xs text-slate-400">
         Notes:
         - Metrical weights use binary halving within each beat (beat, half, quarter, …), with a small bonus on the downbeat.
@@ -90,9 +123,10 @@ import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
+import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs } from '@/utils/predicates'
 
 const store = useRhythmStore()
-const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator } = storeToRefs(store)
+const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType } = storeToRefs(store)
 
 function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[]; totalBits: number } {
   const totalBits = digits.length * bpd
@@ -120,7 +154,13 @@ const details = computed(() => {
       contour: '',
       shadowContour: '',
       shadowIsomorphic: false,
-      sync: { lhlApprox: 0, offbeatWeighted: 0, onBeatCount: 0, offBeatCount: 0, meanOnsetWeight: 0, maxWeight: 0 }
+      sync: { lhlApprox: 0, offbeatWeighted: 0, onBeatCount: 0, offBeatCount: 0, meanOnsetWeight: 0, maxWeight: 0 },
+      predicates: {
+        maximallyEven: false,
+        rop23: false,
+        oddIntervalsOddity: false,
+        noAntipodes: true
+      }
     }
   }
 
@@ -143,6 +183,12 @@ const details = computed(() => {
   const spb = bitsPerBeat(sel.base, denominator.value)
   const sync = computeSyncopationMetrics(onsets, totalBits, numerator.value, spb)
 
+  // Calculate music theory predicates
+  const maximallyEven = isMaximallyEven(onsets, totalBits)
+  const rop23 = hasROP23(onsets, totalBits)
+  const oddIntervalsOddity = hasOddIntervalsOddity(onsets, totalBits)
+  const noAntipodes = noAntipodalPairs(onsets, totalBits)
+
   return {
     totalBits,
     onsets: onsets.length,
@@ -151,7 +197,13 @@ const details = computed(() => {
     contour,
     shadowContour,
     shadowIsomorphic,
-    sync
+    sync,
+    predicates: {
+      maximallyEven,
+      rop23,
+      oddIntervalsOddity,
+      noAntipodes
+    }
   }
 })
 </script>

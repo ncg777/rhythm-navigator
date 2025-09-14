@@ -2,6 +2,7 @@
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
+import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs } from '@/utils/predicates'
 
 type StartPayload = {
   mode: Mode
@@ -15,6 +16,8 @@ type StartPayload = {
   reflectionInvariant: boolean
   excludeTrivial: boolean
   onlyIsomorphic: boolean // now interpreted as: only shadow-contour–isomorphic
+  onlyMaximallyEven: boolean
+  oddityType: 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes'
 }
 
 type InMsg = { type: 'start'; payload: StartPayload } | { type: 'stop' }
@@ -111,6 +114,26 @@ async function run(p: StartPayload) {
             const c1 = canonicalContourFromOnsets(onsets, totalBits, canonicalOpts)
             const s1 = shadowContourFromOnsets(onsets, totalBits, canonicalOpts)
             passes = c1.length > 0 && c1 === s1
+          }
+        }
+
+        // Apply maximally even filter
+        if (passes && p.onlyMaximallyEven) {
+          passes = isMaximallyEven(onsets, totalBits)
+        }
+
+        // Apply oddity type filter
+        if (passes && p.oddityType !== 'off') {
+          switch (p.oddityType) {
+            case 'rop23':
+              passes = hasROP23(onsets, totalBits)
+              break
+            case 'odd-intervals':
+              passes = hasOddIntervalsOddity(onsets, totalBits)
+              break
+            case 'no-antipodes':
+              passes = noAntipodalPairs(onsets, totalBits)
+              break
           }
         }
 

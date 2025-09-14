@@ -271,12 +271,28 @@ export function isLowEntropy(onsets: number[], L: number): boolean {
 }
 
 /**
- * Compute a histogram of values in an array.
+ * Interval vector per Java reference (circular):
+ * For i = 1..floor(L/2), count positions j such that onset[j] && onset[(j+i) % L].
+ * When L is even and i == L/2, halve the count (each antipodal pair would be counted twice).
+ * Returns array of length m = floor(L/2), index i-1 corresponds to interval i.
  */
-function histogram(values: number[]): Map<number, number> {
-  const m = new Map<number, number>()
-  for (const v of values) m.set(v, (m.get(v) ?? 0) + 1)
-  return m
+export function intervalVector(onsets: number[], L: number): number[] {
+  const m = Math.floor(L / 2)
+  if (m <= 0) return []
+  const vec = new Array<number>(m).fill(0)
+  const flags = new Uint8Array(L)
+  for (const p of onsets) {
+    if (p >= 0 && p < L) flags[p] = 1
+  }
+  for (let i = 1; i <= m; i++) {
+    let k = 0
+    for (let j = 0; j < L; j++) {
+      if (flags[j] && flags[(j + i) % L]) k++
+    }
+    if (i === m && L % 2 === 0) k = Math.floor(k / 2)
+    vec[i - 1] = k
+  }
+  return vec
 }
 
 /**
@@ -284,13 +300,13 @@ function histogram(values: number[]): Map<number, number> {
  * a single consecutive block of indices. Single non-zero bin counts as true.
  */
 export function hasNoGaps(onsets: number[], L: number): boolean {
-  const intervals = circularIntervals(onsets, L)
-  if (intervals.length === 0) return true
-  const hist = histogram(intervals)
-  const keys = Array.from(hist.keys()).filter(() => true).sort((a, b) => a - b)
-  if (keys.length <= 1) return true
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (keys[i + 1] - keys[i] !== 1) return false
+  const vec = intervalVector(onsets, L)
+  if (vec.length === 0) return true
+  const nzIdx: number[] = []
+  for (let i = 0; i < vec.length; i++) if (vec[i] !== 0) nzIdx.push(i)
+  if (nzIdx.length <= 1) return true
+  for (let i = 0; i < nzIdx.length - 1; i++) {
+    if (nzIdx[i + 1] - nzIdx[i] !== 1) return false
   }
   return true
 }
@@ -322,9 +338,8 @@ export function relativelyFlat(onsets: number[], L: number): boolean {
   if (!hasNoGaps(onsets, L)) return false
   const k = onsets.length
   if (k < 1) return false
-  const intervals = circularIntervals(onsets, L)
-  const hist = histogram(intervals)
-  const a = Array.from(hist.values()).filter((v) => v !== 0)
+  const vec = intervalVector(onsets, L)
+  const a = vec.filter((v) => v !== 0)
   const n = a.length
   if (n === 0) return false
   const mean = triangularNumber(k) / n

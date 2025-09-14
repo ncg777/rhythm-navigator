@@ -43,6 +43,21 @@
         <span class="text-sm text-slate-300">Only shadow-contour isomorphic</span>
       </label>
 
+      <label class="flex items-center gap-2">
+        <input type="checkbox" v-model="onlyMaximallyEven" />
+        <span class="text-sm text-slate-300">Only maximally even (Euclidean)</span>
+      </label>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400">Oddity</label>
+        <select v-model="oddityType" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2">
+          <option value="off">Off</option>
+          <option value="rop23">ROP (2/3)</option>
+          <option value="odd-intervals">Odd-interval oddity</option>
+          <option value="no-antipodes">No antipodal pairs</option>
+        </select>
+      </div>
+
       <div class="flex-1"></div>
 
       <div class="flex items-center gap-3">
@@ -119,6 +134,8 @@ const {
   reflectionInvariant,
   excludeTrivial,
   onlyIsomorphic,
+  onlyMaximallyEven,
+  oddityType,
   isGenerating,
   processed,
   emitted

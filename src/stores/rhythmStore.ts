@@ -33,6 +33,11 @@ export const useRhythmStore = defineStore('rhythm', {
     // Music theory predicates
     onlyMaximallyEven: false,
     oddityType: 'off' as 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes',
+  onlyLowEntropy: false,
+  onlyHasNoGaps: false,
+  onlyRelativelyFlat: false,
+  ordinalEnabled: false,
+  ordinalN: 4,
 
   // Agglutination
   agglSegments: 4,
@@ -109,7 +114,12 @@ export const useRhythmStore = defineStore('rhythm', {
           excludeTrivial: this.excludeTrivial,
           onlyIsomorphic: this.onlyIsomorphic,
           onlyMaximallyEven: this.onlyMaximallyEven,
-          oddityType: this.oddityType
+          oddityType: this.oddityType,
+          onlyLowEntropy: this.onlyLowEntropy
+          , onlyHasNoGaps: this.onlyHasNoGaps
+          , onlyRelativelyFlat: this.onlyRelativelyFlat
+          , ordinalEnabled: this.ordinalEnabled
+          , ordinalN: this.ordinalN
         }
       })
     },

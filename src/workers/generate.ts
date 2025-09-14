@@ -2,7 +2,7 @@
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
-import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs } from '@/utils/predicates'
+import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
 
 type StartPayload = {
   mode: Mode
@@ -18,6 +18,11 @@ type StartPayload = {
   onlyIsomorphic: boolean // now interpreted as: only shadow-contour–isomorphic
   onlyMaximallyEven: boolean
   oddityType: 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes'
+  onlyLowEntropy?: boolean
+  onlyHasNoGaps?: boolean
+  onlyRelativelyFlat?: boolean
+  ordinalEnabled?: boolean
+  ordinalN?: number
 }
 
 type InMsg = { type: 'start'; payload: StartPayload } | { type: 'stop' }
@@ -122,7 +127,7 @@ async function run(p: StartPayload) {
           passes = isMaximallyEven(onsets, totalBits)
         }
 
-        // Apply oddity type filter
+  // Apply maximally even / low-entropy / oddity type filters
         if (passes && p.oddityType !== 'off') {
           switch (p.oddityType) {
             case 'rop23':
@@ -135,6 +140,22 @@ async function run(p: StartPayload) {
               passes = noAntipodalPairs(onsets, totalBits)
               break
           }
+        }
+
+        if (passes && p.onlyLowEntropy) {
+          passes = isLowEntropy(onsets, totalBits)
+        }
+
+        if (passes && p.onlyHasNoGaps) {
+          passes = hasNoGaps(onsets, totalBits)
+        }
+
+        if (passes && p.onlyRelativelyFlat) {
+          passes = relativelyFlat(onsets, totalBits)
+        }
+
+        if (passes && p.ordinalEnabled && p.ordinalN && p.ordinalN >= 2) {
+          passes = hasOrdinal(onsets, totalBits, p.ordinalN)
         }
 
         if (passes) {

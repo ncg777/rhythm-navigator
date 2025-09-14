@@ -215,3 +215,182 @@ export function noAntipodalPairs(onsets: number[], L: number): boolean {
   
   return true
 }
+
+/**
+ * Reverse triangular number: largest k such that k*(k+1)/2 <= n.
+ */
+function reverseTriangularNumber(n: number): number {
+  if (n <= 0) return 0
+  return Math.floor((Math.sqrt(1 + 8 * n) - 1) / 2)
+}
+
+/**
+ * Shannon entropy (natural log) of a multiset given by an array of integers.
+ * Values are used only for equality classes; probabilities are counts/size.
+ */
+function entropyOf(values: number[]): number {
+  const N = values.length
+  if (N === 0) return 0
+  const freq = new Map<number, number>()
+  for (const v of values) freq.set(v, (freq.get(v) ?? 0) + 1)
+  let h = 0
+  for (const [, c] of freq) {
+    const p = c / N
+    h += p * Math.log(p)
+  }
+  return h === 0 ? 0 : -h
+}
+
+/**
+ * Low-entropy predicate inspired by the provided Java implementation.
+ *
+ * - Build the circular IOI sequence (a composition of total length L).
+ * - Compute Shannon entropy of the IOI value distribution.
+ * - Compare h against ln(reverseTriangularNumber(L) * 0.5).
+ */
+const lowEntropyBoundCache = new Map<number, number>()
+
+export function isLowEntropy(onsets: number[], L: number): boolean {
+  if (onsets.length < 2) {
+    // With <2 onsets, intervals are undefined; follow Java behavior: entropy 0 < bound (likely true for typical L)
+    let bound = lowEntropyBoundCache.get(L)
+    if (bound === undefined) {
+      bound = Math.log(reverseTriangularNumber(L) * 0.5)
+      lowEntropyBoundCache.set(L, bound)
+    }
+    return 0 < bound
+  }
+  const intervals = circularIntervals(onsets, L)
+  const h = entropyOf(intervals)
+  let bound = lowEntropyBoundCache.get(L)
+  if (bound === undefined) {
+    bound = Math.log(reverseTriangularNumber(L) * 0.5)
+    lowEntropyBoundCache.set(L, bound)
+  }
+  return h < bound
+}
+
+/**
+ * Compute a histogram of values in an array.
+ */
+function histogram(values: number[]): Map<number, number> {
+  const m = new Map<number, number>()
+  for (const v of values) m.set(v, (m.get(v) ?? 0) + 1)
+  return m
+}
+
+/**
+ * HasNoGaps: the non-zero entries of the interval vector (IOI histogram) occupy
+ * a single consecutive block of indices. Single non-zero bin counts as true.
+ */
+export function hasNoGaps(onsets: number[], L: number): boolean {
+  const intervals = circularIntervals(onsets, L)
+  if (intervals.length === 0) return true
+  const hist = histogram(intervals)
+  const keys = Array.from(hist.keys()).filter(() => true).sort((a, b) => a - b)
+  if (keys.length <= 1) return true
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (keys[i + 1] - keys[i] !== 1) return false
+  }
+  return true
+}
+
+/**
+ * Binomial coefficient with basic overflow guard.
+ */
+export function binomial(n: number, k: number): number {
+  if (n < 0 || k < 0 || k > n) throw new Error('Invalid n,k for binomial')
+  if (k > n - k) k = n - k
+  let result = 1
+  for (let i = 0; i < k; i++) {
+    // JS numbers are floats; skip overflow guard as advisory
+    result = (result * (n - i)) / (i + 1)
+  }
+  return result
+}
+
+export function triangularNumber(n: number): number {
+  return binomial(n + 1, 2)
+}
+
+/**
+ * RelativelyFlat: requires HasNoGaps; let a be the interval-vector with zeros removed.
+ * Let n = a.size, mean = triangularNumber(k)/n, k = onsets.length.
+ * All entries must lie within +/- 50% of the mean.
+ */
+export function relativelyFlat(onsets: number[], L: number): boolean {
+  if (!hasNoGaps(onsets, L)) return false
+  const k = onsets.length
+  if (k < 1) return false
+  const intervals = circularIntervals(onsets, L)
+  const hist = histogram(intervals)
+  const a = Array.from(hist.values()).filter((v) => v !== 0)
+  const n = a.length
+  if (n === 0) return false
+  const mean = triangularNumber(k) / n
+  for (const v of a) {
+    if (Math.abs(v - mean) > 0.5 * mean) return false
+  }
+  return true
+}
+
+/**
+ * Factors of n (positive divisors).
+ */
+export function factors(n: number): number[] {
+  const out: number[] = []
+  for (let i = 1; i * i <= n; i++) {
+    if (n % i === 0) {
+      out.push(i)
+      if (i * i !== n) out.push(n / i)
+    }
+  }
+  return out.sort((a, b) => a - b)
+}
+
+/**
+ * Ordinal(n): L must be a multiple of n. Reverse the bitstring, split into blocks of size n,
+ * every block must be one of the allowed "words" built from factors of n as in the Java code.
+ */
+const ordinalWordsCache = new Map<number, Set<string>>()
+
+function buildOrdinalWords(n: number): Set<string> {
+  const set = new Set<string>()
+  const zero = '0'.repeat(n)
+  set.add(zero)
+  for (const f of factors(n)) {
+    const k = Math.floor(n / f)
+    for (let i = 1; i <= k; i++) {
+      const b = new Array(n).fill(0)
+      const brev = new Array(n).fill(0)
+      for (let j = 0; j < i; j++) {
+        b[j * f] = 1
+        const pos = n - (j + 1) * f
+        if (pos >= 0 && pos < n) brev[pos] = 1
+      }
+      set.add(b.join(''))
+      set.add(brev.join(''))
+    }
+  }
+  return set
+}
+
+export function hasOrdinal(onsets: number[], L: number, n: number): boolean {
+  if (n < 2) return false
+  if (L % n !== 0) return false
+  let words = ordinalWordsCache.get(n)
+  if (!words) {
+    words = buildOrdinalWords(n)
+    ordinalWordsCache.set(n, words)
+  }
+  // build bitstring of length L
+  const bits = new Array(L).fill('0')
+  for (const p of onsets) if (p >= 0 && p < L) bits[p] = '1'
+  const rev = bits.slice().reverse().join('')
+  const blocks = L / n
+  for (let i = 0; i < blocks; i++) {
+    const sub = rev.slice(i * n, (i + 1) * n)
+    if (!words.has(sub)) return false
+  }
+  return true
+}

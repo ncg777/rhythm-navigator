@@ -48,6 +48,21 @@
         <span class="text-sm text-slate-300">Only maximally even (Euclidean)</span>
       </label>
 
+      <label class="flex items-center gap-2">
+        <input type="checkbox" v-model="onlyLowEntropy" />
+        <span class="text-sm text-slate-300">Only low-entropy</span>
+      </label>
+
+      <label class="flex items-center gap-2">
+        <input type="checkbox" v-model="onlyHasNoGaps" />
+        <span class="text-sm text-slate-300">Only no-gap interval vector</span>
+      </label>
+
+      <label class="flex items-center gap-2">
+        <input type="checkbox" v-model="onlyRelativelyFlat" />
+        <span class="text-sm text-slate-300">Only relatively flat</span>
+      </label>
+
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400">Oddity</label>
         <select v-model="oddityType" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2">
@@ -56,6 +71,17 @@
           <option value="odd-intervals">Odd-interval oddity</option>
           <option value="no-antipodes">No antipodal pairs</option>
         </select>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400">Ordinal blocks (n)</label>
+        <div class="flex items-center gap-2 mt-1">
+          <input v-model.number="ordinalN" type="number" min="2" class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
+          <label class="flex items-center gap-2">
+            <input type="checkbox" v-model="ordinalEnabled" />
+            <span class="text-sm text-slate-300">Enable</span>
+          </label>
+        </div>
       </div>
 
       <div class="flex-1"></div>
@@ -135,7 +161,12 @@ const {
   excludeTrivial,
   onlyIsomorphic,
   onlyMaximallyEven,
+  onlyLowEntropy,
+  onlyHasNoGaps,
+  onlyRelativelyFlat,
   oddityType,
+  ordinalEnabled,
+  ordinalN,
   isGenerating,
   processed,
   emitted

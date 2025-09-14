@@ -75,7 +75,7 @@
 
       <div class="glass rounded p-3">
         <div class="text-slate-400 text-xs mb-2">Music Theory Properties</div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  <div class="grid grid-cols-2 sm:grid-cols-8 gap-3">
           <div>
             <div class="text-slate-400 text-[10px] uppercase">Maximally even</div>
             <div class="font-mono text-sm" :class="details.predicates.maximallyEven ? 'text-emerald-300' : 'text-slate-400'">
@@ -98,6 +98,30 @@
             <div class="text-slate-400 text-[10px] uppercase">No antipodes</div>
             <div class="font-mono text-sm" :class="details.predicates.noAntipodes ? 'text-emerald-300' : 'text-slate-400'">
               {{ details.predicates.noAntipodes ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">Low entropy</div>
+            <div class="font-mono text-sm" :class="details.predicates.lowEntropy ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.lowEntropy ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">No gaps</div>
+            <div class="font-mono text-sm" :class="details.predicates.noGaps ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.noGaps ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">Relatively flat</div>
+            <div class="font-mono text-sm" :class="details.predicates.relativelyFlat ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.relativelyFlat ? 'Yes' : 'No' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-[10px] uppercase">Ordinal(n)</div>
+            <div class="font-mono text-sm" :class="details.predicates.ordinal ? 'text-emerald-300' : 'text-slate-400'">
+              {{ details.predicates.ordinal ? 'Yes' : 'No' }}
             </div>
           </div>
         </div>
@@ -123,10 +147,10 @@ import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
-import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs } from '@/utils/predicates'
+import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
 
 const store = useRhythmStore()
-const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType } = storeToRefs(store)
+const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType, ordinalEnabled, ordinalN } = storeToRefs(store)
 
 function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[]; totalBits: number } {
   const totalBits = digits.length * bpd
@@ -188,6 +212,10 @@ const details = computed(() => {
   const rop23 = hasROP23(onsets, totalBits)
   const oddIntervalsOddity = hasOddIntervalsOddity(onsets, totalBits)
   const noAntipodes = noAntipodalPairs(onsets, totalBits)
+  const lowEntropy = isLowEntropy(onsets, totalBits)
+  const noGaps = hasNoGaps(onsets, totalBits)
+  const relFlat = relativelyFlat(onsets, totalBits)
+  const ord = ordinalEnabled.value && ordinalN.value >= 2 ? hasOrdinal(onsets, totalBits, ordinalN.value) : false
 
   return {
     totalBits,
@@ -202,7 +230,11 @@ const details = computed(() => {
       maximallyEven,
       rop23,
       oddIntervalsOddity,
-      noAntipodes
+      noAntipodes,
+  lowEntropy,
+  noGaps: noGaps,
+  relativelyFlat: relFlat,
+  ordinal: ord
     }
   }
 })

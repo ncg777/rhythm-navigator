@@ -18,8 +18,8 @@ export const useRhythmStore = defineStore('rhythm', {
 
     // 0 = unlimited (runs until stopped or space exhausted)
     maxReps: 0,
-    // Default to 2 to avoid empty-contour cases by default
-    minOnsets: 2,
+  // Allow empty-contour cases by default
+  minOnsets: 0,
     maxOnsets: 99,
 
     circular: true,

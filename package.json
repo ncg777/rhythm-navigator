@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "pinia": "^2.1.7",
+  "tone": "^14.8.49",
     "vue": "^3.4.38",
     "workbox-window": "^7.1.0"
   },

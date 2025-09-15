@@ -10,6 +10,14 @@
     </div>
 
     <div v-else class="mt-4 space-y-6 text-sm text-slate-300">
+      <div class="glass rounded p-3 flex items-center gap-3">
+        <label class="flex items-center gap-2">
+          <span class="text-slate-400 text-xs">BPM</span>
+          <input type="number" v-model.number="bpm" min="30" max="300" class="bg-slate-800 border border-white/10 rounded px-2 py-1 w-20" />
+        </label>
+        <button class="px-3 py-1 rounded bg-brand-600 hover:bg-brand-500" @click="togglePlay">{{ isPlaying ? 'Stop' : 'Play' }}</button>
+        <span class="text-slate-500 text-xs">Synthesized clave</span>
+      </div>
       <div class="glass rounded p-3">
         <div class="mb-1 font-medium">Digits (grouped)</div>
         <div class="font-mono break-all">{{ selected.groupedDigitsString }}</div>
@@ -140,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
@@ -148,9 +156,10 @@ import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/con
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
 import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
+import * as Tone from 'tone'
 
 const store = useRhythmStore()
-const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType, ordinalEnabled, ordinalN } = storeToRefs(store)
+const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType, ordinalEnabled, ordinalN, mode } = storeToRefs(store)
 
 function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[]; totalBits: number } {
   const totalBits = digits.length * bpd
@@ -236,6 +245,106 @@ const details = computed(() => {
   relativelyFlat: relFlat,
   ordinal: ord
     }
+  }
+})
+
+// --- Playback (Tone.js)
+const bpm = ref(120)
+const isPlaying = ref(false)
+let part: any | null = null
+let synth: any | null = null
+
+async function startAudio(onsets: number[], totalBits: number) {
+  await Tone.start()
+  Tone.Transport.stop()
+  Tone.Transport.cancel()
+  Tone.Transport.bpm.value = bpm.value
+
+  if (!synth) {
+    synth = new Tone.MembraneSynth({
+      pitchDecay: 0.008,
+      octaves: 6,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0.0, release: 0.01 }
+    }).toDestination()
+  }
+
+  // Compute timing in seconds based on BPM and bits-per-beat
+  const spb = bitsPerBeat(mode.value, denominator.value) // bits per beat
+  if (spb <= 0) return
+  const beatDur = 60 / bpm.value
+  const bitDur = beatDur / spb
+  const measureDur = numerator.value * beatDur
+  if (!onsets.length || totalBits <= 0) return
+  const eventsSec = onsets.map((p) => p * bitDur)
+
+  if (part) {
+    part.dispose()
+    part = null
+  }
+
+  part = new Tone.Part((time: any) => {
+    if (synth) synth.triggerAttackRelease('C5', 0.03, time)
+  }, eventsSec.map((t) => ({ time: t })))
+  part.loop = true
+  part.loopEnd = measureDur
+  part.start(0)
+
+  Tone.Transport.start()
+}
+
+function stopAudio() {
+  if (part) {
+    part.stop()
+    part.dispose()
+    part = null
+  }
+  Tone.Transport.stop()
+}
+
+function rebuildIfPlaying() {
+  if (!isPlaying.value) return
+  const sel = selected.value
+  if (!sel) return
+  const digits = parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
+  const bpd = bitsPerDigitForMode(sel.base)
+  const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
+  startAudio(onsets, totalBits)
+}
+
+function togglePlay() {
+  if (isPlaying.value) {
+    stopAudio()
+    isPlaying.value = false
+    return
+  }
+  const sel = selected.value
+  if (!sel) return
+  const digits = parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
+  const bpd = bitsPerDigitForMode(sel.base)
+  const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
+  startAudio(onsets, totalBits).then(() => (isPlaying.value = true))
+}
+
+watch(bpm, (v) => {
+  if (isPlaying.value) rebuildIfPlaying()
+})
+
+onBeforeUnmount(() => {
+  stopAudio()
+})
+
+watch(selected, () => {
+  if (isPlaying.value) {
+    stopAudio()
+    isPlaying.value = false
+  }
+})
+
+watch([numerator, denominator, mode], () => {
+  if (isPlaying.value) {
+    stopAudio()
+    isPlaying.value = false
   }
 })
 </script>

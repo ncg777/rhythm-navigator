@@ -30,7 +30,8 @@ type Track = {
   velocity: number // 0..1 default velocity
   velRandom: number // 0..1 randomization extent
   lfoEnabled: boolean
-  lfoFreq: number // Hz
+  lfoFreq: number // Hz (deprecated; kept for backward compatibility)
+  lfoRate?: string // musical rate like '1/4', '1/4.', '1/4t', '1/8', '1/8.', '1/8t', '1/16', '1/16.', '1/16t'
   lfoDepth: number // 0..1 depth multiplier
   pattern: Pattern | null
   // synth parameters per type (simple flat bag to avoid complex unions)
@@ -170,7 +171,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       velocity: 0.8,
       velRandom: 0,
       lfoEnabled: false,
-      lfoFreq: 0.5,
+  lfoFreq: 0.5,
+  lfoRate: '1/4',
       lfoDepth: 0.2,
       pattern: null,
       params:
@@ -231,9 +233,32 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function computeVelocity(t: Track, absoluteSeconds: number): number {
     let v = t.velocity
-    if (t.lfoEnabled && t.lfoDepth > 0 && t.lfoFreq > 0) {
-      const lfo = Math.sin(2 * Math.PI * t.lfoFreq * absoluteSeconds) // -1..1
-      v = v * (1 + t.lfoDepth * lfo)
+    if (t.lfoEnabled && t.lfoDepth > 0) {
+      let lfoHz = t.lfoFreq || 0
+      // Musical rate takes precedence if present
+      if (t.lfoRate) {
+        const secondsPerQN = 60 / bpm.value
+        const parseRate = (rate: string): number => {
+          // rate like '1/4', '1/4.', '1/4t', '1/8', '1/8.', '1/8t', '1/2', '1', etc.
+          const m = rate.match(/^1\/(\d+)([dt])?$/) || rate.match(/^(\d+)([dt])?$/)
+          if (!m) return 0
+          const num = m[1] ? Number(m[1]) : 1
+          const isNoteForm = /^1\//.test(rate)
+          // base in quarter notes: 1/4 -> 1 QN; 1/8 -> 0.5 QN; 1/16 -> 0.25 QN
+          let qn = isNoteForm ? (1 / (Number(num) / 4)) : (Number(num))
+          // Dotted (.) increases by 50%; Triplet (t) reduces to 2/3
+          const mod = m[2]
+          if (mod === 'd') qn *= 1.5
+          else if (mod === 't') qn *= 2 / 3
+          const durSec = qn * secondsPerQN
+          return durSec > 0 ? 1 / durSec : 0
+        }
+        lfoHz = parseRate(t.lfoRate)
+      }
+      if (lfoHz > 0) {
+        const lfo = Math.sin(2 * Math.PI * lfoHz * absoluteSeconds) // -1..1
+        v = v * (1 + t.lfoDepth * lfo)
+      }
     }
     if (t.velRandom > 0) {
       const r = (Math.random() * 2 - 1) * t.velRandom
@@ -396,7 +421,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // Immutable updates for mix fields to avoid deep in-place mutations
-  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'lfoEnabled' | 'lfoFreq' | 'lfoDepth'>>) {
+  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'lfoEnabled' | 'lfoFreq' | 'lfoRate' | 'lfoDepth'>>) {
     let changed = false
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
@@ -406,7 +431,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       next.pan = Math.max(-1, Math.min(1, Number(next.pan)))
       next.velocity = Math.max(0, Math.min(1, Number(next.velocity)))
       next.velRandom = Math.max(0, Math.min(1, Number(next.velRandom)))
-      next.lfoFreq = Math.max(0, Number(next.lfoFreq))
+  next.lfoFreq = Math.max(0, Number(next.lfoFreq))
       next.lfoDepth = Math.max(0, Math.min(1, Number(next.lfoDepth)))
       changed = true
       return next
@@ -812,6 +837,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     velRandom: number
     lfoEnabled: boolean
     lfoFreq: number
+  lfoRate?: string
     lfoDepth: number
     params: Record<string, number | string>
     pattern: null | {
@@ -842,6 +868,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
         velRandom: t.velRandom,
         lfoEnabled: t.lfoEnabled,
         lfoFreq: t.lfoFreq,
+  lfoRate: t.lfoRate,
         lfoDepth: t.lfoDepth,
         params: t.params,
         pattern: t.pattern ? {
@@ -899,6 +926,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
           velRandom: st.velRandom,
           lfoEnabled: st.lfoEnabled,
           lfoFreq: st.lfoFreq,
+          lfoRate: st.lfoRate,
           lfoDepth: st.lfoDepth,
           params: st.params,
           pattern: null

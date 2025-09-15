@@ -3,16 +3,16 @@
     <header class="mb-3">
       <h2 class="text-lg font-semibold">Drum tracks</h2>
     </header>
-    <div class="space-y-6 pb-2">
-      <div v-for="t in renderTracks" :key="t.id" class="rounded border border-white/10 p-4">
+    <div class="space-y-4 sm:space-y-6 pb-2">
+      <div v-for="t in renderTracks" :key="t.id" class="rounded border border-white/10 p-3 sm:p-4">
         <div class="flex flex-wrap items-center gap-3">
-          <select class="bg-slate-800 border border-white/10 rounded px-2 h-9" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
+          <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
             <option value="kick">Kick</option>
             <option value="snare">Snare</option>
             <option value="hat">Hat</option>
             <option value="perc">Perc</option>
           </select>
-          <input class="bg-slate-800 border border-white/10 rounded px-2 h-9 w-40" :value="t.name" @input="onNameInput(t.id, $event)" />
+          <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 w-32 sm:w-40" :value="t.name" @input="onNameInput(t.id, $event)" />
           <div class="text-xs sm:text-sm text-slate-400 min-w-0 flex-1 truncate">
             <template v-if="t.pattern">
               <span class="mr-2">{{ t.pattern.mode }} {{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
@@ -20,17 +20,17 @@
             </template>
             <template v-else>No pattern assigned</template>
           </div>
-          <button type="button" class="px-3 h-9 text-xs rounded border border-white/10 hover:bg-white/5" :disabled="!selected" @click.stop="assignToTrack(t.id)">Assign selected</button>
-          <button type="button" class="px-3 h-9 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">Pick…</button>
-          <button type="button" class="px-3 h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10" @click.stop="removeTrack(t.id)">Remove</button>
+          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-white/10 hover:bg-white/5" :disabled="!selected" @click.stop="assignToTrack(t.id)">Assign</button>
+          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">Pick…</button>
+          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10" @click.stop="removeTrack(t.id)">Remove</button>
         </div>
-        <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1" v-if="t.pattern">
+        <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1" v-if="t.pattern">
           <span>{{ t.pattern.mode }}</span>
           <span>{{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
           <span>bits: {{ t.pattern.totalBits }}</span>
           <span>cycle: {{ t.pattern.cycleQN.toFixed(3) }} qn</span>
         </div>
-        <div class="grid gap-4 mt-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
+        <div class="grid gap-3 sm:gap-4 mt-3 sm:mt-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-24 shrink-0 text-slate-400">Volume</span>
             <input class="flex-1" type="range" min="0" max="1" step="0.01" :value="t.volume" @input="onFieldInput(t.id, 'volume', $event)" />
@@ -52,6 +52,25 @@
               <input type="checkbox" :checked="t.lfoEnabled" @change="onFieldCheckbox(t.id, 'lfoEnabled', $event)" />
               <span class="text-slate-400">LFO enabled</span>
             </label>
+          </div>
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-24 shrink-0 text-slate-400">LFO rate</span>
+            <select class="w-28 bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9" :value="t.lfoRate || ''" @change="onLfoRateSelect(t.id, $event)">
+              <option value="">(Hz below)</option>
+              <option value="1">1 qn</option>
+              <option value="1/2">1/2</option>
+              <option value="1/2.">1/2.</option>
+              <option value="1/2t">1/2t</option>
+              <option value="1/4">1/4</option>
+              <option value="1/4.">1/4.</option>
+              <option value="1/4t">1/4t</option>
+              <option value="1/8">1/8</option>
+              <option value="1/8.">1/8.</option>
+              <option value="1/8t">1/8t</option>
+              <option value="1/16">1/16</option>
+              <option value="1/16.">1/16.</option>
+              <option value="1/16t">1/16t</option>
+            </select>
           </div>
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-24 shrink-0 text-slate-400">LFO freq</span>
@@ -203,6 +222,13 @@ function onNameInput(id: string, e: Event) {
 function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'lfoFreq'|'lfoDepth', e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   seq.updateTrackFields(id, { [key]: v } as any)
+}
+
+function onLfoRateSelect(id: string, e: Event) {
+  const v = (e.target as HTMLSelectElement).value
+  // Empty value clears musical rate so Hz is used
+  const patch: any = { lfoRate: v || undefined }
+  seq.updateTrackFields(id, patch)
 }
 
 function onFieldCheckbox(id: string, key: 'lfoEnabled', e: Event) {

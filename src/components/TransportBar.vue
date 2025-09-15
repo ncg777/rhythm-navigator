@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-2 text-xs">
+  <div class="flex flex-wrap items-center gap-2 text-xs min-w-[240px]">
     <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="onToggle">
       {{ isPlaying ? 'Stop' : 'Play' }}
     </button>
@@ -11,7 +11,7 @@
       <span class="text-slate-400">Loop bars</span>
       <input type="number" class="w-16 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="loopBars" @input="onBars" min="1" max="128" />
     </label>
-    <div class="flex items-center gap-2">
+  <div class="flex flex-wrap items-center gap-2 basis-full sm:basis-auto justify-start">
   <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportWav">WAV</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportMidi">MIDI</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportProject">Save</button>
@@ -65,7 +65,8 @@ function onExportProject() {
       velRandom: t.velRandom,
       lfoEnabled: t.lfoEnabled,
       lfoFreq: t.lfoFreq,
-      lfoDepth: t.lfoDepth,
+  lfoDepth: t.lfoDepth,
+  lfoRate: t.lfoRate,
       params: t.params,
       pattern: t.pattern ? {
         mode: t.pattern.mode,
@@ -114,6 +115,7 @@ function onImportProject(e: Event) {
             lfoEnabled: st.lfoEnabled,
             lfoFreq: st.lfoFreq,
             lfoDepth: st.lfoDepth,
+            lfoRate: st.lfoRate,
             name: st.name
           })
         } else {
@@ -124,6 +126,7 @@ function onImportProject(e: Event) {
           t.lfoEnabled = st.lfoEnabled
           t.lfoFreq = st.lfoFreq
           t.lfoDepth = st.lfoDepth
+          t.lfoRate = st.lfoRate
           t.name = st.name
         }
         if (st.params) {

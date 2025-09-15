@@ -1,22 +1,20 @@
 <template>
   <div class="min-h-screen flex flex-col">
     <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-900/70 backdrop-blur">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
-        <h1 class="text-lg sm:text-xl font-semibold tracking-tight">Rhythm Navigator</h1>
-        <div class="flex items-center gap-2 ml-2">
-          <div class="glass rounded px-3 py-2"><TransportBar /></div>
-          <!-- Generated rhythms compact bar next to transport -->
-          <div class="glass rounded px-3 py-2 hidden sm:flex items-center gap-3">
-            <span class="text-lg">🎵</span>
-            <div class="leading-tight">
-              <div class="text-xs text-slate-300">Generated rhythms</div>
-              <div class="text-[11px] text-slate-500">Cnt: {{ items.length }} · Digits: {{ numerator * denominator }} · Mode: {{ mode }}</div>
-            </div>
-            <div class="flex items-center gap-2 pl-2">
-              <button class="px-2 py-1 text-xs rounded border border-white/10 hover:bg-white/5" @click="rhythmsOpen = true" title="Open generated rhythms browser">Open</button>
-              <button class="px-2 py-1 text-xs rounded border border-white/10 hover:bg-white/5" title="Generator & filters" @click="settingsOpen = true">⚙</button>
-            </div>
+      <div class="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 py-2 flex flex-wrap items-center gap-2 overflow-x-auto">
+        <h1 class="text-base sm:text-lg font-semibold tracking-tight shrink-0 pr-2">Rhythm Navigator</h1>
+
+  <div class="glass rounded px-2 sm:px-3 py-2 flex-1 min-w-[260px]"><TransportBar /></div>
+
+        <!-- Generated rhythms compact bar: visible on mobile, compressed -->
+        <div class="glass rounded px-2 sm:px-3 py-2 flex items-center gap-2 ml-auto">
+          <span class="text-base" aria-hidden="true">🎵</span>
+          <div class="leading-tight hidden xs:block">
+            <div class="text-[11px] text-slate-300">Rhythms</div>
+            <div class="text-[10px] text-slate-500">{{ items.length }} · {{ numerator * denominator }} · {{ mode }}</div>
           </div>
+          <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" @click="rhythmsOpen = true" aria-label="Open generated rhythms">Open</button>
+          <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="Generator & filters" aria-label="Open generator settings" @click="settingsOpen = true">⚙</button>
         </div>
       </div>
     </header>

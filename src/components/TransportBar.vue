@@ -12,6 +12,7 @@
       <input type="number" class="w-16 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="loopBars" @input="onBars" min="1" max="128" />
     </label>
     <div class="flex items-center gap-2">
+  <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportWav">WAV</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportMidi">MIDI</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportProject">Save</button>
       <label class="px-2 py-1 rounded border border-white/10 hover:bg-white/5 cursor-pointer">
@@ -44,6 +45,7 @@ function onBars(e: Event) {
   seq.setLoopBars(v)
 }
 
+function onExportWav() { (seq as any).exportWav() }
 function onExportMidi() { seq.exportMidi() }
 function onExportProject() {
   const anySeq: any = seq as any

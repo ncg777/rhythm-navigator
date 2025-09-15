@@ -21,6 +21,7 @@
             <template v-else>No pattern assigned</template>
           </div>
           <button type="button" class="px-3 h-9 text-xs rounded border border-white/10 hover:bg-white/5" :disabled="!selected" @click.stop="assignToTrack(t.id)">Assign selected</button>
+          <button type="button" class="px-3 h-9 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">Pick…</button>
           <button type="button" class="px-3 h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10" @click.stop="removeTrack(t.id)">Remove</button>
         </div>
         <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1" v-if="t.pattern">
@@ -163,14 +164,18 @@
     <div class="pt-4 mt-4 border-t border-white/10">
       <button type="button" class="px-4 h-10 rounded border border-white/10 hover:bg-white/5" @click="addTrack()" title="Add a new percussion track">Add track</button>
     </div>
+
+  <!-- Rhythm picker modal -->
+  <RhythmPickerModal :open="pickerOpen" @close="pickerOpen = false" @pick="onPick" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { useRhythmStore } from '@/stores/rhythmStore'
+import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
@@ -217,6 +222,19 @@ function onParamSelect(id: string, key: string, e: Event) {
 
 function addTrack() { seq.addTrack('perc') }
 function removeTrack(id: string) { seq.removeTrack(id) }
+
+// Rhythm picker modal logic
+const pickerOpen = ref(false)
+const pickerTrackId = ref<string | null>(null)
+function openPicker(trackId: string) {
+  pickerTrackId.value = trackId
+  pickerOpen.value = true
+}
+function onPick(id: string) {
+  const item = rstore.items.find(r => r.id === id)
+  if (!item || !pickerTrackId.value) return
+  seq.assignRhythmToTrack(pickerTrackId.value, item, rstore.numerator, rstore.denominator)
+}
 </script>
 
 <style scoped></style>

@@ -266,57 +266,43 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function syncNodes() {
     // Ensure node exists for each track, recreate if signature changed
     if (Tone.getContext().state !== 'running') return
+    const presentIds = new Set(tracks.value.map(t => t.id))
     tracks.value.forEach((t) => {
-      try {
+      const id = t.id
       const sig = signatureFor(t)
-      const prev = nodeSig.get(t.id)
-      if (!nodes.value[t.id] || prev !== sig) {
-        const old = nodes.value[t.id]
-        if (old) {
-          try { old.pan.dispose() } catch {}
-          try { old.gain.dispose() } catch {}
-          try { (old.inst.node as any).dispose?.() } catch {}
-        }
-  const inst = markRaw(makeInstrument(t.type, t.params))
-        // clamp values defensively
-        const vol = Math.max(0, Math.min(1, t.volume))
-        const pn = Math.max(-1, Math.min(1, t.pan))
-  const gain = markRaw(new (Tone as any).Gain(vol))
-  const pan = markRaw(new (Tone as any).PanVol(pn, 0))
+      const currentSig = nodeSig.get(id)
+      if (!nodes.value[id]) {
+        // create new node bundle
+        const inst = markRaw(makeInstrument(t.type, t.params))
+        const gain = markRaw(new (Tone as any).Gain(Math.max(0, Math.min(1, t.volume))))
+        const pan = markRaw(new (Tone as any).PanVol(Math.max(-1, Math.min(1, t.pan)), 0))
         ;(inst.node as any).connect(gain)
         gain.connect(pan)
         pan.connect(masterLimiter)
-  nodes.value[t.id] = markRaw({ inst, gain, pan })
-        nodeSig.set(t.id, sig)
-      } else {
-        // update gains/pan only when context is running
-        const running = (Tone.getContext().state === 'running')
-        if (running) {
-          const vol = Math.max(0, Math.min(1, t.volume))
-          const pn = Math.max(-1, Math.min(1, t.pan))
-          safeSetParam(nodes.value[t.id].gain.gain, vol)
-          safeSetParam(nodes.value[t.id].pan.pan, pn)
-        }
+        nodes.value[id] = markRaw({ inst, gain, pan })
+        nodeSig.set(id, sig)
+        return
       }
-      }
-      catch (e) {
-        // Swallow per-track errors to avoid breaking the whole sync
-        // console.warn('[sequencer] syncNodes track error', e)
+      if (currentSig !== sig) {
+        // replace instrument (keep gain/pan so automation stays stable)
+        try { (nodes.value[id].inst.node as any).disconnect?.() } catch {}
+        try { (nodes.value[id].inst.node as any).dispose?.() } catch {}
+        const inst = markRaw(makeInstrument(t.type, t.params))
+        ;(inst.node as any).connect(nodes.value[id].gain)
+        nodes.value[id].inst = inst as any
+        nodeSig.set(id, sig)
       }
     })
-    // Remove nodes for deleted tracks
-    for (const id of Array.from(nodeSig.keys())) {
-      if (!tracks.value.find(t => t.id === id)) {
-        const old = nodes.value[id]
-        if (old) {
-          old.pan.dispose()
-          old.gain.dispose()
-          ;(old.inst.node as any).dispose?.()
-        }
-        delete nodes.value[id]
-        nodeSig.delete(id)
-      }
-    }
+    // Dispose any stray nodes not in tracks
+    Object.keys(nodes.value).forEach(id => {
+      if (presentIds.has(id)) return
+      const nb = nodes.value[id]
+      try { nb.pan.dispose() } catch {}
+      try { nb.gain.dispose() } catch {}
+      try { (nb.inst.node as any).dispose?.() } catch {}
+      delete nodes.value[id]
+      nodeSig.delete(id)
+    })
   }
 
   function clearSchedule() {
@@ -717,41 +703,46 @@ export const useSequencerStore = defineStore('sequencer', () => {
   try { console.info('[exportWav] events', eventsPre.length, 'durationSec', durationSec) } catch {}
     const tracksSnapshot = tracks.value.map(t => ({ ...t }))
   const audioBuffer = await Tone.Offline(() => {
-      // Build a local graph and schedule events in the Offline context
-      Tone.Transport.cancel(0)
-      Tone.Transport.bpm.value = bpm.value
-
-      // Build local instruments per track index
-      const local = tracksSnapshot.map((t) => {
-        const inst = makeInstrument(t.type, t.params)
+      // Absolute-time scheduling without Transport/Parts
+      const secondsPerQN = 60 / bpm.value
+      const locals = tracksSnapshot.map((t) => {
+        const inst = makeInstrument(t.type, t.params).node as any
         const vol = Math.max(0, Math.min(1, t.volume))
         const pn = Math.max(-1, Math.min(1, t.pan))
         const gain = new (Tone as any).Gain(vol)
         const pan = new (Tone as any).PanVol(pn, 0)
-        ;(inst.node as any).connect(gain)
+        inst.connect(gain)
         gain.connect(pan)
-        // Connect directly to destination (avoid dynamics in Offline which may cause silence)
         pan.connect(Tone.getDestination())
-        return { inst, t }
+        return { inst, type: t.type as TrackType }
       })
 
-  // Use precomputed events (indices map to current track order)
-  const events = eventsPre
-
-      // Schedule using Tone.Part per track for reliability in Offline
-      const parts: any[] = []
       const eps = 1e-4
-      const perTrack: { time: number; velocity: number }[][] = local.map(() => [])
-      for (const ev of events) perTrack[ev.trackIndex].push({ time: ev.timeSec + eps, velocity: ev.velocity })
-      perTrack.forEach((evs, i) => {
-        if (!evs.length) return
-        const part = new (Tone as any).Part((time: number, value: any) => {
-          local[i].inst.trigger(time, value.velocity)
-        }, evs.map(e => [e.time, { velocity: e.velocity }]))
-        part.start(0)
-        parts.push(part)
-      })
-      Tone.Transport.start(0)
+      for (const ev of eventsPre) {
+        const at = Math.min(durationSec, Math.max(0, ev.timeSec + eps))
+        const trk = locals[ev.trackIndex]
+        if (!trk) continue
+        const vel = ev.velocity
+        switch (trk.type) {
+          case 'kick':
+            // MembraneSynth: (note, dur, time, vel)
+            trk.inst.triggerAttackRelease('C1', 0.5 * secondsPerQN, at, vel)
+            break
+          case 'snare':
+            // NoiseSynth: (dur, time, vel)
+            trk.inst.triggerAttackRelease(0.25 * secondsPerQN, at, vel)
+            break
+          case 'hat':
+            // MetalSynth
+            trk.inst.triggerAttackRelease('C5', 0.125 * secondsPerQN, at, vel)
+            break
+          case 'perc':
+          default:
+            // PluckSynth
+            trk.inst.triggerAttackRelease('C3', 0.25 * secondsPerQN, at, vel)
+            break
+        }
+      }
     }, durationSec)
     if (isSilentBuffer(audioBuffer)) {
       // Fallback: record live output using Tone.Recorder for one loop

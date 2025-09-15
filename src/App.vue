@@ -28,6 +28,9 @@
       </div>
     </main>
 
+  <!-- Global toast host -->
+  <ToastHost />
+
     <!-- Settings modal -->
     <Modal :open="settingsOpen" @close="settingsOpen = false">
       <template #title>
@@ -66,6 +69,7 @@ import RhythmRelations from '@/components/RhythmRelations.vue'
 import TransportBar from '@/components/TransportBar.vue'
 import DrumTracks from '@/components/DrumTracks.vue'
 import Modal from '@/components/Modal.vue'
+import ToastHost from '@/components/ToastHost.vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { ref } from 'vue'
@@ -77,3 +81,6 @@ const settingsOpen = ref(false)
 </script>
 
 <style scoped></style>
+
+<!-- Global toast host -->
+<ToastHost />

@@ -247,6 +247,10 @@ export const useRhythmStore = defineStore('rhythm', {
       }
       this.items = [item, ...this.items]
       this.selectedId = item.id
+          // UI feedback
+          try {
+            import('@/stores/uiStore').then(m => m.useUiStore().pushToast(`Agglutinated rhythm added: ${groupedDigitsString}`, 'success'))
+          } catch {}
     }
   }
 })

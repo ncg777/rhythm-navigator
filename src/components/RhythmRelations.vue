@@ -274,9 +274,9 @@ async function startAudio(onsets: number[], totalBits: number) {
   if (spb <= 0) return
   const beatDur = 60 / bpm.value
   const bitDur = beatDur / spb
-  const measureDur = numerator.value * beatDur
   if (!onsets.length || totalBits <= 0) return
   const eventsSec = onsets.map((p) => p * bitDur)
+  const loopEnd = totalBits * bitDur
 
   if (part) {
     part.dispose()
@@ -287,7 +287,7 @@ async function startAudio(onsets: number[], totalBits: number) {
     if (synth) synth.triggerAttackRelease('C5', 0.03, time)
   }, eventsSec.map((t) => ({ time: t })))
   part.loop = true
-  part.loopEnd = measureDur
+  part.loopEnd = loopEnd
   part.start(0)
 
   Tone.Transport.start()

@@ -20,7 +20,6 @@
             </template>
             <template v-else>No pattern assigned</template>
           </div>
-          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-white/10 hover:bg-white/5" :disabled="!selected" @click.stop="assignToTrack(t.id)">Assign</button>
           <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">Pick…</button>
           <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10" @click.stop="removeTrack(t.id)">Remove</button>
         </div>
@@ -202,13 +201,6 @@ const { tracks, version } = storeToRefs(seq)
 const renderTracks = computed(() => tracks.value.map(t => t))
 
 const rstore = useRhythmStore()
-const { selected } = storeToRefs(rstore)
-
-function assignToTrack(id: string) {
-  if (!selected.value) return
-  // Use current rhythm settings (numerator/denominator) with the selected pattern
-  seq.assignRhythmToTrack(id, selected.value, rstore.numerator, rstore.denominator)
-}
 
 function onTypeChange(id: string, type: any) {
   seq.setTrackType(id, type)

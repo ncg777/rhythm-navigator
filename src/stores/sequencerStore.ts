@@ -138,7 +138,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   const tracks = ref<Track[]>([])
 
-  type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any }
+  type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any; filter?: any; lfo?: any }
   // Keep audio nodes out of deep reactivity to avoid glitches
   const nodes = shallowRef<Record<string, NodeBundle>>({})
 
@@ -157,6 +157,61 @@ export const useSequencerStore = defineStore('sequencer', () => {
         console.error('[sequencer] enqueueAudioSync error', e)
       }
     }, 16) as unknown) as number
+  }
+
+  // Helper: parse musical rate (e.g., '1/8', '1/8.', '1/8t') to Hz at current BPM
+  function rateToHz(rate: string, bpmNow: number): number {
+    const secondsPerQN = 60 / bpmNow
+    const m = rate.match(/^1\/(\d+)([dt])?$/) || rate.match(/^(\d+)([dt])?$/)
+    if (!m) return 0
+    const num = m[1] ? Number(m[1]) : 1
+    const isNoteForm = /^1\//.test(rate)
+    let qn = isNoteForm ? (1 / (Number(num) / 4)) : (Number(num))
+    const mod = m[2]
+    if (mod === 'd') qn *= 1.5
+    else if (mod === 't') qn *= 2 / 3
+    const durSec = qn * secondsPerQN
+    return durSec > 0 ? 1 / durSec : 0
+  }
+
+  function syncLfoForTrack(t: Track, nb: NodeBundle) {
+    try {
+      const want = !!t.lfoEnabled && t.lfoDepth > 0 && ((t.lfoRate && t.lfoRate.length > 0) || t.lfoFreq > 0)
+      if (!want) {
+        if (nb.lfo) { try { nb.lfo.dispose() } catch {} nb.lfo = undefined }
+        if (nb.filter) {
+          try { (nb.inst.node as any).disconnect(nb.filter) } catch {}
+          try { nb.filter.disconnect(nb.gain) } catch {}
+          try { nb.filter.dispose() } catch {}
+          nb.filter = undefined
+          try { (nb.inst.node as any).connect(nb.gain) } catch {}
+        }
+        return
+      }
+      // Ensure filter exists and is in chain inst -> filter -> gain
+      if (!nb.filter) {
+        nb.filter = new (Tone as any).Filter(1200, 'lowpass')
+        try { (nb.inst.node as any).disconnect(nb.gain) } catch {}
+        ;(nb.inst.node as any).connect(nb.filter)
+        nb.filter.connect(nb.gain)
+      }
+      // Ensure LFO exists and is connected to filter frequency
+      const hz = t.lfoRate ? rateToHz(t.lfoRate, bpm.value) : Math.max(0, Number(t.lfoFreq || 0))
+      const depth = Math.max(0, Math.min(1, Number(t.lfoDepth)))
+      const base = 800
+      const max = base + 3200 * depth
+      const min = base
+      if (!nb.lfo) {
+        nb.lfo = new (Tone as any).LFO({ frequency: hz || '1/8', min, max, type: 'sine', phase: 0 })
+        nb.lfo.connect(nb.filter.frequency)
+        nb.lfo.start()
+      } else {
+        try { nb.lfo.frequency.value = hz || nb.lfo.frequency.value } catch {}
+        try { nb.lfo.min = min; nb.lfo.max = max } catch {}
+      }
+    } catch (e) {
+      // ignore
+    }
   }
 
   function addTrack(type: TrackType = 'kick', name?: string) {
@@ -187,14 +242,16 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value = tracks.value.concat(t)
     // create nodes only when context is running; otherwise defer to syncNodes on start
     if (Tone.getContext().state === 'running') {
-  const inst = markRaw(makeInstrument(t.type, t.params))
-  const gain = markRaw(new (Tone as any).Gain(t.volume))
-  const pan = markRaw(new (Tone as any).PanVol(t.pan, 0))
-  ;(inst.node as any).connect(gain)
-  gain.connect(pan)
-  pan.connect(masterLimiter)
-  // shallowRef prevents deep tracking; still markRaw the bundle
-  nodes.value[id] = markRaw({ inst, gain, pan })
+      const inst = markRaw(makeInstrument(t.type, t.params))
+      const gain = markRaw(new (Tone as any).Gain(t.volume))
+      const pan = markRaw(new (Tone as any).PanVol(t.pan, 0))
+      ;(inst.node as any).connect(gain)
+      gain.connect(pan)
+      pan.connect(masterLimiter)
+      const bundle: NodeBundle = { inst, gain, pan }
+      syncLfoForTrack(t, bundle)
+      // shallowRef prevents deep tracking; still markRaw the bundle
+      nodes.value[id] = markRaw(bundle)
     }
   version.value++
   }
@@ -207,6 +264,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value = tracks.value.filter(t => t.id !== id)
     const n = nodes.value[id]
     if (n) {
+      try { n.lfo?.dispose() } catch {}
+      try { n.filter?.dispose() } catch {}
       n.pan.dispose()
       n.gain.dispose()
       ;(n.inst.node as any).dispose?.()
@@ -278,6 +337,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const pan = Math.max(-1, Math.min(1, t.pan))
       safeSetParam(nb.gain.gain, vol)
       safeSetParam(nb.pan.pan, pan)
+      // keep LFO/filter synced to track settings
+      syncLfoForTrack(t, nb)
     })
   }
 
@@ -304,7 +365,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
         ;(inst.node as any).connect(gain)
         gain.connect(pan)
         pan.connect(masterLimiter)
-        nodes.value[id] = markRaw({ inst, gain, pan })
+        const bundle: NodeBundle = { inst, gain, pan }
+        syncLfoForTrack(t, bundle)
+        nodes.value[id] = markRaw(bundle)
         nodeSig.set(id, sig)
         return
       }
@@ -313,10 +376,16 @@ export const useSequencerStore = defineStore('sequencer', () => {
         try { (nodes.value[id].inst.node as any).disconnect?.() } catch {}
         try { (nodes.value[id].inst.node as any).dispose?.() } catch {}
         const inst = markRaw(makeInstrument(t.type, t.params))
-        ;(inst.node as any).connect(nodes.value[id].gain)
+        if (nodes.value[id].filter) {
+          ;(inst.node as any).connect(nodes.value[id].filter)
+        } else {
+          ;(inst.node as any).connect(nodes.value[id].gain)
+        }
         nodes.value[id].inst = inst as any
         nodeSig.set(id, sig)
       }
+      // Ensure LFO chain reflects current track settings
+      syncLfoForTrack(t, nodes.value[id])
     })
     // Dispose any stray nodes not in tracks
     Object.keys(nodes.value).forEach(id => {
@@ -324,6 +393,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const nb = nodes.value[id]
       try { nb.pan.dispose() } catch {}
       try { nb.gain.dispose() } catch {}
+      try { nb.lfo?.dispose() } catch {}
+      try { nb.filter?.dispose() } catch {}
       try { (nb.inst.node as any).dispose?.() } catch {}
       delete nodes.value[id]
       nodeSig.delete(id)
@@ -353,6 +424,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value.forEach((t) => {
       const pat = t.pattern
       if (!pat) return
+    const nb = nodes.value[t.id]
+    if (nb) syncLfoForTrack(t, nb)
       const cycleQN = pat.cycleQN
       if (cycleQN <= 0) return
       for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
@@ -736,10 +809,28 @@ export const useSequencerStore = defineStore('sequencer', () => {
         const pn = Math.max(-1, Math.min(1, t.pan))
         const gain = new (Tone as any).Gain(vol)
         const pan = new (Tone as any).PanVol(pn, 0)
+        let filter: any | null = null
+        let lfo: any | null = null
+        // Default chain
         inst.connect(gain)
+        // Optional LFO/filter
+        if (t.lfoEnabled && t.lfoDepth > 0 && ((t.lfoRate && t.lfoRate.length > 0) || t.lfoFreq > 0)) {
+          filter = new (Tone as any).Filter(1200, 'lowpass')
+          try { inst.disconnect(gain) } catch {}
+          inst.connect(filter)
+          filter.connect(gain)
+          const hz = t.lfoRate ? rateToHz(t.lfoRate, bpm.value) : Math.max(0, Number(t.lfoFreq || 0))
+          const depth = Math.max(0, Math.min(1, Number(t.lfoDepth)))
+          const base = 800
+          const max = base + 3200 * depth
+          const min = base
+          lfo = new (Tone as any).LFO({ frequency: hz || '1/8', min, max, type: 'sine', phase: 0 })
+          lfo.connect((filter as any).frequency)
+          lfo.start()
+        }
         gain.connect(pan)
         pan.connect(Tone.getDestination())
-        return { inst, type: t.type as TrackType }
+        return { inst, type: t.type as TrackType, filter, lfo }
       })
 
       const eps = 1e-4

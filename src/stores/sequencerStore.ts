@@ -29,10 +29,6 @@ type Track = {
   pan: number // -1..1
   velocity: number // 0..1 default velocity
   velRandom: number // 0..1 randomization extent
-  lfoEnabled: boolean
-  lfoFreq: number // Hz (deprecated; kept for backward compatibility)
-  lfoRate?: string // musical rate like '1/4', '1/4.', '1/4t', '1/8', '1/8.', '1/8t', '1/16', '1/16.', '1/16t'
-  lfoDepth: number // 0..1 depth multiplier
   pattern: Pattern | null
   // synth parameters per type (simple flat bag to avoid complex unions)
   params: Record<string, number | string>
@@ -126,8 +122,8 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
 }
 
 export const useSequencerStore = defineStore('sequencer', () => {
-  const bpm = ref(120)
-  const loopBars = ref(8) // 8 bars @ 4/4 by default
+  const bpm = ref(60)
+  const loopBars = ref(1) // 8 bars @ 4/4 by default
   const isPlaying = ref(false)
   // bump this whenever track structure/pattern associations change
   const version = ref(0)
@@ -138,7 +134,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   const tracks = ref<Track[]>([])
 
-  type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any; filter?: any; lfo?: any }
+  type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any }
   // Keep audio nodes out of deep reactivity to avoid glitches
   const nodes = shallowRef<Record<string, NodeBundle>>({})
 
@@ -159,60 +155,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     }, 16) as unknown) as number
   }
 
-  // Helper: parse musical rate (e.g., '1/8', '1/8.', '1/8t') to Hz at current BPM
-  function rateToHz(rate: string, bpmNow: number): number {
-    const secondsPerQN = 60 / bpmNow
-    const m = rate.match(/^1\/(\d+)([dt])?$/) || rate.match(/^(\d+)([dt])?$/)
-    if (!m) return 0
-    const num = m[1] ? Number(m[1]) : 1
-    const isNoteForm = /^1\//.test(rate)
-    let qn = isNoteForm ? (1 / (Number(num) / 4)) : (Number(num))
-    const mod = m[2]
-    if (mod === 'd') qn *= 1.5
-    else if (mod === 't') qn *= 2 / 3
-    const durSec = qn * secondsPerQN
-    return durSec > 0 ? 1 / durSec : 0
-  }
 
-  function syncLfoForTrack(t: Track, nb: NodeBundle) {
-    try {
-      const want = !!t.lfoEnabled && t.lfoDepth > 0 && ((t.lfoRate && t.lfoRate.length > 0) || t.lfoFreq > 0)
-      if (!want) {
-        if (nb.lfo) { try { nb.lfo.dispose() } catch {} nb.lfo = undefined }
-        if (nb.filter) {
-          try { (nb.inst.node as any).disconnect(nb.filter) } catch {}
-          try { nb.filter.disconnect(nb.gain) } catch {}
-          try { nb.filter.dispose() } catch {}
-          nb.filter = undefined
-          try { (nb.inst.node as any).connect(nb.gain) } catch {}
-        }
-        return
-      }
-      // Ensure filter exists and is in chain inst -> filter -> gain
-      if (!nb.filter) {
-        nb.filter = new (Tone as any).Filter(1200, 'lowpass')
-        try { (nb.inst.node as any).disconnect(nb.gain) } catch {}
-        ;(nb.inst.node as any).connect(nb.filter)
-        nb.filter.connect(nb.gain)
-      }
-      // Ensure LFO exists and is connected to filter frequency
-      const hz = t.lfoRate ? rateToHz(t.lfoRate, bpm.value) : Math.max(0, Number(t.lfoFreq || 0))
-      const depth = Math.max(0, Math.min(1, Number(t.lfoDepth)))
-      const base = 800
-      const max = base + 3200 * depth
-      const min = base
-      if (!nb.lfo) {
-        nb.lfo = new (Tone as any).LFO({ frequency: hz || '1/8', min, max, type: 'sine', phase: 0 })
-        nb.lfo.connect(nb.filter.frequency)
-        nb.lfo.start()
-      } else {
-        try { nb.lfo.frequency.value = hz || nb.lfo.frequency.value } catch {}
-        try { nb.lfo.min = min; nb.lfo.max = max } catch {}
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
 
   function addTrack(type: TrackType = 'kick', name?: string) {
     const id = `t${Math.random().toString(36).slice(2, 8)}`
@@ -225,10 +168,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       pan: 0,
       velocity: 0.8,
       velRandom: 0,
-      lfoEnabled: false,
-  lfoFreq: 0.5,
-  lfoRate: '1/4',
-      lfoDepth: 0.2,
       pattern: null,
       params:
         type === 'kick'
@@ -248,8 +187,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       ;(inst.node as any).connect(gain)
       gain.connect(pan)
       pan.connect(masterLimiter)
-      const bundle: NodeBundle = { inst, gain, pan }
-      syncLfoForTrack(t, bundle)
+  const bundle: NodeBundle = { inst, gain, pan }
       // shallowRef prevents deep tracking; still markRaw the bundle
       nodes.value[id] = markRaw(bundle)
     }
@@ -264,8 +202,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value = tracks.value.filter(t => t.id !== id)
     const n = nodes.value[id]
     if (n) {
-      try { n.lfo?.dispose() } catch {}
-      try { n.filter?.dispose() } catch {}
       n.pan.dispose()
       n.gain.dispose()
       ;(n.inst.node as any).dispose?.()
@@ -292,33 +228,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function computeVelocity(t: Track, absoluteSeconds: number): number {
     let v = t.velocity
-    if (t.lfoEnabled && t.lfoDepth > 0) {
-      let lfoHz = t.lfoFreq || 0
-      // Musical rate takes precedence if present
-      if (t.lfoRate) {
-        const secondsPerQN = 60 / bpm.value
-        const parseRate = (rate: string): number => {
-          // rate like '1/4', '1/4.', '1/4t', '1/8', '1/8.', '1/8t', '1/2', '1', etc.
-          const m = rate.match(/^1\/(\d+)([dt])?$/) || rate.match(/^(\d+)([dt])?$/)
-          if (!m) return 0
-          const num = m[1] ? Number(m[1]) : 1
-          const isNoteForm = /^1\//.test(rate)
-          // base in quarter notes: 1/4 -> 1 QN; 1/8 -> 0.5 QN; 1/16 -> 0.25 QN
-          let qn = isNoteForm ? (1 / (Number(num) / 4)) : (Number(num))
-          // Dotted (.) increases by 50%; Triplet (t) reduces to 2/3
-          const mod = m[2]
-          if (mod === 'd') qn *= 1.5
-          else if (mod === 't') qn *= 2 / 3
-          const durSec = qn * secondsPerQN
-          return durSec > 0 ? 1 / durSec : 0
-        }
-        lfoHz = parseRate(t.lfoRate)
-      }
-      if (lfoHz > 0) {
-        const lfo = Math.sin(2 * Math.PI * lfoHz * absoluteSeconds) // -1..1
-        v = v * (1 + t.lfoDepth * lfo)
-      }
-    }
     if (t.velRandom > 0) {
       const r = (Math.random() * 2 - 1) * t.velRandom
       v = v * (1 + r)
@@ -337,8 +246,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const pan = Math.max(-1, Math.min(1, t.pan))
       safeSetParam(nb.gain.gain, vol)
       safeSetParam(nb.pan.pan, pan)
-      // keep LFO/filter synced to track settings
-      syncLfoForTrack(t, nb)
     })
   }
 
@@ -366,7 +273,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
         gain.connect(pan)
         pan.connect(masterLimiter)
         const bundle: NodeBundle = { inst, gain, pan }
-        syncLfoForTrack(t, bundle)
         nodes.value[id] = markRaw(bundle)
         nodeSig.set(id, sig)
         return
@@ -376,16 +282,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
         try { (nodes.value[id].inst.node as any).disconnect?.() } catch {}
         try { (nodes.value[id].inst.node as any).dispose?.() } catch {}
         const inst = markRaw(makeInstrument(t.type, t.params))
-        if (nodes.value[id].filter) {
-          ;(inst.node as any).connect(nodes.value[id].filter)
-        } else {
-          ;(inst.node as any).connect(nodes.value[id].gain)
-        }
+        ;(inst.node as any).connect(nodes.value[id].gain)
         nodes.value[id].inst = inst as any
         nodeSig.set(id, sig)
       }
-      // Ensure LFO chain reflects current track settings
-      syncLfoForTrack(t, nodes.value[id])
     })
     // Dispose any stray nodes not in tracks
     Object.keys(nodes.value).forEach(id => {
@@ -393,8 +293,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const nb = nodes.value[id]
       try { nb.pan.dispose() } catch {}
       try { nb.gain.dispose() } catch {}
-      try { nb.lfo?.dispose() } catch {}
-      try { nb.filter?.dispose() } catch {}
       try { (nb.inst.node as any).dispose?.() } catch {}
       delete nodes.value[id]
       nodeSig.delete(id)
@@ -424,8 +322,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value.forEach((t) => {
       const pat = t.pattern
       if (!pat) return
-    const nb = nodes.value[t.id]
-    if (nb) syncLfoForTrack(t, nb)
       const cycleQN = pat.cycleQN
       if (cycleQN <= 0) return
       for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
@@ -494,7 +390,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // Immutable updates for mix fields to avoid deep in-place mutations
-  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'lfoEnabled' | 'lfoFreq' | 'lfoRate' | 'lfoDepth'>>) {
+  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom'>>) {
     let changed = false
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
@@ -504,8 +400,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       next.pan = Math.max(-1, Math.min(1, Number(next.pan)))
       next.velocity = Math.max(0, Math.min(1, Number(next.velocity)))
       next.velRandom = Math.max(0, Math.min(1, Number(next.velRandom)))
-  next.lfoFreq = Math.max(0, Number(next.lfoFreq))
-      next.lfoDepth = Math.max(0, Math.min(1, Number(next.lfoDepth)))
       changed = true
       return next
     })
@@ -809,28 +703,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
         const pn = Math.max(-1, Math.min(1, t.pan))
         const gain = new (Tone as any).Gain(vol)
         const pan = new (Tone as any).PanVol(pn, 0)
-        let filter: any | null = null
-        let lfo: any | null = null
-        // Default chain
+        // Simple chain inst -> gain -> pan
         inst.connect(gain)
-        // Optional LFO/filter
-        if (t.lfoEnabled && t.lfoDepth > 0 && ((t.lfoRate && t.lfoRate.length > 0) || t.lfoFreq > 0)) {
-          filter = new (Tone as any).Filter(1200, 'lowpass')
-          try { inst.disconnect(gain) } catch {}
-          inst.connect(filter)
-          filter.connect(gain)
-          const hz = t.lfoRate ? rateToHz(t.lfoRate, bpm.value) : Math.max(0, Number(t.lfoFreq || 0))
-          const depth = Math.max(0, Math.min(1, Number(t.lfoDepth)))
-          const base = 800
-          const max = base + 3200 * depth
-          const min = base
-          lfo = new (Tone as any).LFO({ frequency: hz || '1/8', min, max, type: 'sine', phase: 0 })
-          lfo.connect((filter as any).frequency)
-          lfo.start()
-        }
         gain.connect(pan)
         pan.connect(Tone.getDestination())
-        return { inst, type: t.type as TrackType, filter, lfo }
+        return { inst, type: t.type as TrackType }
       })
 
       const eps = 1e-4
@@ -926,10 +803,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
     pan: number
     velocity: number
     velRandom: number
-    lfoEnabled: boolean
-    lfoFreq: number
-  lfoRate?: string
-    lfoDepth: number
     params: Record<string, number | string>
     pattern: null | {
       mode: Mode
@@ -957,10 +830,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
         pan: t.pan,
         velocity: t.velocity,
         velRandom: t.velRandom,
-        lfoEnabled: t.lfoEnabled,
-        lfoFreq: t.lfoFreq,
-  lfoRate: t.lfoRate,
-        lfoDepth: t.lfoDepth,
         params: t.params,
         pattern: t.pattern ? {
           mode: t.pattern.mode,
@@ -1015,10 +884,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
           pan: st.pan,
           velocity: st.velocity,
           velRandom: st.velRandom,
-          lfoEnabled: st.lfoEnabled,
-          lfoFreq: st.lfoFreq,
-          lfoRate: st.lfoRate,
-          lfoDepth: st.lfoDepth,
           params: st.params,
           pattern: null
         }

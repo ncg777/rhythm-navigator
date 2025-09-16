@@ -13,8 +13,8 @@ type WorkerMessage =
 export const useRhythmStore = defineStore('rhythm', {
   state: () => ({
     mode: 'hex' as Mode,
-    numerator: 2,
-    denominator: 2,
+    numerator: 4,
+    denominator: 1,
 
     // 0 = unlimited (runs until stopped or space exhausted)
     maxReps: 0,

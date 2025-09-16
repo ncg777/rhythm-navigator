@@ -13,10 +13,10 @@
             <option value="perc">Perc</option>
           </select>
           <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 w-32 sm:w-40" :value="t.name" @input="onNameInput(t.id, $event)" />
-          <div class="text-xs sm:text-sm text-slate-400 min-w-0 flex-1 truncate">
+          <div class="text-xs sm:text-sm text-slate-400 min-w-0 flex-1 whitespace-pre-wrap break-words">
             <template v-if="t.pattern">
-              <span class="mr-2">{{ t.pattern.mode }} {{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
-              <span>{{ t.pattern.groupedDigitsString }}</span>
+              <span class="mr-2 block sm:inline">{{ t.pattern.mode }} {{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
+              <span class="block sm:inline">{{ t.pattern.groupedDigitsString }}</span>
             </template>
             <template v-else>No pattern assigned</template>
           </div>
@@ -45,39 +45,6 @@
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-24 shrink-0 text-slate-400">Vel random</span>
             <input class="flex-1" type="range" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" :checked="t.lfoEnabled" @change="onFieldCheckbox(t.id, 'lfoEnabled', $event)" />
-              <span class="text-slate-400">LFO enabled</span>
-            </label>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">LFO rate</span>
-            <select class="w-28 bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9" :value="t.lfoRate || ''" @change="onLfoRateSelect(t.id, $event)">
-              <option value="">(Hz below)</option>
-              <option value="1">1 qn</option>
-              <option value="1/2">1/2</option>
-              <option value="1/2.">1/2.</option>
-              <option value="1/2t">1/2t</option>
-              <option value="1/4">1/4</option>
-              <option value="1/4.">1/4.</option>
-              <option value="1/4t">1/4t</option>
-              <option value="1/8">1/8</option>
-              <option value="1/8.">1/8.</option>
-              <option value="1/8t">1/8t</option>
-              <option value="1/16">1/16</option>
-              <option value="1/16.">1/16.</option>
-              <option value="1/16t">1/16t</option>
-            </select>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">LFO freq</span>
-            <input class="w-28 bg-slate-800 border border-white/10 rounded px-2 py-1" type="number" min="0" step="0.01" :value="t.lfoFreq" @input="onFieldInput(t.id, 'lfoFreq', $event)" />
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">LFO depth</span>
-            <input class="flex-1" type="range" min="0" max="1" step="0.01" :value="t.lfoDepth" @input="onFieldInput(t.id, 'lfoDepth', $event)" />
           </div>
           <div class="col-span-12 lg:col-span-3 text-xs text-slate-400 flex items-center">Cycle: <span class="ml-1" v-if="t.pattern">{{ t.pattern.cycleQN.toFixed(3) }} qn</span><span v-else>—</span></div>
         </div>
@@ -211,20 +178,8 @@ function onNameInput(id: string, e: Event) {
   seq.updateTrackFields(id, { name: v })
 }
 
-function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'lfoFreq'|'lfoDepth', e: Event) {
+function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom', e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
-  seq.updateTrackFields(id, { [key]: v } as any)
-}
-
-function onLfoRateSelect(id: string, e: Event) {
-  const v = (e.target as HTMLSelectElement).value
-  // Empty value clears musical rate so Hz is used
-  const patch: any = { lfoRate: v || undefined }
-  seq.updateTrackFields(id, patch)
-}
-
-function onFieldCheckbox(id: string, key: 'lfoEnabled', e: Event) {
-  const v = (e.target as HTMLInputElement).checked
   seq.updateTrackFields(id, { [key]: v } as any)
 }
 

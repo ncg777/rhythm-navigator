@@ -63,18 +63,6 @@ function onExportProject() {
       pan: t.pan,
       velocity: t.velocity,
       velRandom: t.velRandom,
-      lfoEnabled: t.lfoEnabled,
-      lfoFreq: t.lfoFreq,
-  lfoDepth: t.lfoDepth,
-  lfoRate: t.lfoRate,
-      params: t.params,
-      pattern: t.pattern ? {
-        mode: t.pattern.mode,
-        groupedDigitsString: t.pattern.groupedDigitsString,
-        digits: t.pattern.digits,
-        numerator: t.pattern.numerator,
-        denominator: t.pattern.denominator
-      } : null
     }))
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -112,10 +100,6 @@ function onImportProject(e: Event) {
             pan: st.pan,
             velocity: st.velocity,
             velRandom: st.velRandom,
-            lfoEnabled: st.lfoEnabled,
-            lfoFreq: st.lfoFreq,
-            lfoDepth: st.lfoDepth,
-            lfoRate: st.lfoRate,
             name: st.name
           })
         } else {
@@ -123,10 +107,6 @@ function onImportProject(e: Event) {
           t.pan = st.pan
           t.velocity = st.velocity
           t.velRandom = st.velRandom
-          t.lfoEnabled = st.lfoEnabled
-          t.lfoFreq = st.lfoFreq
-          t.lfoDepth = st.lfoDepth
-          t.lfoRate = st.lfoRate
           t.name = st.name
         }
         if (st.params) {

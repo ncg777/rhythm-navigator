@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
@@ -249,7 +250,7 @@ export const useRhythmStore = defineStore('rhythm', {
       this.selectedId = item.id
           // UI feedback
           try {
-            import('@/stores/uiStore').then(m => m.useUiStore().pushToast(`Agglutinated rhythm added: ${groupedDigitsString}`, 'success'))
+            useUiStore().pushToast(`Agglutinated rhythm added: ${groupedDigitsString}`, 'success')
           } catch {}
     }
   }

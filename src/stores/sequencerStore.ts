@@ -992,16 +992,18 @@ export const useSequencerStore = defineStore('sequencer', () => {
       }
     })
 
-    // Tempo/meta track (track 0)
-    const tempoTrack: number[] = []
-    // Track name
-    tempoTrack.push(...writeVarLen(0), 0xFF, 0x03, 0x06, ...Array.from(new TextEncoder().encode('Tempo')))
-    // Tempo
-    tempoTrack.push(...writeVarLen(0), 0xFF, 0x51, 0x03, (tempoUsPerQN >> 16) & 0xFF, (tempoUsPerQN >> 8) & 0xFF, tempoUsPerQN & 0xFF)
-    // Time signature hint 4/4
-    tempoTrack.push(...writeVarLen(0), 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08)
-    // End
-    tempoTrack.push(...writeVarLen(0), 0xFF, 0x2F, 0x00)
+  // Tempo/meta track (track 0)
+  const tempoTrack: number[] = []
+  // Track name (correct length)
+  const tempoNameBytes = Array.from(new TextEncoder().encode('Tempo'))
+  tempoTrack.push(...writeVarLen(0), 0xFF, 0x03, tempoNameBytes.length, ...tempoNameBytes)
+  // Tempo (at time 0)
+  tempoTrack.push(...writeVarLen(0), 0xFF, 0x51, 0x03, (tempoUsPerQN >> 16) & 0xFF, (tempoUsPerQN >> 8) & 0xFF, tempoUsPerQN & 0xFF)
+  // Time signature hint 4/4 (at time 0)
+  tempoTrack.push(...writeVarLen(0), 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08)
+  // End-of-track after loop length
+  const loopTicks = Math.max(0, Math.round(loopQN * PPQ))
+  tempoTrack.push(...writeVarLen(loopTicks), 0xFF, 0x2F, 0x00)
 
     function buildTrackChunk(name: string, evs: Ev[]): Uint8Array {
       evs.sort((a, b) => a.tick - b.tick)

@@ -166,8 +166,7 @@ export const useRhythmStore = defineStore('rhythm', {
           numerator: this.numerator,
           denominator: this.denominator,
           maxReps: this.maxReps,
-          minOnsets: this.minOnsets,
-          maxOnsets: this.maxOnsets,
+          // minOnsets/maxOnsets removed from UI; generation uses full range
           onlyIsomorphic: this.onlyIsomorphic,
           onlyMaximallyEven: this.onlyMaximallyEven,
           oddityType: this.oddityType,
@@ -239,8 +238,7 @@ export const useRhythmStore = defineStore('rhythm', {
           rotationInvariant: true,
           reflectionInvariant: true,
           excludeTrivial: true,
-          minOnsets: this.minOnsets,
-          maxOnsets: this.maxOnsets,
+          // process all onsets; min/max removed from UI
           onlyIsomorphic: this.onlyIsomorphic,
           onlyMaximallyEven: this.onlyMaximallyEven,
           oddityType: this.oddityType,

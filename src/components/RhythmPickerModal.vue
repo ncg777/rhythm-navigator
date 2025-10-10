@@ -2,18 +2,45 @@
   <teleport to="body">
     <Modal :open="open" @close="emit('close')">
       <template #title>
-        <div class="flex items-center justify-between w-full">
+        <div class="flex items-center justify-between w-full" ref="menuRoot">
           <h3 class="text-lg font-semibold">Select a rhythm</h3>
-          <div class="flex items-center gap-2">
-            <label class="flex items-center gap-2 text-xs text-slate-400">
-              <span>Sort</span>
-              <select v-model="sortKey" class="bg-slate-800 border border-white/10 rounded px-2 py-1 text-sm">
-                <option value="mode-tsig-onsets">Mode → Time Sig → Onsets</option>
-                <option value="tsig-mode-onsets">Time Sig → Mode → Onsets</option>
-                <option value="onsets-mode-tsig">Onsets → Mode → Time Sig</option>
-                <option value="alpha">Grouped digits (A→Z)</option>
-              </select>
-            </label>
+          <div class="flex items-center gap-2 relative">
+            <button
+              class="px-2 py-1 rounded border border-white/10 hover:bg-white/5"
+              @click.stop="toggleSortMenu"
+              title="Sort options"
+              aria-label="Sort options"
+            >
+              <!-- Sort icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                <path d="M3 7h12a1 1 0 1 0 0-2H3a1 1 0 1 0 0 2zm0 12h12a1 1 0 1 0 0-2H3a1 1 0 1 0 0 2zM3 13h18a1 1 0 1 0 0-2H3a1 1 0 1 0 0 2z" />
+              </svg>
+            </button>
+            <div v-if="showSortMenu" class="absolute right-0 top-full mt-1 w-64 glass rounded border border-white/10 shadow-xl z-10">
+              <div class="text-xs text-slate-400 px-3 py-2 border-b border-white/10">Sort by</div>
+              <ul class="py-1 text-sm">
+                <li>
+                  <button class="w-full text-left px-3 py-2 hover:bg-white/5" @click="chooseSort('mode-tsig-onsets')">
+                    Mode → Time Sig → Onsets
+                  </button>
+                </li>
+                <li>
+                  <button class="w-full text-left px-3 py-2 hover:bg-white/5" @click="chooseSort('tsig-mode-onsets')">
+                    Time Sig → Mode → Onsets
+                  </button>
+                </li>
+                <li>
+                  <button class="w-full text-left px-3 py-2 hover:bg-white/5" @click="chooseSort('onsets-mode-tsig')">
+                    Onsets → Mode → Time Sig
+                  </button>
+                </li>
+                <li>
+                  <button class="w-full text-left px-3 py-2 hover:bg-white/5" @click="chooseSort('alpha')">
+                    Grouped digits (A→Z)
+                  </button>
+                </li>
+              </ul>
+            </div>
             <SearchBar v-model="query" />
           </div>
         </div>
@@ -29,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import Modal from './Modal.vue'
 import SearchBar from './SearchBar.vue'
 import RhythmCard from './RhythmCard.vue'
@@ -43,6 +70,21 @@ const query = ref('')
 
 const items = computed(() => store.items)
 const sortKey = ref<'mode-tsig-onsets' | 'tsig-mode-onsets' | 'onsets-mode-tsig' | 'alpha'>('mode-tsig-onsets')
+const showSortMenu = ref(false)
+const menuRoot = ref<HTMLElement | null>(null)
+function toggleSortMenu() { showSortMenu.value = !showSortMenu.value }
+function chooseSort(v: 'mode-tsig-onsets' | 'tsig-mode-onsets' | 'onsets-mode-tsig' | 'alpha') {
+  sortKey.value = v
+  showSortMenu.value = false
+}
+function onDocClick(e: MouseEvent) {
+  if (!showSortMenu.value) return
+  const root = menuRoot.value
+  if (!root) { showSortMenu.value = false; return }
+  if (!root.contains(e.target as Node)) showSortMenu.value = false
+}
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   if (!q) return items.value

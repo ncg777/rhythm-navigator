@@ -9,8 +9,8 @@ type StartPayload = {
   numerator: number
   denominator: number
   maxReps: number // 0 = unlimited
-  minOnsets: number
-  maxOnsets: number
+  minOnsets?: number
+  maxOnsets?: number
   onlyIsomorphic: boolean // now interpreted as: only shadow-contour–isomorphic
   onlyMaximallyEven: boolean
   oddityType: 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes'
@@ -60,6 +60,9 @@ async function run(p: StartPayload) {
   const digitsCount = p.numerator * p.denominator
   const totalBits = digitsCount * bpd
   const lookup = makeLookup(bpd)
+  // Default onset bounds when not provided: full range
+  const minOn = typeof p.minOnsets === 'number' ? p.minOnsets : 0
+  const maxOnDefault = typeof p.maxOnsets === 'number' ? p.maxOnsets : undefined
 
   // Odometer digits (avoids BigInt and repeated div/mod)
   const digits = new Array<number>(digitsCount).fill(0)
@@ -99,7 +102,8 @@ async function run(p: StartPayload) {
       }
 
       const onsetsCount = onsets.length
-      if (onsetsCount >= p.minOnsets && onsetsCount <= p.maxOnsets) {
+  const maxOn = typeof maxOnDefault === 'number' ? maxOnDefault : totalBits
+  if (onsetsCount >= minOn && onsetsCount <= maxOn) {
         let passes = true
 
         if (p.onlyIsomorphic) {

@@ -20,23 +20,8 @@
         <input v-model.number="denominator" type="number" min="1" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28" />
       </div>
 
-      <div class="flex items-center gap-3">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">
-          Max representatives
-          <span class="text-[10px] text-slate-500 ml-1">(0 = unlimited)</span>
-        </label>
-        <input v-model.number="maxReps" type="number" min="0" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-32" />
-      </div>
 
-      <div class="flex items-center gap-3">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Onsets min</label>
-        <input v-model.number="minOnsets" type="number" min="0" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
-      </div>
-
-      <div class="flex items-center gap-3">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Onsets max</label>
-        <input v-model.number="maxOnsets" type="number" min="0" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
-      </div>
+      
 
       <label class="flex items-center gap-2">
         <input type="checkbox" v-model="onlyIsomorphic" />
@@ -140,9 +125,6 @@ const {
   mode,
   numerator,
   denominator,
-  maxReps,
-  minOnsets,
-  maxOnsets,
   onlyIsomorphic,
   onlyMaximallyEven,
   onlyLowEntropy,

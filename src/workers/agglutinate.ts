@@ -20,8 +20,8 @@ type StartPayload = {
   rotationInvariant: boolean
   reflectionInvariant: boolean
   excludeTrivial: boolean
-  minOnsets: number
-  maxOnsets: number
+  minOnsets?: number
+  maxOnsets?: number
   onlyIsomorphic: boolean
   onlyMaximallyEven: boolean
   oddityType: 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes'
@@ -75,7 +75,9 @@ function splitGroups(s: string): string[] { return (s || '').trim().split(/\s+/)
 function isValidConcat(digits: number[], mode: Mode, p: StartPayload): boolean {
   const { onsets, totalBits } = digitsToOnsets(digits, mode)
   const onsetsCount = onsets.length
-  if (onsetsCount < p.minOnsets || onsetsCount > p.maxOnsets) return false
+  const minOn = typeof p.minOnsets === 'number' ? p.minOnsets : 0
+  const maxOn = typeof p.maxOnsets === 'number' ? p.maxOnsets : totalBits
+  if (onsetsCount < minOn || onsetsCount > maxOn) return false
   if (p.excludeTrivial) {
     const allZero = onsetsCount === 0
     const allOne = onsetsCount === totalBits
@@ -162,7 +164,9 @@ async function run(p: StartPayload) {
 
         // Quick trivial checks
         const onsetsCount = onsets.length
-        if (onsetsCount >= p.minOnsets && onsetsCount <= p.maxOnsets) {
+  const minOn = typeof p.minOnsets === 'number' ? p.minOnsets : 0
+  const maxOn = typeof p.maxOnsets === 'number' ? p.maxOnsets : totalBits
+  if (onsetsCount >= minOn && onsetsCount <= maxOn) {
           let pass = true
           if (p.excludeTrivial && (onsetsCount === 0 || onsetsCount === totalBits)) pass = false
           if (pass && p.onlyIsomorphic) {

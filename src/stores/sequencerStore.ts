@@ -657,13 +657,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function rebuildSchedule() {
     clearSchedule()
     const running = (Tone.getContext().state === 'running')
-    // If not running, skip scheduling entirely; start() will rebuild when Transport starts
-    if (!running) {
+    // If transport/audio context not running or we're not in play state, don't schedule
+    if (!running || !isPlaying.value) {
       Tone.Transport.bpm.value = bpm.value
       return
     }
-  // Context running: set BPM and schedule
-  Tone.Transport.bpm.value = bpm.value
+    // Context running and playing: set BPM and schedule
+    Tone.Transport.bpm.value = bpm.value
     const loopQN = Math.max(1, Math.floor(loopBars.value) * 4)
     Tone.Transport.loop = true
     Tone.Transport.loopStart = 0
@@ -762,14 +762,18 @@ export const useSequencerStore = defineStore('sequencer', () => {
       try { enqueueAudioSync() } catch (e) { /* ignore */ }
       isStarting = false
     }, 32)
+    // Mark playing first so rebuildSchedule actually schedules events
+    isPlaying.value = true
     rebuildSchedule()
     Tone.Transport.start()
-    isPlaying.value = true
   }
 
   function stop() {
     if (Tone.getContext().state === 'running') {
+      // Stop transport and clear all scheduled events to avoid stray triggers later
       Tone.Transport.stop()
+      try { Tone.Transport.cancel() } catch {}
+      clearSchedule()
     }
     isPlaying.value = false
   }

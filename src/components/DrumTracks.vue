@@ -27,8 +27,6 @@
         </div>
         <!-- Updated layout for better readability on mobile -->
         <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1" v-if="t.pattern">
-          <span class="block w-full sm:w-auto">{{ t.pattern.mode }}</span>
-          <span class="block w-full sm:w-auto">{{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
           <span class="block w-full sm:w-auto">bits: {{ t.pattern.totalBits }}</span>
           <span class="block w-full sm:w-auto">cycle: {{ t.pattern.cycleQN.toFixed(3) }} qn</span>
         </div>

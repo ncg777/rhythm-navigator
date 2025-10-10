@@ -43,7 +43,7 @@
         <div class="flex items-center gap-3">
           <span class="text-xl">🎵</span>
           <h3 class="text-lg font-semibold">Generated rhythms</h3>
-          <span class="text-xs text-slate-500">Count: {{ items.length }} · Total digits: {{ numerator * denominator }} · Mode: {{ mode }}</span>
+          <span class="text-xs text-slate-500">Count: {{ items.length }}</span>
         </div>
       </template>
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">

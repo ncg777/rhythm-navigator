@@ -11,12 +11,8 @@
 
     <div v-else class="mt-4 space-y-6 text-sm text-slate-300">
       <div class="glass rounded p-3 flex items-center gap-3">
-        <label class="flex items-center gap-2">
-          <span class="text-slate-400 text-xs">BPM</span>
-          <input type="number" v-model.number="bpm" min="30" max="300" class="bg-slate-800 border border-white/10 rounded px-2 py-1 w-20" />
-        </label>
         <button class="px-3 py-1 rounded bg-brand-600 hover:bg-brand-500" @click="togglePlay">{{ isPlaying ? 'Stop' : 'Play' }}</button>
-        <span class="text-slate-500 text-xs">Synthesized clave</span>
+        <span class="text-slate-500 text-xs">Synthesized clave (uses global BPM)</span>
       </div>
       <div class="glass rounded p-3">
         <div class="mb-1 font-medium">Digits (grouped)</div>
@@ -25,8 +21,12 @@
 
       <div class="glass rounded p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
-          <div class="text-slate-400 text-xs">Base</div>
+          <div class="text-slate-400 text-xs">Mode</div>
           <div class="font-mono">{{ selected.base }}</div>
+        </div>
+        <div>
+          <div class="text-slate-400 text-xs">Time sig (beats × digits/beat)</div>
+          <div class="font-mono">{{ details.tsNum }} × {{ details.tsDen }}</div>
         </div>
         <div>
           <div class="text-slate-400 text-xs">Total bits</div>
@@ -53,7 +53,7 @@
       </div>
 
       <div class="glass rounded p-3">
-        <div class="text-slate-400 text-xs mb-1">Canonical contour (current invariances)</div>
+        <div class="text-slate-400 text-xs mb-1">Canonical contour (dihedral invariance)</div>
         <div class="font-mono">{{ details.contour }}</div>
       </div>
 
@@ -151,6 +151,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
+import { useSequencerStore } from '@/stores/sequencerStore'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
@@ -159,7 +160,10 @@ import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isL
 import * as Tone from 'tone'
 
 const store = useRhythmStore()
-const { selected, circular, rotationInvariant, reflectionInvariant, numerator, denominator, oddityType, ordinalEnabled, ordinalN, mode } = storeToRefs(store)
+const { selected, numerator, denominator, oddityType, ordinalEnabled, ordinalN, mode } = storeToRefs(store)
+// Use global BPM from the sequencer store
+const seq = useSequencerStore()
+const { bpm: seqBpm } = storeToRefs(seq)
 
 function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[]; totalBits: number } {
   const totalBits = digits.length * bpd
@@ -202,12 +206,12 @@ const details = computed(() => {
   const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
   const rests = totalBits - onsets.length
   const density = totalBits ? (onsets.length / totalBits).toFixed(4) : '0'
+  // Determine display time signature (prefer per-item values when present)
+  const tsNum = typeof sel.numerator === 'number' && sel.numerator > 0 ? sel.numerator : numerator.value
+  const tsDen = typeof sel.denominator === 'number' && sel.denominator > 0 ? sel.denominator : denominator.value
 
-  const opts = {
-    circular: circular.value,
-    rotationInvariant: rotationInvariant.value,
-    reflectionInvariant: reflectionInvariant.value
-  }
+  // Invariance is fixed to dihedral (circular + rotation + reflection)
+  const opts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
 
   const contour = canonicalContourFromOnsets(onsets, totalBits, opts)
   const shadowContour = shadowContourFromOnsets(onsets, totalBits, opts)
@@ -231,6 +235,8 @@ const details = computed(() => {
     onsets: onsets.length,
     rests,
     density,
+  tsNum,
+  tsDen,
     contour,
     shadowContour,
     shadowIsomorphic,
@@ -249,7 +255,6 @@ const details = computed(() => {
 })
 
 // --- Playback (Tone.js)
-const bpm = ref(120)
 const isPlaying = ref(false)
 let part: any | null = null
 let synth: any | null = null
@@ -258,7 +263,7 @@ async function startAudio(onsets: number[], totalBits: number) {
   await Tone.start()
   Tone.Transport.stop()
   Tone.Transport.cancel()
-  Tone.Transport.bpm.value = bpm.value
+  Tone.Transport.bpm.value = seqBpm.value
 
   if (!synth) {
     synth = new Tone.MembraneSynth({
@@ -272,7 +277,7 @@ async function startAudio(onsets: number[], totalBits: number) {
   // Compute timing in seconds based on BPM and bits-per-beat
   const spb = bitsPerBeat(mode.value, denominator.value) // bits per beat
   if (spb <= 0) return
-  const beatDur = 60 / bpm.value
+  const beatDur = 60 / seqBpm.value
   const bitDur = beatDur / spb
   if (!onsets.length || totalBits <= 0) return
   const eventsSec = onsets.map((p) => p * bitDur)
@@ -326,7 +331,7 @@ function togglePlay() {
   startAudio(onsets, totalBits).then(() => (isPlaying.value = true))
 }
 
-watch(bpm, (v) => {
+watch(seqBpm, (v) => {
   if (isPlaying.value) rebuildIfPlaying()
 })
 

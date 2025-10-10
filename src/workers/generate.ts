@@ -11,10 +11,6 @@ type StartPayload = {
   maxReps: number // 0 = unlimited
   minOnsets: number
   maxOnsets: number
-  circular: boolean
-  rotationInvariant: boolean
-  reflectionInvariant: boolean
-  excludeTrivial: boolean
   onlyIsomorphic: boolean // now interpreted as: only shadow-contour–isomorphic
   onlyMaximallyEven: boolean
   oddityType: 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes'
@@ -87,7 +83,8 @@ async function run(p: StartPayload) {
 
   while (!done && !stopping && emitted < targetCount) {
     // Evaluate current digits
-    if (!p.excludeTrivial || !(allAre(digits, 0) || allAre(digits, base - 1))) {
+    // Always exclude trivial all-zero or all-one patterns
+    if (!(allAre(digits, 0) || allAre(digits, base - 1))) {
       // Build onset positions directly
       const onsets: number[] = []
       for (let j = 0; j < digitsCount; j++) {
@@ -165,10 +162,11 @@ async function run(p: StartPayload) {
             base: p.mode,
             groupedDigitsString,
             onsets: onsetsCount,
+            // Always use circular + rotation + reflection invariance for canonical contour display
             canonicalContour: canonicalContourFromOnsets(onsets, totalBits, {
-              circular: p.circular,
-              rotationInvariant: p.rotationInvariant,
-              reflectionInvariant: p.reflectionInvariant
+              circular: true,
+              rotationInvariant: true,
+              reflectionInvariant: true
             }),
             numerator: p.numerator,
             denominator: p.denominator

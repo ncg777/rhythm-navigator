@@ -101,44 +101,32 @@
         >
           Clear
         </button>
+        <div class="text-xs text-slate-400 flex items-center gap-3 pl-3 border-l border-white/10">
+          <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
+          <span>Processed: <b>{{ processed }}</b> / {{ processedMaxDisplay }}</span>
+          <span>Emitted: <b>{{ emitted }}</b></span>
+        </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="circular" />
-        <span class="text-sm text-slate-300">Circular</span>
-      </label>
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="rotationInvariant" />
-        <span class="text-sm text-slate-300">Rotation invariant</span>
-      </label>
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="reflectionInvariant" />
-        <span class="text-sm text-slate-300">Reflection invariant</span>
-      </label>
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="excludeTrivial" />
-        <span class="text-sm text-slate-300">Exclude all-zeros / all-ones</span>
-      </label>
-    </div>
+    
 
-    <div class="flex flex-wrap items-end gap-4">
-      <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Agglutinate segments</label>
-        <input v-model.number="agglSegments" type="number" min="1" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28" />
-      </div>
-      <button class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 transition" @click="agglutinate" :disabled="!canAgglutinate">
-        Agglutinate
+    <div class="flex flex-wrap items-center gap-4">
+      <button
+        class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50"
+        @click="isAgglutinating ? stopAgglutination() : agglutinate()"
+        :disabled="!canAgglutinate"
+        :title="isAgglutinating ? 'Stop agglutination' : 'Generate all valid concatenations of pairs with the same time signature'"
+      >
+        {{ isAgglutinating ? 'Stop agglutination' : 'Agglutinate pairs' }}
       </button>
-  <span class="text-xs text-slate-500">Concatenate random segments; each prefix respects current filters.</span>
+      <span class="text-xs text-slate-500">Concatenate all item pairs sharing the same time signature that satisfy current filters.</span>
+      <span v-if="isAgglutinating" class="text-xs text-slate-400">
+        {{ agglProcessed }} / {{ agglTotalPairs }} checked · added {{ agglEmitted }}
+      </span>
     </div>
 
-    <div class="text-xs text-slate-400 flex items-center gap-4">
-      <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
-      <span>Processed: <b>{{ processed }}</b></span>
-      <span>Emitted: <b>{{ emitted }}</b></span>
-    </div>
+    
   </div>
 </template>
 
@@ -155,10 +143,6 @@ const {
   maxReps,
   minOnsets,
   maxOnsets,
-  circular,
-  rotationInvariant,
-  reflectionInvariant,
-  excludeTrivial,
   onlyIsomorphic,
   onlyMaximallyEven,
   onlyLowEntropy,
@@ -170,15 +154,37 @@ const {
   isGenerating,
   processed,
   emitted
-  , agglSegments
+  , isAgglutinating
+  , agglProcessed
+  , agglEmitted
+  , agglTotalPairs
 } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
 const base = computed(() => (store.mode === 'binary' ? 2 : store.mode === 'octal' ? 8 : 16))
+const processedMaxDisplay = computed(() => {
+  const b = Number(base.value)
+  const d = Number(totalDigits.value)
+  // Try fast Number math within safe range
+  const val = Math.pow(b, d)
+  if (Number.isFinite(val) && val <= Number.MAX_SAFE_INTEGER) {
+    return String(Math.trunc(val))
+  }
+  // For moderately large exponents, try BigInt with a reasonable cap
+  if (d <= 64) {
+    try {
+      const n = (BigInt(b) ** BigInt(d))
+      return n.toString()
+    } catch {}
+  }
+  // Fallback to symbolic notation if too large
+  return `${b}^${d}`
+})
 
 function generate() { store.generate() }
 function stop() { store.stop() }
 function clear() { store.clear() }
 function agglutinate() { store.agglutinate() }
-const canAgglutinate = computed(() => store.items.length > 0)
+function stopAgglutination() { store.stopAgglutination() }
+const canAgglutinate = computed(() => store.items.length > 1)
 </script>

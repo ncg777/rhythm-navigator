@@ -260,7 +260,7 @@ const masterLimiter = markRaw(new Tone.Limiter(-1));
 masterLimiter.connect(Tone.getDestination());
 
 export const useSequencerStore = defineStore('sequencer', () => {
-  const bpm = ref(60)
+  const bpm = ref(120)
   const loopBars = ref(1) // 8 bars @ 4/4 by default
   const isPlaying = ref(false)
   // bump this whenever track structure/pattern associations change

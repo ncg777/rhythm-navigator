@@ -23,10 +23,7 @@ export const useRhythmStore = defineStore('rhythm', {
   minOnsets: 0,
     maxOnsets: 99,
 
-    circular: true,
-    rotationInvariant: true,
-    reflectionInvariant: true,
-    excludeTrivial: true,
+  // Invariance now fixed to dihedral; trivial patterns always excluded
 
     // Only include rhythms that are shadow-contour isomorphic
     onlyIsomorphic: true,
@@ -40,13 +37,17 @@ export const useRhythmStore = defineStore('rhythm', {
   ordinalEnabled: false,
   ordinalN: 4,
 
-  // Agglutination
-  agglSegments: 4,
 
     // generation state
     isGenerating: false,
     processed: 0,
     emitted: 0,
+
+  // agglutination state
+  isAgglutinating: false,
+  agglProcessed: 0,
+  agglEmitted: 0,
+  agglTotalPairs: 0,
 
     items: [] as RhythmItem[],
     selectedId: '' as string,
@@ -54,7 +55,8 @@ export const useRhythmStore = defineStore('rhythm', {
     // Tracks unique rhythms already listed to prevent duplicates across generations
     _itemKeySet: new Set<string>() as Set<string>,
 
-    _worker: null as Worker | null
+    _worker: null as Worker | null,
+    _agglWorker: null as Worker | null
   }),
   getters: {
     selected(state) {
@@ -98,6 +100,9 @@ export const useRhythmStore = defineStore('rhythm', {
       this.selectedId = ''
       this.processed = 0
       this.emitted = 0
+      this.isAgglutinating = false
+      this.agglProcessed = 0
+      this.agglEmitted = 0
       this._itemKeySet.clear()
     },
     select(id: string) {
@@ -109,6 +114,15 @@ export const useRhythmStore = defineStore('rhythm', {
         this._worker = null
       }
       this.isGenerating = false
+    },
+    stopAgglutination() {
+      if (this._agglWorker) {
+        try { this._agglWorker.terminate() } catch {}
+        this._agglWorker = null
+      }
+      const wasAdded = this.agglEmitted
+      this.isAgglutinating = false
+      try { useUiStore().pushToast(wasAdded ? `Stopped agglutination after ${this.agglProcessed} checks; added ${this.agglEmitted}.` : 'Agglutination stopped.', 'info') } catch {}
     },
     async generate() {
       if (this.isGenerating) return
@@ -154,10 +168,6 @@ export const useRhythmStore = defineStore('rhythm', {
           maxReps: this.maxReps,
           minOnsets: this.minOnsets,
           maxOnsets: this.maxOnsets,
-          circular: this.circular,
-          rotationInvariant: this.rotationInvariant,
-          reflectionInvariant: this.reflectionInvariant,
-          excludeTrivial: this.excludeTrivial,
           onlyIsomorphic: this.onlyIsomorphic,
           onlyMaximallyEven: this.onlyMaximallyEven,
           oddityType: this.oddityType,
@@ -170,146 +180,77 @@ export const useRhythmStore = defineStore('rhythm', {
       })
     },
 
-  // Concatenate randomly chosen rhythms ensuring each prefix remains valid under current filters.
+  // Generate all ordered pairs (A+B) where A and B share base and time signature, and A||B passes current filters.
     agglutinate() {
       const pool = this.items
-      if (!pool.length) return
+      if (pool.length < 2) return
 
-      const segments = Math.max(1, Math.floor(this.agglSegments))
-      const mode = this.mode
-      const bpd = bitsPerDigitForMode(mode)
-      const perGroup = this.denominator
-  const opts = () => ({ circular: this.circular, rotationInvariant: this.rotationInvariant, reflectionInvariant: this.reflectionInvariant })
+      // Spawn a dedicated worker to avoid blocking UI
+  const worker = new Worker(new URL('@/workers/agglutinate.ts', import.meta.url), { type: 'module' })
+      this._agglWorker = worker
+      this.isAgglutinating = true
+      this.agglProcessed = 0
+      this.agglEmitted = 0
+  const KEY = (it: RhythmItem) => `${it.base}:${it.groupedDigitsString}`
 
-      const parseItemDigits = (item: RhythmItem) => parseDigitsFromGroupedString(item.groupedDigitsString, item.base)
-      const digitsToOnsets = (digits: number[]) => {
-        const totalBits = digits.length * bpd
-        const onsets: number[] = []
-        const max = (1 << bpd) - 1
-        for (let j = 0; j < digits.length; j++) {
-          const v = Math.max(0, Math.min(digits[j], max))
-          const base = j * bpd
-          for (let i = 0; i < bpd; i++) {
-            const bit = (v >> (bpd - 1 - i)) & 1
-            if (bit) onsets.push(base + i)
+      let added = 0
+      worker.onmessage = (ev: MessageEvent<any>) => {
+        const msg = ev.data
+        if (!msg || !msg.type) return
+        if (msg.type === 'meta') {
+          this.agglTotalPairs = Number(msg.totalPairs) || 0
+        } else if (msg.type === 'batch') {
+          const items: RhythmItem[] = msg.items || []
+          if (items.length) {
+            const fresh: RhythmItem[] = []
+            for (const it of items) {
+              const key = KEY(it)
+              if (!this._itemKeySet.has(key)) {
+                this._itemKeySet.add(key)
+                fresh.push(it)
+              }
+            }
+            if (fresh.length) {
+              added += fresh.length
+              this.items = [...fresh, ...this.items]
+              if (!this.selectedId && this.items.length) this.selectedId = this.items[0].id
+            }
           }
-        }
-        return { onsets, totalBits }
-      }
-      const groupDigits = (digits: number[]) => {
-        const enc = (d: number) => (mode === 'hex' ? d.toString(16).toUpperCase() : String(d))
-        const parts: string[] = []
-        for (let i = 0; i < digits.length; i += perGroup) {
-          parts.push(digits.slice(i, i + perGroup).map(enc).join(''))
-        }
-        return parts.join(' ')
-      }
-      const isValid = (digits: number[]) => {
-        const { onsets, totalBits } = digitsToOnsets(digits)
-        const onsetsCount = onsets.length
-        // respect onsets constraints
-        if (onsetsCount < this.minOnsets || onsetsCount > this.maxOnsets) return false
-        // exclude trivial if enabled
-        if (this.excludeTrivial) {
-          const allZero = onsetsCount === 0
-          const allOne = onsetsCount === totalBits
-          if (allZero || allOne) return false
-        }
-
-        // apply filters
-        if (this.onlyIsomorphic) {
-          const co = canonicalContourFromOnsets(onsets, totalBits, opts())
-          const so = shadowContourFromOnsets(onsets, totalBits, opts())
-          if (!(co.length > 0 && co === so)) return false
-        }
-        if (this.onlyMaximallyEven && !isMaximallyEven(onsets, totalBits)) return false
-        switch (this.oddityType) {
-          case 'rop23':
-            if (!hasROP23(onsets, totalBits)) return false
-            break
-          case 'odd-intervals':
-            if (!hasOddIntervalsOddity(onsets, totalBits)) return false
-            break
-          case 'no-antipodes':
-            if (!noAntipodalPairs(onsets, totalBits)) return false
-            break
-        }
-        if (this.onlyLowEntropy && !isLowEntropy(onsets, totalBits)) return false
-        if (this.onlyHasNoGaps && !hasNoGaps(onsets, totalBits)) return false
-        if (this.onlyRelativelyFlat && !relativelyFlat(onsets, totalBits)) return false
-        if (this.ordinalEnabled && this.ordinalN >= 2 && !hasOrdinal(onsets, totalBits, this.ordinalN)) return false
-        return true
-      }
-      const pickRandom = () => pool[Math.floor(Math.random() * pool.length)]
-
-      const MAX_TRIES_PER_STEP = 5000
-      let aggregated: number[] = []
-
-      // pick the first ISO segment
-      {
-        let seg = pickRandom()
-        let d = parseItemDigits(seg)
-        let tries = 0
-  while (tries < MAX_TRIES_PER_STEP && !isValid(d)) {
-          seg = pickRandom()
-          d = parseItemDigits(seg)
-          tries++
-        }
-  if (!isValid(d)) return // no valid starting segment found
-        aggregated = d.slice()
-      }
-
-      // grow with ISO-preserving concatenations
-      for (let s = 1; s < segments; s++) {
-        let found = false
-        for (let t = 0; t < MAX_TRIES_PER_STEP; t++) {
-          const cand = pickRandom()
-          const dc = parseItemDigits(cand)
-          const next = aggregated.concat(dc)
-          if (isValid(next)) {
-            aggregated = next
-            found = true
-            break
-          }
-        }
-        if (!found) break
-      }
-
-      // build resulting RhythmItem
-      const groupedDigitsString = groupDigits(aggregated)
-      const { onsets, totalBits } = digitsToOnsets(aggregated)
-      const canonicalContour = canonicalContourFromOnsets(onsets, totalBits, {
-        circular: this.circular,
-        rotationInvariant: this.rotationInvariant,
-        reflectionInvariant: this.reflectionInvariant
-      })
-      const item: RhythmItem = {
-        id: `aggl:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
-        base: mode,
-        groupedDigitsString,
-        onsets: onsets.length,
-        canonicalContour,
-        numerator: this.numerator,
-        denominator: this.denominator,
-        digits: aggregated
-      }
-      // Prevent duplicates: if same base+grouped exists, select it instead
-      const key = `${item.base}:${item.groupedDigitsString}`
-      if (this._itemKeySet.has(key)) {
-        const existing = this.items.find(x => x.base === item.base && x.groupedDigitsString === item.groupedDigitsString)
-        if (existing) this.selectedId = existing.id
-        try {
-          useUiStore().pushToast(`Agglutinated rhythm already listed; selected existing entry.`, 'info')
-        } catch {}
-        return
-      }
-      this._itemKeySet.add(key)
-      this.items = [item, ...this.items]
-      this.selectedId = item.id
-          // UI feedback
+        } else if (msg.type === 'progress') {
+          this.agglProcessed = Number(msg.processed) || 0
+          this.agglEmitted = Number(msg.emitted) || 0
+        } else if (msg.type === 'done') {
           try {
-            useUiStore().pushToast(`Agglutinated rhythm added: ${groupedDigitsString}`, 'success')
+            useUiStore().pushToast(added > 0 ? `Agglutinated ${added} pair(s).` : `No valid pairs found for current filters.`, added > 0 ? 'success' : 'info')
           } catch {}
+          worker.terminate()
+          if (this._agglWorker === worker) this._agglWorker = null
+          this.isAgglutinating = false
+        }
+      }
+
+      worker.postMessage({
+        type: 'start',
+        payload: {
+          items: pool.map(it => ({ base: it.base, groupedDigitsString: it.groupedDigitsString, numerator: Number(it.numerator || this.numerator), denominator: Number(it.denominator || this.denominator) })),
+          fallbackNumerator: this.numerator, // not used but retained for compatibility
+          fallbackDenominator: this.denominator, // not used but retained for compatibility
+          circular: true,
+          rotationInvariant: true,
+          reflectionInvariant: true,
+          excludeTrivial: true,
+          minOnsets: this.minOnsets,
+          maxOnsets: this.maxOnsets,
+          onlyIsomorphic: this.onlyIsomorphic,
+          onlyMaximallyEven: this.onlyMaximallyEven,
+          oddityType: this.oddityType,
+          onlyLowEntropy: this.onlyLowEntropy,
+          onlyHasNoGaps: this.onlyHasNoGaps,
+          onlyRelativelyFlat: this.onlyRelativelyFlat,
+          ordinalEnabled: this.ordinalEnabled,
+          ordinalN: this.ordinalN
+        }
+      })
     }
   }
 })

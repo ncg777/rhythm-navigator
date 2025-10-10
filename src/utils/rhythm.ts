@@ -37,5 +37,8 @@ export type RhythmItem = {
   groupedDigitsString: string
   onsets: number
   canonicalContour: string
+  // Optional meter info captured at generation time
+  numerator?: number
+  denominator?: number
   digits?: number[]
 }

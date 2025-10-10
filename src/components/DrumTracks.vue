@@ -30,6 +30,29 @@
           <span class="block w-full sm:w-auto">bits: {{ t.pattern.totalBits }}</span>
           <span class="block w-full sm:w-auto">cycle: {{ t.pattern.cycleQN.toFixed(3) }} qn</span>
         </div>
+        <!-- Per-track meter (time signature) controls -->
+        <div class="grid gap-3 sm:gap-4 mt-2 sm:mt-3 text-sm" v-if="t.pattern" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-28 shrink-0 text-slate-400">Beats (numerator)</span>
+            <div class="flex-1 flex items-center gap-2 min-w-0">
+              <input class="flex-1 min-w-0" type="range" min="1" max="64" step="1" :value="t.pattern.numerator" @input="onMeterInput(t.id, 'num', $event)" />
+              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="1" max="64" step="1" :value="t.pattern.numerator" @input="onMeterInput(t.id, 'num', $event)" />
+            </div>
+          </div>
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-28 shrink-0 text-slate-400">Digits / beat</span>
+            <div class="flex-1 flex items-center gap-2 min-w-0">
+              <input class="flex-1 min-w-0" type="range" min="1" max="32" step="1" :value="t.pattern.denominator" @input="onMeterInput(t.id, 'den', $event)" />
+              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="1" max="32" step="1" :value="t.pattern.denominator" @input="onMeterInput(t.id, 'den', $event)" />
+            </div>
+          </div>
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-28 shrink-0 text-slate-400">Bits / beat</span>
+            <div class="flex-1 text-slate-300">
+              {{ t.pattern.spb }}
+            </div>
+          </div>
+        </div>
         <div class="grid gap-3 sm:gap-4 mt-3 sm:mt-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-24 shrink-0 text-slate-400">Volume</span>
@@ -387,6 +410,15 @@ function onParamSelect(id: string, key: string, e: Event) {
   seq.updateTrackParam(id, key, v)
 }
 
+function onMeterInput(id: string, which: 'num' | 'den', e: Event) {
+  const v = Math.max(1, Math.floor(Number((e.target as HTMLInputElement).value)))
+  const t = tracks.value.find(x => x.id === id)
+  if (!t || !t.pattern) return
+  const num = which === 'num' ? v : t.pattern.numerator
+  const den = which === 'den' ? v : t.pattern.denominator
+  seq.updateTrackPatternMeter(id, num, den)
+}
+
 function addTrack() { seq.addTrack('perc') }
 function removeTrack(id: string) { seq.removeTrack(id) }
 
@@ -400,6 +432,7 @@ function openPicker(trackId: string) {
 function onPick(id: string) {
   const item = rstore.items.find(r => r.id === id)
   if (!item || !pickerTrackId.value) return
+  // Pass current global meter as fallback; store will prefer item's own meter if present
   seq.assignRhythmToTrack(pickerTrackId.value, item, rstore.numerator, rstore.denominator)
 }
 

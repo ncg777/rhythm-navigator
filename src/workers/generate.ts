@@ -169,7 +169,9 @@ async function run(p: StartPayload) {
               circular: p.circular,
               rotationInvariant: p.rotationInvariant,
               reflectionInvariant: p.reflectionInvariant
-            })
+            }),
+            numerator: p.numerator,
+            denominator: p.denominator
           })
           emitted++
         }

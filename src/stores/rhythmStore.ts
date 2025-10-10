@@ -258,6 +258,8 @@ export const useRhythmStore = defineStore('rhythm', {
         groupedDigitsString,
         onsets: onsets.length,
         canonicalContour,
+        numerator: this.numerator,
+        denominator: this.denominator,
         digits: aggregated
       }
       // Prevent duplicates: if same base+grouped exists, select it instead

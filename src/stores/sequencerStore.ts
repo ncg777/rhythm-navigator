@@ -757,10 +757,18 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function assignRhythmToTrack(id: string, item: RhythmItem, numerator: number, denominator: number) {
   const idx = tracks.value.findIndex((x) => x.id === id)
   if (idx < 0) return
-    const mode = item.base
+  const mode = item.base
     const digits = item.digits ?? parseDigitsFromGroupedString(item.groupedDigitsString, mode)
-    // Use provided denominator (digits per beat) from the rhythm block settings
-    const dpb = Math.max(1, Math.floor(denominator))
+    // Prefer rhythm item's own meter if present; otherwise infer from grouped string, then fall back to provided values
+    const groups = item.groupedDigitsString.trim().length
+      ? item.groupedDigitsString.trim().split(/\s+/).filter(Boolean)
+      : []
+    const inferredNum = groups.length > 0 ? groups.length : undefined
+    const inferredDen = groups.length > 0 ? firstGroupLength(item.groupedDigitsString) : undefined
+    const numEff = Math.max(1, Math.floor((item.numerator as number) || inferredNum || numerator))
+    const denEff = Math.max(1, Math.floor((item.denominator as number) || inferredDen || denominator))
+  // Use effective denominator (digits per beat)
+  const dpb = Math.max(1, Math.floor(denEff))
     const bpd = bitsPerDigitForMode(mode)
     const spb = dpb * bpd
     const { onsets, totalBits } = digitsToOnsets(digits, mode)
@@ -769,8 +777,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       mode,
       groupedDigitsString: item.groupedDigitsString,
       digits,
-      numerator,
-      denominator,
+  numerator: numEff,
+  denominator: denEff,
       digitsPerBeat: dpb,
       totalBits,
       spb,
@@ -781,6 +789,34 @@ export const useSequencerStore = defineStore('sequencer', () => {
   // Immutable update of the track to ensure change detection
   tracks.value = tracks.value.map((t, i) => i === idx ? { ...t, pattern, rev: t.rev + 1 } : t)
   version.value++
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  // Update the assigned pattern's meter (numerator/denominator) per track
+  function updateTrackPatternMeter(id: string, numerator: number, denominator: number) {
+    const idx = tracks.value.findIndex((x) => x.id === id)
+    if (idx < 0) return
+    const t = tracks.value[idx]
+    if (!t.pattern) return
+    const num = Math.max(1, Math.floor(Number(numerator)))
+    const den = Math.max(1, Math.floor(Number(denominator)))
+    const mode = t.pattern.mode
+    const bpd = bitsPerDigitForMode(mode)
+    const dpb = den
+    const spb = dpb * bpd
+    const totalBits = t.pattern.digits.length * bpd
+    const cycleQN = totalBits / spb
+    const nextPattern: Pattern = {
+      ...t.pattern,
+      numerator: num,
+      denominator: den,
+      digitsPerBeat: dpb,
+      spb,
+      totalBits, // redundant but keep consistent
+      cycleQN
+    }
+    tracks.value = tracks.value.map((tr) => (tr.id === id ? { ...tr, pattern: nextPattern, rev: tr.rev + 1 } : tr))
+    version.value++
     if (isPlaying.value) rebuildSchedule()
   }
 
@@ -1274,6 +1310,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   updateTrackFields,
   updateTrackParam,
   assignRhythmToTrack,
+  updateTrackPatternMeter,
     exportWav,
   exportWavLiveOnly,
   exportMidi,

@@ -134,7 +134,7 @@
             <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
               <span class="w-28 shrink-0 text-slate-400">Mod Freq</span>
               <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="1" max="50" step="0.5" :value="(t.params.noiseAmpModFreq ?? 20) as number" @input="onParamInput(t.id, 'noiseAmpModFreq', $event)" />
+                <input class="flex-1 min-w-0" type="range" min="1" max="100" step="0.5" :value="(t.params.noiseAmpModFreq ?? 20) as number" @input="onParamInput(t.id, 'noiseAmpModFreq', $event)" />
                 <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="1" max="50" step="0.5" :value="(t.params.noiseAmpModFreq ?? 20) as number" @input="onParamInput(t.id, 'noiseAmpModFreq', $event)" />
               </div>
             </label>

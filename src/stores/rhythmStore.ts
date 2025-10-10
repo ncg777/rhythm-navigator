@@ -51,6 +51,9 @@ export const useRhythmStore = defineStore('rhythm', {
     items: [] as RhythmItem[],
     selectedId: '' as string,
 
+    // Tracks unique rhythms already listed to prevent duplicates across generations
+    _itemKeySet: new Set<string>() as Set<string>,
+
     _worker: null as Worker | null
   }),
   getters: {
@@ -64,6 +67,7 @@ export const useRhythmStore = defineStore('rhythm', {
       this.selectedId = ''
       this.processed = 0
       this.emitted = 0
+      this._itemKeySet.clear()
     },
     select(id: string) {
       this.selectedId = id
@@ -77,7 +81,6 @@ export const useRhythmStore = defineStore('rhythm', {
     },
     async generate() {
       if (this.isGenerating) return
-      this.clear()
       this.isGenerating = true
 
       const worker = new Worker(new URL('@/workers/generate.ts', import.meta.url), { type: 'module' })
@@ -87,8 +90,19 @@ export const useRhythmStore = defineStore('rhythm', {
         const msg = ev.data
         if (msg.type === 'batch') {
           if (msg.items.length) {
-            this.items = this.items.concat(msg.items)
-            if (!this.selectedId) this.selectedId = this.items[0].id
+            // Deduplicate by stable key: base + groupedDigitsString
+            const toAdd: RhythmItem[] = []
+            for (const it of msg.items) {
+              const key = `${it.base}:${it.groupedDigitsString}`
+              if (!this._itemKeySet.has(key)) {
+                this._itemKeySet.add(key)
+                toAdd.push(it)
+              }
+            }
+            if (toAdd.length) {
+              this.items = this.items.concat(toAdd)
+              if (!this.selectedId && this.items.length) this.selectedId = this.items[0].id
+            }
           }
         } else if (msg.type === 'progress') {
           this.processed = msg.processed
@@ -246,6 +260,17 @@ export const useRhythmStore = defineStore('rhythm', {
         canonicalContour,
         digits: aggregated
       }
+      // Prevent duplicates: if same base+grouped exists, select it instead
+      const key = `${item.base}:${item.groupedDigitsString}`
+      if (this._itemKeySet.has(key)) {
+        const existing = this.items.find(x => x.base === item.base && x.groupedDigitsString === item.groupedDigitsString)
+        if (existing) this.selectedId = existing.id
+        try {
+          useUiStore().pushToast(`Agglutinated rhythm already listed; selected existing entry.`, 'info')
+        } catch {}
+        return
+      }
+      this._itemKeySet.add(key)
       this.items = [item, ...this.items]
       this.selectedId = item.id
           // UI feedback

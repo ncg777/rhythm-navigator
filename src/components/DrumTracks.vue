@@ -61,7 +61,6 @@
               <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
             </div>
           </div>
-          <div class="col-span-12 lg:col-span-3 text-xs text-slate-400 flex items-center">Cycle: <span class="ml-1" v-if="t.pattern">{{ t.pattern.cycleQN.toFixed(3) }} qn</span><span v-else>—</span></div>
         </div>
 
         <!-- Instrument parameters -->

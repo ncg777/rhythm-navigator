@@ -62,6 +62,37 @@ export const useRhythmStore = defineStore('rhythm', {
     }
   },
   actions: {
+    initPersistence() {
+      const KEY = 'rn.rhythms'
+      // Load
+      try {
+        const raw = localStorage.getItem(KEY)
+        if (raw) {
+          const data = JSON.parse(raw)
+          if (data && Array.isArray(data.items)) {
+            this.items = data.items
+            this.selectedId = typeof data.selectedId === 'string' ? data.selectedId : ''
+            // Rebuild dedupe set
+            this._itemKeySet.clear()
+            for (const it of this.items) {
+              try { this._itemKeySet.add(`${it.base}:${it.groupedDigitsString}`) } catch {}
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[rhythmStore] failed to load rhythms from storage', e)
+      }
+
+      // Save on any items/selection change
+      this.$subscribe(() => {
+        try {
+          const payload = { items: this.items, selectedId: this.selectedId }
+          localStorage.setItem(KEY, JSON.stringify(payload))
+        } catch (e) {
+          console.warn('[rhythmStore] failed to save rhythms to storage', e)
+        }
+      }, { detached: true })
+    },
     clear() {
       this.items = []
       this.selectedId = ''

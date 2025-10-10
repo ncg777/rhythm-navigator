@@ -1294,6 +1294,98 @@ export const useSequencerStore = defineStore('sequencer', () => {
     }
   }
 
+  // --- Local storage persistence (basic)
+  function loadFromStorage() {
+    const KEY = 'rn.sequencer'
+    try {
+      const raw = localStorage.getItem(KEY)
+      if (!raw) return
+      const data = JSON.parse(raw)
+      if (typeof data?.bpm === 'number') bpm.value = data.bpm
+      if (typeof data?.loopBars === 'number') loopBars.value = data.loopBars
+      const saved: any[] = Array.isArray(data?.tracks) ? data.tracks : []
+      // rebuild tracks
+      tracks.value = []
+      saved.forEach(st => {
+        const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
+        const t: Track = {
+          id,
+          name: st.name ?? '',
+          type: st.type ?? 'perc',
+          rev: 0,
+          volume: Number(st.volume ?? 0.8),
+          pan: Number(st.pan ?? 0),
+          velocity: Number(st.velocity ?? 0.8),
+          velRandom: Number(st.velRandom ?? 0),
+          params: st.params ?? {},
+          pattern: null
+        }
+        if (st.pattern && st.pattern.digits && st.pattern.mode) {
+          const mode = st.pattern.mode as Mode
+          const digits = st.pattern.digits as number[]
+          const dpb = Math.max(1, Math.floor(st.pattern.denominator ?? 1))
+          const bpd = bitsPerDigitForMode(mode)
+          const spb = dpb * bpd
+          const { onsets, totalBits } = digitsToOnsets(digits, mode)
+          const cycleQN = totalBits / spb
+          t.pattern = {
+            mode,
+            groupedDigitsString: st.pattern.groupedDigitsString ?? '',
+            digits,
+            numerator: Math.max(1, Math.floor(st.pattern.numerator ?? 4)),
+            denominator: Math.max(1, Math.floor(st.pattern.denominator ?? 1)),
+            digitsPerBeat: dpb,
+            totalBits,
+            spb,
+            onsets,
+            cycleQN
+          }
+        }
+        tracks.value = tracks.value.concat(t)
+      })
+      version.value++
+      enqueueAudioSync()
+      if (isPlaying.value) rebuildSchedule()
+    } catch (e) {
+      console.warn('[sequencer] failed to load from storage', e)
+    }
+  }
+
+  function saveToStorage() {
+    const KEY = 'rn.sequencer'
+    try {
+      const data = {
+        bpm: bpm.value,
+        loopBars: loopBars.value,
+        tracks: tracks.value.map(t => ({
+          id: t.id,
+          name: t.name,
+          type: t.type,
+          volume: t.volume,
+          pan: t.pan,
+          velocity: t.velocity,
+          velRandom: t.velRandom,
+          params: t.params,
+          pattern: t.pattern ? {
+            mode: t.pattern.mode,
+            groupedDigitsString: t.pattern.groupedDigitsString,
+            digits: t.pattern.digits,
+            numerator: t.pattern.numerator,
+            denominator: t.pattern.denominator
+          } : null
+        }))
+      }
+      localStorage.setItem(KEY, JSON.stringify(data))
+    } catch (e) {
+      console.warn('[sequencer] failed to save to storage', e)
+    }
+  }
+
+  // subscribe to changes
+  watch([bpm, loopBars, tracks], () => {
+    saveToStorage()
+  }, { deep: true })
+
   return {
     bpm,
     loopBars,
@@ -1315,6 +1407,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
   exportWavLiveOnly,
   exportMidi,
   exportProject,
-  importProject
+  importProject,
+  loadFromStorage,
+  saveToStorage
   }
 })

@@ -11,6 +11,25 @@
       <span class="text-slate-400">Loop bars</span>
       <input type="number" class="w-16 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="loopBars" @input="onBars" min="1" max="128" />
     </label>
+    <!-- MIDI out controls -->
+    <label class="flex items-center gap-2 text-sm">
+      <span class="text-slate-400">MIDI out</span>
+      <input type="checkbox" :checked="midiEnabled" @change="onMidiToggle" />
+    </label>
+    <template v-if="midiEnabled">
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-slate-400">Device</span>
+        <select class="bg-slate-800 border border-white/10 rounded px-2 py-1 max-w-[220px]" :value="midiOutputId || ''" @change="onMidiDevice">
+          <option value="">Select…</option>
+          <option v-for="o in midiOutputs" :key="o.id" :value="o.id">{{ o.name }}</option>
+        </select>
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-slate-400">Ch</span>
+        <input type="number" min="1" max="16" class="w-14 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="midiChannel" @input="onMidiChannel" />
+      </label>
+      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onMidiRescan" title="Rescan MIDI devices">Rescan</button>
+    </template>
   <div class="flex flex-wrap items-center gap-2 basis-full sm:basis-auto justify-start">
   <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportWav">WAV</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportMidi">MIDI</button>
@@ -28,7 +47,7 @@ import { storeToRefs } from 'pinia'
 import { useSequencerStore } from '@/stores/sequencerStore'
 
 const seq = useSequencerStore()
-const { bpm, loopBars, isPlaying } = storeToRefs(seq)
+const { bpm, loopBars, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel } = storeToRefs(seq)
 
 function onToggle() {
   if (isPlaying.value) seq.stop()
@@ -137,6 +156,22 @@ function formatTimestamp(d = new Date()) {
   const mm = pad(d.getMinutes())
   const ss = pad(d.getSeconds())
   return `${yyyy}${MM}${dd}-${hh}${mm}${ss}`
+}
+
+function onMidiToggle(e: Event) {
+  const on = (e.target as HTMLInputElement).checked
+  ;(seq as any).enableMidiOutput?.(on)
+}
+function onMidiDevice(e: Event) {
+  const id = (e.target as HTMLSelectElement).value || null
+  ;(seq as any).selectMidiOutput?.(id)
+}
+function onMidiChannel(e: Event) {
+  const v = Number((e.target as HTMLInputElement).value)
+  ;(seq as any).setMidiChannel?.(v)
+}
+function onMidiRescan() {
+  ;(seq as any).updateMidiOutputs?.()
 }
 </script>
 

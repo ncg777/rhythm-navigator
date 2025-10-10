@@ -268,6 +268,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   const tracks = ref<Track[]>([])
 
+  // --- Web MIDI output state
+  const midiEnabled = ref(false)
+  const midiOutputId = ref<string | null>(null)
+  const midiAccess = shallowRef<any | null>(null)
+  const midiOutputs = shallowRef<{ id: string; name: string }[]>([])
+  const midiChannel = ref(10) // 1..16 (default to 10 for drums)
+
   type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any }
   // Keep audio nodes out of deep reactivity to avoid glitches
   const nodes = shallowRef<Record<string, NodeBundle>>({})
@@ -287,6 +294,62 @@ export const useSequencerStore = defineStore('sequencer', () => {
         console.error('[sequencer] enqueueAudioSync error', e)
       }
     }, 16) as unknown) as number
+  }
+
+  // Initialize Web MIDI and populate outputs
+  async function initMidi() {
+    if (midiAccess.value) return
+    try {
+      const access = await (navigator as any).requestMIDIAccess?.({ sysex: false })
+      if (!access) return
+      midiAccess.value = access
+      const update = () => updateMidiOutputs()
+      try { access.onstatechange = update } catch {}
+      updateMidiOutputs()
+    } catch (e) {
+      console.warn('[sequencer] Web MIDI not available', e)
+    }
+  }
+
+  function updateMidiOutputs() {
+    try {
+      if (!midiAccess.value) { midiOutputs.value = []; return }
+      const outs: { id: string; name: string }[] = []
+      const it = midiAccess.value.outputs?.values?.()
+      if (it && typeof it.next === 'function') {
+        for (let r = it.next(); !r.done; r = it.next()) {
+          const o = r.value
+          outs.push({ id: String(o.id), name: String(o.name || o.manufacturer || 'Output') })
+        }
+      }
+      midiOutputs.value = outs
+      if (midiOutputId.value && !outs.find(o => o.id === midiOutputId.value)) midiOutputId.value = null
+    } catch {}
+  }
+
+  function enableMidiOutput(on: boolean) {
+    midiEnabled.value = !!on
+    if (midiEnabled.value) initMidi()
+    // No need to rebuild schedule; we branch at callback time
+    saveToStorage()
+  }
+
+  function selectMidiOutput(id: string | null) {
+    midiOutputId.value = id
+    saveToStorage()
+  }
+
+  function getSelectedMidiOutput(): any | null {
+    try {
+      if (!midiAccess.value || !midiOutputId.value) return null
+      const it = midiAccess.value.outputs?.values?.()
+      if (!it) return null
+      for (let r = it.next(); !r.done; r = it.next()) {
+        const o = r.value
+        if (String(o.id) === midiOutputId.value) return o
+      }
+    } catch {}
+    return null
   }
 
 
@@ -622,6 +685,25 @@ export const useSequencerStore = defineStore('sequencer', () => {
             // Resolve latest track state at callback time so velocity/velRandom changes are live
             const tLatest = tracks.value.find(x => x.id === trackId) || t
             const vel = computeVelocity(tLatest, atSec)
+            // Branch: send Web MIDI if enabled and output selected
+            const out = midiEnabled.value ? getSelectedMidiOutput() : null
+            if (out) {
+              try {
+                const note = Number((tLatest.params as any)?.midiKey ?? midiNoteForType(tLatest.type))
+                const velocity = Math.max(1, Math.min(127, Math.round(vel * 127)))
+                const nowSec = Tone.now()
+                const tsMs = performance.now() + Math.max(0, (time - nowSec) * 1000)
+                const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
+                out.send([0x90 | ch, note, velocity], tsMs)
+                const noteLenQN = 1 / 8
+                const offMs = qnToSeconds(noteLenQN) * 1000
+                out.send([0x80 | ch, note, 0], tsMs + offMs)
+              } catch (e) {
+                console.warn('[sequencer] MIDI send failed', e)
+              }
+              return
+            }
+            // Otherwise, trigger audio
             const nb = nodes.value[trackId]
             nb?.inst.trigger(time, vel)
             // Apply velocity-scaled filter envelope modulation per hit
@@ -986,8 +1068,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
           const tick = Math.round(atQN * PPQ)
           const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
           const vel = Math.max(1, Math.min(127, Math.round(t.velocity * 127)))
-          perTrack[i].push({ tick, bytes: [0x90 | 0x09, note, vel] })
-          perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | 0x09, note, 0] })
+          const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
+          perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
+          perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
         }
       }
     })
@@ -1305,6 +1388,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const data = JSON.parse(raw)
       if (typeof data?.bpm === 'number') bpm.value = data.bpm
       if (typeof data?.loopBars === 'number') loopBars.value = data.loopBars
+  if (typeof data?.midiEnabled === 'boolean') midiEnabled.value = data.midiEnabled
+      if (data?.midiOutputId != null) midiOutputId.value = data.midiOutputId
+  if (typeof data?.midiChannel === 'number') midiChannel.value = Math.max(1, Math.min(16, data.midiChannel))
+      if (midiEnabled.value) initMidi()
       const saved: any[] = Array.isArray(data?.tracks) ? data.tracks : []
       // rebuild tracks
       tracks.value = []
@@ -1359,6 +1446,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const data = {
         bpm: bpm.value,
         loopBars: loopBars.value,
+  midiEnabled: midiEnabled.value,
+  midiOutputId: midiOutputId.value,
+  midiChannel: midiChannel.value,
         tracks: tracks.value.map(t => ({
           id: t.id,
           name: t.name,
@@ -1393,6 +1483,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
     loopBars,
     isPlaying,
     tracks,
+  midiEnabled,
+  midiOutputs,
+  midiOutputId,
+  midiChannel,
   version,
   addTrack,
   removeTrack,
@@ -1405,6 +1499,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
   updateTrackParam,
   assignRhythmToTrack,
   updateTrackPatternMeter,
+    enableMidiOutput,
+    selectMidiOutput,
+  updateMidiOutputs,
+  // channel control
+  setMidiChannel: (n: number) => { midiChannel.value = Math.max(1, Math.min(16, Math.floor(Number(n)||1))); saveToStorage() },
     exportWav,
   exportWavLiveOnly,
   exportMidi,

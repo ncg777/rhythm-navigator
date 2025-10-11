@@ -19,82 +19,98 @@
         <label class="block text-xs uppercase tracking-wide text-slate-400">Denominator (digits/beat)</label>
         <input v-model.number="denominator" type="number" min="1" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28" />
       </div>
+    </div>
 
+    <div class="border-t border-white/10 pt-4">
+      <h3 class="text-sm uppercase tracking-wide text-slate-400 mb-2">Predicate Filters</h3>
+  <div class="flex flex-wrap gap-4 items-center">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" v-model="onlyIsomorphic" />
+          <span class="text-sm text-slate-300">Only shadow-contour isomorphic</span>
+        </label>
 
-      
+        <label class="flex items-center gap-2">
+          <input type="checkbox" v-model="onlyMaximallyEven" />
+          <span class="text-sm text-slate-300">Only maximally even (Euclidean)</span>
+        </label>
 
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="onlyIsomorphic" />
-        <span class="text-sm text-slate-300">Only shadow-contour isomorphic</span>
-      </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" v-model="onlyLowEntropy" />
+          <span class="text-sm text-slate-300">Only low-entropy</span>
+        </label>
 
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="onlyMaximallyEven" />
-        <span class="text-sm text-slate-300">Only maximally even (Euclidean)</span>
-      </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" v-model="onlyHasNoGaps" />
+          <span class="text-sm text-slate-300">Only no-gap interval vector</span>
+        </label>
 
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="onlyLowEntropy" />
-        <span class="text-sm text-slate-300">Only low-entropy</span>
-      </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" v-model="onlyRelativelyFlat" />
+          <span class="text-sm text-slate-300">Only relatively flat</span>
+        </label>
 
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="onlyHasNoGaps" />
-        <span class="text-sm text-slate-300">Only no-gap interval vector</span>
-      </label>
-
-      <label class="flex items-center gap-2">
-        <input type="checkbox" v-model="onlyRelativelyFlat" />
-        <span class="text-sm text-slate-300">Only relatively flat</span>
-      </label>
-
-      <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Oddity</label>
-        <select v-model="oddityType" class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2">
-          <option value="off">Off</option>
-          <option value="rop23">ROP (2/3)</option>
-          <option value="odd-intervals">Odd-interval oddity</option>
-          <option value="no-antipodes">No antipodal pairs</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Ordinal blocks (n)</label>
-        <div class="flex items-center gap-2 mt-1">
-          <input v-model.number="ordinalN" type="number" min="2" class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
-          <label class="flex items-center gap-2">
-            <input type="checkbox" v-model="ordinalEnabled" />
-            <span class="text-sm text-slate-300">Enable</span>
-          </label>
+        <div class="flex items-center gap-2">
+          <label class="text-xs uppercase tracking-wide text-slate-400">Oddity</label>
+          <select v-model="oddityType" class="bg-slate-800 border border-white/10 rounded px-3 py-2">
+            <option value="off">Off</option>
+            <option value="rop23">ROP (2/3)</option>
+            <option value="odd-intervals">Odd-interval oddity</option>
+            <option value="no-antipodes">No antipodal pairs</option>
+          </select>
         </div>
-      </div>
 
-      <div class="flex-1"></div>
-
-      <div class="flex items-center gap-3">
-        <button
-          class="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-500 transition"
-          @click="isGenerating ? stop() : generate()"
-        >
-          {{ isGenerating ? 'Stop' : 'Generate' }}
-        </button>
-        <button
-          class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
-          @click="clear"
-          :disabled="isGenerating"
-          title="Clear generated results"
-        >
-          Clear
-        </button>
-        <div class="text-xs text-slate-400 flex items-center gap-3 pl-3 border-l border-white/10">
-          <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
-          <span>Processed: <b>{{ processed }}</b> / {{ processedMaxDisplay }}</span>
-          <span>Emitted: <b>{{ emitted }}</b></span>
+        <div class="flex items-center gap-2">
+          <label class="text-xs uppercase tracking-wide text-slate-400">Ordinal blocks (n)</label>
+          <div class="flex items-center gap-2">
+            <input v-model.number="ordinalN" type="number" min="2" class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
+            <label class="flex items-center gap-2">
+              <input type="checkbox" v-model="ordinalEnabled" />
+              <span class="text-sm text-slate-300">Enable</span>
+            </label>
+          </div>
         </div>
+
       </div>
     </div>
 
-    
+    <!-- Retention control on its own line above generate -->
+    <div class="flex items-center gap-2 mt-2">
+      <label class="text-xs uppercase tracking-wide text-slate-400">Retention</label>
+      <div class="flex items-center gap-2">
+        <input
+          v-model.number="retentionProbability"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-20"
+          title="Probability (0-100%) of keeping a valid rhythm"
+        />
+        <span class="text-sm text-slate-400">%</span>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-4">
+      <button
+        class="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-500 transition"
+        @click="isGenerating ? stop() : generate()"
+      >
+        {{ isGenerating ? 'Stop' : 'Generate' }}
+      </button>
+      <button
+        class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
+        @click="clear"
+        :disabled="isGenerating"
+        title="Clear generated results"
+      >
+        Clear
+      </button>
+      <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
+        <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
+        <span>Processed: <b>{{ processed }}</b> / {{ processedMaxDisplay }}</span>
+        <span>Emitted: <b>{{ emitted }}</b></span>
+      </div>
+    </div>
 
     <div class="flex flex-wrap items-center gap-4">
       <button
@@ -110,8 +126,6 @@
         {{ agglProcessed }} / {{ agglTotalPairs }} checked · added {{ agglEmitted }}
       </span>
     </div>
-
-    
   </div>
 </template>
 
@@ -141,6 +155,9 @@ const {
   , agglEmitted
   , agglTotalPairs
 } = storeToRefs(store)
+
+// Retention percentage (0-100)
+const { retentionProbability } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
 const base = computed(() => (store.mode === 'binary' ? 2 : store.mode === 'octal' ? 8 : 16))

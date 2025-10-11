@@ -32,6 +32,7 @@ Generator and library
 	- Relatively flat (counts near the mean)
 	- Ordinal(n) blocks
 - Agglutination engine to build longer strings from compatible parts
+- The retention probability feature allows you to control the likelihood of retaining individual rhythms during the generation and agglutination processes. This parameter, expressed as a percentage (0-100), introduces probabilistic filtering to the rhythm generation pipeline.
 - Virtualized results list with fast search and sorting
 
 Rhythm analysis
@@ -127,3 +128,5 @@ npm run test
 - Audio doesn’t start? Many browsers require user interaction before audio can play. Click the page or press Play once to unlock audio.
 - MIDI not listed? Ensure your browser supports Web MIDI (Chrome/Edge), then enable MIDI in the transport and rescan devices.
 - Slow generation? Disable expensive predicates, or narrow the search space (smaller numerator/denominator).
+
+

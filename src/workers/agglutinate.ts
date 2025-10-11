@@ -30,6 +30,7 @@ type StartPayload = {
   onlyRelativelyFlat?: boolean
   ordinalEnabled?: boolean
   ordinalN?: number
+  retentionProbability?: number // 0..1
 }
 
 type InMsg = { type: 'start'; payload: StartPayload } | { type: 'stop' }
@@ -188,6 +189,10 @@ async function run(p: StartPayload) {
           if (pass && p.ordinalEnabled && p.ordinalN && p.ordinalN >= 2) pass = hasOrdinal(onsets, totalBits, p.ordinalN)
 
           if (pass) {
+            const keepProb = typeof p.retentionProbability === 'number' ? Math.max(0, Math.min(1, p.retentionProbability)) : 1
+            if (Math.random() > keepProb) {
+              // skip
+            } else {
             const grouped = concatGrouped(ai.groups, bj.groups)
             const canonicalContour = canonicalContourFromOnsets(onsets, totalBits, opts)
             batch.push({
@@ -201,6 +206,7 @@ async function run(p: StartPayload) {
             })
             emitted++
             if (batch.length >= BATCH_SIZE) pushBatch()
+            }
           }
         }
         processed++

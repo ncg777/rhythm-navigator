@@ -36,6 +36,8 @@ export const useRhythmStore = defineStore('rhythm', {
   onlyRelativelyFlat: false,
   ordinalEnabled: false,
   ordinalN: 4,
+  // Percentage 0-100; 100 means keep all valid rhythms
+  retentionProbability: 100,
 
 
     // generation state
@@ -175,6 +177,7 @@ export const useRhythmStore = defineStore('rhythm', {
           , onlyRelativelyFlat: this.onlyRelativelyFlat
           , ordinalEnabled: this.ordinalEnabled
           , ordinalN: this.ordinalN
+          , retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })
     },
@@ -246,7 +249,8 @@ export const useRhythmStore = defineStore('rhythm', {
           onlyHasNoGaps: this.onlyHasNoGaps,
           onlyRelativelyFlat: this.onlyRelativelyFlat,
           ordinalEnabled: this.ordinalEnabled,
-          ordinalN: this.ordinalN
+          ordinalN: this.ordinalN,
+          retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })
     }

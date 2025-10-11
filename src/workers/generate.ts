@@ -19,6 +19,7 @@ type StartPayload = {
   onlyRelativelyFlat?: boolean
   ordinalEnabled?: boolean
   ordinalN?: number
+  retentionProbability?: number // 0..1
 }
 
 type InMsg = { type: 'start'; payload: StartPayload } | { type: 'stop' }
@@ -160,6 +161,11 @@ async function run(p: StartPayload) {
         }
 
         if (passes) {
+          // Probabilistic retention (default 1)
+          const keepProb = typeof p.retentionProbability === 'number' ? Math.max(0, Math.min(1, p.retentionProbability)) : 1
+          if (Math.random() > keepProb) {
+            // skip retaining this valid rhythm
+          } else {
           const groupedDigitsString = groupDigits(digits, p.mode, p.denominator)
           batch.push({
             id: `${p.mode}:${groupedDigitsString}:${emitted}`,
@@ -176,6 +182,7 @@ async function run(p: StartPayload) {
             denominator: p.denominator
           })
           emitted++
+          }
         }
       }
     }

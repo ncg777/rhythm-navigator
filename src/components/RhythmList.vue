@@ -59,6 +59,7 @@
           :style="{ height: ROW_HEIGHT + 'px', lineHeight: ROW_HEIGHT + 'px' }"
           :title="r.groupedDigitsString"
         >
+          <span class="inline-block px-1.5 py-0.5 text-[10px] uppercase rounded border border-white/10 text-slate-400 shrink-0" :title="r.base">{{ modeShort(r.base) }}</span>
           <span class="font-mono text-brand-300 truncate grow">{{ r.groupedDigitsString }}</span>
           <span class="text-[11px] text-slate-400 shrink-0">{{ r.onsets }} onsets</span>
         </button>
@@ -74,6 +75,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import SearchBar from './SearchBar.vue'
 import { storeToRefs } from 'pinia'
+import type { Mode } from '@/utils/rhythm'
 
 const store = useRhythmStore()
 const { items, selectedId } = storeToRefs(store)
@@ -208,5 +210,9 @@ onBeforeUnmount(() => {
 
 function select(id: string) {
   store.select(id)
+}
+
+function modeShort(b: Mode): string {
+  return b === 'binary' ? 'bin' : b === 'octal' ? 'oct' : 'hex'
 }
 </script>

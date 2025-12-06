@@ -4,6 +4,24 @@
       <h2 class="text-lg font-semibold">All rhythms</h2>
       <div class="flex items-center gap-3 relative">
         <span class="text-sm text-slate-400">Count: {{ sorted.length }}</span>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".csv,text/csv"
+          class="hidden"
+          @change="importCsv"
+        />
+        <button
+          class="px-2 py-1 rounded border border-white/10 hover:bg-white/5"
+          @click="() => fileInput?.click()"
+          title="Import CSV"
+          aria-label="Import CSV"
+        >
+          <!-- Upload icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+            <path d="M12 4l-6 6h4v6h4v-6h4l-6-6zM4 18h16v2H4v-2z" />
+          </svg>
+        </button>
         <button
           class="px-2 py-1 rounded border border-white/10 hover:bg-white/5"
           @click="exportCsv"
@@ -94,6 +112,7 @@ const query = ref('')
 const sortKey = ref<'mode-tsig-onsets' | 'tsig-mode-onsets' | 'onsets-mode-tsig' | 'alpha'>('mode-tsig-onsets')
 const showSortMenu = ref(false)
 const menuRoot = ref<HTMLElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 function toggleSortMenu() { showSortMenu.value = !showSortMenu.value }
 function chooseSort(v: 'mode-tsig-onsets' | 'tsig-mode-onsets' | 'onsets-mode-tsig' | 'alpha') {
   sortKey.value = v
@@ -247,5 +266,73 @@ function exportCsv() {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+function importCsv(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return
+    // Skip header
+    const modeMap: Record<string, Mode> = { bin: 'binary', oct: 'octal', hex: 'hex', binary: 'binary', octal: 'octal' }
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i])
+      if (cols.length < 6) continue
+      const [modeStr, numStr, denStr, onsetsStr, groupedDigitsString, canonicalContour] = cols
+      const base = modeMap[modeStr.toLowerCase()] ?? 'hex'
+      const numerator = parseInt(numStr, 10) || undefined
+      const denominator = parseInt(denStr, 10) || undefined
+      const onsets = parseInt(onsetsStr, 10) || 0
+      const id = crypto.randomUUID()
+      store.items.push({
+        id,
+        base,
+        groupedDigitsString,
+        onsets,
+        canonicalContour,
+        numerator,
+        denominator
+      })
+    }
+    // Reset input so same file can be re-imported
+    input.value = ''
+  }
+  reader.readAsText(file)
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        current += ch
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true
+      } else if (ch === ',') {
+        result.push(current)
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+  }
+  result.push(current)
+  return result
 }
 </script>

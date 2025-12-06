@@ -6,6 +6,17 @@
         <span class="text-sm text-slate-400">Count: {{ sorted.length }}</span>
         <button
           class="px-2 py-1 rounded border border-white/10 hover:bg-white/5"
+          @click="exportCsv"
+          title="Export to CSV"
+          aria-label="Export to CSV"
+        >
+          <!-- Download icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+            <path d="M12 16l-6-6h4V4h4v6h4l-6 6zm-8 2h16v2H4v-2z" />
+          </svg>
+        </button>
+        <button
+          class="px-2 py-1 rounded border border-white/10 hover:bg-white/5"
           @click.stop="toggleSortMenu"
           title="Sort options"
           aria-label="Sort options"
@@ -214,5 +225,27 @@ function select(id: string) {
 
 function modeShort(b: Mode): string {
   return b === 'binary' ? 'bin' : b === 'octal' ? 'oct' : 'hex'
+}
+
+function exportCsv() {
+  const header = ['mode', 'numerator', 'denominator', 'onsets', 'groupedDigitsString', 'canonicalContour']
+  const rows = sorted.value.map(r => [
+    modeShort(r.base),
+    r.numerator ?? '',
+    r.denominator ?? '',
+    r.onsets,
+    `"${(r.groupedDigitsString ?? '').replace(/"/g, '""')}"`,
+    `"${(r.canonicalContour ?? '').replace(/"/g, '""')}"`
+  ])
+  const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'rhythms.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 </script>

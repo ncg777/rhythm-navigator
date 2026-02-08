@@ -29,6 +29,7 @@ type Track = {
   pan: number // -1..1
   velocity: number // 0..1 default velocity
   velRandom: number // 0..1 randomization extent
+  timeScale: number // >0; multiplier on pattern duration (2 = half speed, 0.5 = double speed)
   pattern: Pattern | null
   // synth parameters per type (simple flat bag to avoid complex unions)
   params: Record<string, number | string>
@@ -261,7 +262,7 @@ masterLimiter.connect(Tone.getDestination());
 
 export const useSequencerStore = defineStore('sequencer', () => {
   const bpm = ref(120)
-  const loopBars = ref(1) // 8 bars @ 4/4 by default
+  const loopBars = ref(8)
   const isPlaying = ref(false)
   // bump this whenever track structure/pattern associations change
   const version = ref(0)
@@ -365,6 +366,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       pan: 0,
       velocity: 0.8,
       velRandom: 0,
+      timeScale: 1,
       pattern: null,
       params: {
         filterType: 'lowpass',
@@ -672,11 +674,12 @@ export const useSequencerStore = defineStore('sequencer', () => {
   tracks.value.forEach((t) => {
       const pat = t.pattern
       if (!pat) return
-      const cycleQN = pat.cycleQN
+      const ts = t.timeScale || 1
+      const cycleQN = pat.cycleQN * ts
       if (cycleQN <= 0) return
       for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
         for (const onset of pat.onsets) {
-          const onsetQN = onset / pat.spb
+          const onsetQN = (onset / pat.spb) * ts
           const atQN = base + onsetQN
           if (atQN > loopQN + 1e-9) break
           const atSec = qnToSeconds(atQN)
@@ -805,7 +808,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // Immutable updates for mix fields to avoid deep in-place mutations
-  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom'>>) {
+  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'timeScale'>>) {
     let changed = false
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
@@ -815,12 +818,15 @@ export const useSequencerStore = defineStore('sequencer', () => {
       next.pan = Math.max(-1, Math.min(1, Number(next.pan)))
       next.velocity = Math.max(0, Math.min(1, Number(next.velocity)))
       next.velRandom = Math.max(0, Math.min(1, Number(next.velRandom)))
+      next.timeScale = Math.max(0.0625, Math.min(16, Number(next.timeScale) || 1))
       changed = true
       return next
     })
     if (changed) {
       version.value++
       enqueueAudioSync()
+      // timeScale changes event timing which is baked into the Transport schedule
+      if ('timeScale' in patch && isPlaying.value) rebuildSchedule()
     }
   }
 
@@ -926,11 +932,12 @@ export const useSequencerStore = defineStore('sequencer', () => {
     tracks.value.forEach((t, i) => {
       const pat = t.pattern
       if (!pat) return
-      const cycleQN = pat.cycleQN
+      const ts = t.timeScale || 1
+      const cycleQN = pat.cycleQN * ts
       if (cycleQN <= 0) return
       for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
         for (const onset of pat.onsets) {
-          const onsetQN = onset / pat.spb
+          const onsetQN = (onset / pat.spb) * ts
           const atQN = base + onsetQN
           if (atQN > loopQN + 1e-9) break
           const atSec = qnToSeconds(atQN)
@@ -1064,9 +1071,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
     tracks.value.forEach((t, i) => {
       const pat = t.pattern
       if (!pat) return
-      for (let base = 0; base < loopQN - 1e-9; base += pat.cycleQN) {
+      const ts = t.timeScale || 1
+      const scaledCycleQN = pat.cycleQN * ts
+      for (let base = 0; base < loopQN - 1e-9; base += scaledCycleQN) {
         for (const onset of pat.onsets) {
-          const onsetQN = onset / pat.spb
+          const onsetQN = (onset / pat.spb) * ts
           const atQN = base + onsetQN
           if (atQN > loopQN + 1e-9) break
           const tick = Math.round(atQN * PPQ)
@@ -1268,6 +1277,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     pan: number
     velocity: number
     velRandom: number
+    timeScale: number
     params: Record<string, number | string>
     pattern: null | {
       mode: Mode
@@ -1295,6 +1305,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
         pan: t.pan,
         velocity: t.velocity,
         velRandom: t.velRandom,
+        timeScale: t.timeScale,
         params: t.params,
         pattern: t.pattern ? {
           mode: t.pattern.mode,
@@ -1349,6 +1360,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
           pan: st.pan,
           velocity: st.velocity,
           velRandom: st.velRandom,
+          timeScale: Number(st.timeScale) || 1,
           params: st.params,
           pattern: null
         }
@@ -1410,6 +1422,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
           pan: Number(st.pan ?? 0),
           velocity: Number(st.velocity ?? 0.8),
           velRandom: Number(st.velRandom ?? 0),
+          timeScale: Number(st.timeScale) || 1,
           params: st.params ?? {},
           pattern: null
         }
@@ -1461,6 +1474,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
           pan: t.pan,
           velocity: t.velocity,
           velRandom: t.velRandom,
+          timeScale: t.timeScale,
           params: t.params,
           pattern: t.pattern ? {
             mode: t.pattern.mode,

@@ -28,7 +28,7 @@
         <!-- Updated layout for better readability on mobile -->
         <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1" v-if="t.pattern">
           <span class="block w-full sm:w-auto">bits: {{ t.pattern.totalBits }}</span>
-          <span class="block w-full sm:w-auto">cycle: {{ t.pattern.cycleQN.toFixed(3) }} qn</span>
+          <span class="block w-full sm:w-auto">cycle: {{ (t.pattern.cycleQN * (t.timeScale || 1)).toFixed(3) }} qn</span>
         </div>
         <div class="grid gap-3 sm:gap-4 mt-3 sm:mt-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
@@ -57,6 +57,13 @@
             <div class="flex-1 flex items-center gap-2 min-w-0">
               <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
               <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
+            </div>
+          </div>
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-24 shrink-0 text-slate-400">Timescale</span>
+            <div class="flex-1 flex items-center gap-2 min-w-0">
+              <input class="flex-1 min-w-0" type="range" min="0.0625" max="16" step="0.0625" :value="t.timeScale" @input="onTimeScaleInput(t.id, $event)" />
+              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.0625" max="16" step="0.0625" :value="t.timeScale" @input="onTimeScaleInput(t.id, $event)" />
             </div>
           </div>
         </div>
@@ -375,6 +382,12 @@ function onNameInput(id: string, e: Event) {
 function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom', e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   seq.updateTrackFields(id, { [key]: v } as any)
+}
+
+function onTimeScaleInput(id: string, e: Event) {
+  const v = Number((e.target as HTMLInputElement).value)
+  if (!Number.isFinite(v) || v <= 0) return
+  seq.updateTrackFields(id, { timeScale: v })
 }
 
 function onParamInput(id: string, key: string, e: Event) {

@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia'
 import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
-import { bitsPerDigitForMode } from '@/utils/rhythm'
-import { parseDigitsFromGroupedString } from '@/utils/relations'
-import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
-import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
+import type { PredicateGroup } from '@/types/predicateExpression'
+import { defaultPredicateExpression } from '@/types/predicateExpression'
 
 type WorkerMessage =
   | { type: 'batch'; items: RhythmItem[] }
@@ -25,17 +23,9 @@ export const useRhythmStore = defineStore('rhythm', {
 
   // Invariance now fixed to dihedral; trivial patterns always excluded
 
-    // Only include rhythms that are shadow-contour isomorphic
-    onlyIsomorphic: true,
+    // Predicate filter expression tree (nested AND/OR of predicate conditions)
+    predicateExpression: defaultPredicateExpression() as PredicateGroup,
 
-    // Music theory predicates
-    onlyMaximallyEven: false,
-    oddityType: 'off' as 'off' | 'rop23' | 'odd-intervals' | 'no-antipodes',
-  onlyLowEntropy: false,
-  onlyHasNoGaps: false,
-  onlyRelativelyFlat: false,
-  ordinalEnabled: false,
-  ordinalN: 4,
   // Percentage 0-100; 100 means keep all valid rhythms
   retentionProbability: 100,
 
@@ -87,14 +77,21 @@ export const useRhythmStore = defineStore('rhythm', {
         console.warn('[rhythmStore] failed to load rhythms from storage', e)
       }
 
-      // Save on any items/selection change
+      // Save on any items/selection change — debounced so rapid batch
+      // arrivals don't block the main thread with synchronous
+      // JSON.stringify + localStorage writes on every single update.
+      let saveTimer: ReturnType<typeof setTimeout> | null = null
       this.$subscribe(() => {
-        try {
-          const payload = { items: this.items, selectedId: this.selectedId }
-          localStorage.setItem(KEY, JSON.stringify(payload))
-        } catch (e) {
-          console.warn('[rhythmStore] failed to save rhythms to storage', e)
-        }
+        if (saveTimer) return           // already scheduled
+        saveTimer = setTimeout(() => {
+          saveTimer = null
+          try {
+            const payload = { items: this.items, selectedId: this.selectedId }
+            localStorage.setItem(KEY, JSON.stringify(payload))
+          } catch (e) {
+            console.warn('[rhythmStore] failed to save rhythms to storage', e)
+          }
+        }, 1000)                        // flush at most once per second
       }, { detached: true })
     },
     clear() {
@@ -169,15 +166,8 @@ export const useRhythmStore = defineStore('rhythm', {
           denominator: this.denominator,
           maxReps: this.maxReps,
           // minOnsets/maxOnsets removed from UI; generation uses full range
-          onlyIsomorphic: this.onlyIsomorphic,
-          onlyMaximallyEven: this.onlyMaximallyEven,
-          oddityType: this.oddityType,
-          onlyLowEntropy: this.onlyLowEntropy
-          , onlyHasNoGaps: this.onlyHasNoGaps
-          , onlyRelativelyFlat: this.onlyRelativelyFlat
-          , ordinalEnabled: this.ordinalEnabled
-          , ordinalN: this.ordinalN
-          , retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
+          predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression)),
+          retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })
     },
@@ -242,14 +232,7 @@ export const useRhythmStore = defineStore('rhythm', {
           reflectionInvariant: true,
           excludeTrivial: true,
           // process all onsets; min/max removed from UI
-          onlyIsomorphic: this.onlyIsomorphic,
-          onlyMaximallyEven: this.onlyMaximallyEven,
-          oddityType: this.oddityType,
-          onlyLowEntropy: this.onlyLowEntropy,
-          onlyHasNoGaps: this.onlyHasNoGaps,
-          onlyRelativelyFlat: this.onlyRelativelyFlat,
-          ordinalEnabled: this.ordinalEnabled,
-          ordinalN: this.ordinalN,
+          predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression)),
           retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })

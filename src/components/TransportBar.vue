@@ -82,6 +82,7 @@ function onExportProject() {
       pan: t.pan,
       velocity: t.velocity,
       velRandom: t.velRandom,
+      timeScale: t.timeScale,
     }))
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -119,6 +120,7 @@ function onImportProject(e: Event) {
             pan: st.pan,
             velocity: st.velocity,
             velRandom: st.velRandom,
+            timeScale: st.timeScale ?? 1,
             name: st.name
           })
         } else {

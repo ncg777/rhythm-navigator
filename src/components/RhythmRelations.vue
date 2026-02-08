@@ -134,7 +134,7 @@
           </div>
         </div>
         <div class="mt-2 text-xs text-slate-500">
-          Current oddity filter: <span class="font-mono">{{ oddityType === 'off' ? 'Off' : oddityType === 'rop23' ? 'ROP (2/3)' : oddityType === 'odd-intervals' ? 'Odd-interval oddity' : 'No antipodal pairs' }}</span>
+          Predicates show results for the selected rhythm. Use the <em>Generator &amp; Filters</em> panel to build filter expressions.
         </div>
       </div>
 
@@ -160,7 +160,7 @@ import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isL
 import * as Tone from 'tone'
 
 const store = useRhythmStore()
-const { selected, numerator, denominator, oddityType, ordinalEnabled, ordinalN, mode } = storeToRefs(store)
+const { selected, numerator, denominator, mode } = storeToRefs(store)
 // Use global BPM from the sequencer store
 const seq = useSequencerStore()
 const { bpm: seqBpm } = storeToRefs(seq)
@@ -228,7 +228,8 @@ const details = computed(() => {
   const lowEntropy = isLowEntropy(onsets, totalBits)
   const noGaps = hasNoGaps(onsets, totalBits)
   const relFlat = relativelyFlat(onsets, totalBits)
-  const ord = ordinalEnabled.value && ordinalN.value >= 2 ? hasOrdinal(onsets, totalBits, ordinalN.value) : false
+  // Always evaluate ordinal with a range of common block sizes for display
+  const ord = hasOrdinal(onsets, totalBits, 4)
 
   return {
     totalBits,

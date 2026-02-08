@@ -23,54 +23,10 @@
 
     <div class="border-t border-white/10 pt-4">
       <h3 class="text-sm uppercase tracking-wide text-slate-400 mb-2">Predicate Filters</h3>
-  <div class="flex flex-wrap gap-4 items-center">
-        <label class="flex items-center gap-2">
-          <input type="checkbox" v-model="onlyIsomorphic" />
-          <span class="text-sm text-slate-300">Only shadow-contour isomorphic</span>
-        </label>
-
-        <label class="flex items-center gap-2">
-          <input type="checkbox" v-model="onlyMaximallyEven" />
-          <span class="text-sm text-slate-300">Only maximally even (Euclidean)</span>
-        </label>
-
-        <label class="flex items-center gap-2">
-          <input type="checkbox" v-model="onlyLowEntropy" />
-          <span class="text-sm text-slate-300">Only low-entropy</span>
-        </label>
-
-        <label class="flex items-center gap-2">
-          <input type="checkbox" v-model="onlyHasNoGaps" />
-          <span class="text-sm text-slate-300">Only no-gap interval vector</span>
-        </label>
-
-        <label class="flex items-center gap-2">
-          <input type="checkbox" v-model="onlyRelativelyFlat" />
-          <span class="text-sm text-slate-300">Only relatively flat</span>
-        </label>
-
-        <div class="flex items-center gap-2">
-          <label class="text-xs uppercase tracking-wide text-slate-400">Oddity</label>
-          <select v-model="oddityType" class="bg-slate-800 border border-white/10 rounded px-3 py-2">
-            <option value="off">Off</option>
-            <option value="rop23">ROP (2/3)</option>
-            <option value="odd-intervals">Odd-interval oddity</option>
-            <option value="no-antipodes">No antipodal pairs</option>
-          </select>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <label class="text-xs uppercase tracking-wide text-slate-400">Ordinal blocks (n)</label>
-          <div class="flex items-center gap-2">
-            <input v-model.number="ordinalN" type="number" min="2" class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-24" />
-            <label class="flex items-center gap-2">
-              <input type="checkbox" v-model="ordinalEnabled" />
-              <span class="text-sm text-slate-300">Enable</span>
-            </label>
-          </div>
-        </div>
-
-      </div>
+      <PredicateTreeEditor
+        :node="predicateExpression"
+        @update="predicateExpression = $event"
+      />
     </div>
 
     <!-- Retention control on its own line above generate -->
@@ -133,31 +89,23 @@
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { computed } from 'vue'
+import PredicateTreeEditor from '@/components/PredicateTreeEditor.vue'
 
 const store = useRhythmStore()
 const {
   mode,
   numerator,
   denominator,
-  onlyIsomorphic,
-  onlyMaximallyEven,
-  onlyLowEntropy,
-  onlyHasNoGaps,
-  onlyRelativelyFlat,
-  oddityType,
-  ordinalEnabled,
-  ordinalN,
+  predicateExpression,
+  retentionProbability,
   isGenerating,
   processed,
-  emitted
-  , isAgglutinating
-  , agglProcessed
-  , agglEmitted
-  , agglTotalPairs
+  emitted,
+  isAgglutinating,
+  agglProcessed,
+  agglEmitted,
+  agglTotalPairs
 } = storeToRefs(store)
-
-// Retention percentage (0-100)
-const { retentionProbability } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
 const base = computed(() => (store.mode === 'binary' ? 2 : store.mode === 'octal' ? 8 : 16))

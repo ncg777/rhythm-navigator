@@ -5,32 +5,73 @@
     </header>
     <div class="space-y-4 sm:space-y-6 pb-2">
       <div v-for="t in renderTracks" :key="t.id" class="rounded border border-white/10 p-3 sm:p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
+
+        <!-- Track header: type selector, name, remove grouped together -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 text-sm" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
             <option value="kick">Kick</option>
             <option value="snare">Snare</option>
             <option value="hat">Hat</option>
             <option value="perc">Perc</option>
           </select>
-          <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 w-32 sm:w-40" :value="t.name" @input="onNameInput(t.id, $event)" />
-          <div class="w-full sm:flex-1 order-3 sm:order-none text-xs sm:text-sm text-slate-400 whitespace-normal break-words">
-            <template v-if="t.pattern">
-              <span class="mr-2">{{ t.pattern.mode }} {{ t.pattern.numerator }}/{{ t.pattern.denominator }}</span>
-              <span>{{ t.pattern.groupedDigitsString }}</span>
-            </template>
-            <template v-else>
-              <div class="pattern-placeholder">No pattern selected</div>
-            </template>
+          <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 min-w-0 flex-1 max-w-[200px] text-sm" :value="t.name" @input="onNameInput(t.id, $event)" />
+          <button type="button" class="ml-auto px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10 shrink-0" @click.stop="removeTrack(t.id)">Remove</button>
+        </div>
+
+        <!-- Pattern chain -->
+        <div class="mt-3 border-t border-white/5 pt-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-slate-400 font-medium uppercase tracking-wide">Patterns</span>
+            <span class="text-[10px] text-slate-500">({{ t.patterns.length }} pattern{{ t.patterns.length !== 1 ? 's' : '' }})</span>
           </div>
-          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">Pick…</button>
-          <button type="button" class="px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10" @click.stop="removeTrack(t.id)">Remove</button>
+
+          <div v-if="!t.patterns.length" class="text-sm text-slate-500 italic mb-2">No patterns — pick one to start</div>
+
+          <div v-else class="space-y-1.5 mb-2">
+            <div v-for="(entry, pi) in t.patterns" :key="pi" class="flex flex-wrap items-center gap-2 bg-slate-800/50 rounded px-2 py-1.5 text-xs sm:text-sm">
+              <!-- Pattern info -->
+              <span class="text-slate-300 truncate min-w-0 flex-1">
+                <span class="text-slate-500 mr-1">{{ entry.pattern.mode }}</span>
+                <span class="text-slate-400 mr-1">{{ entry.pattern.numerator }}/{{ entry.pattern.denominator }}</span>
+                <span class="text-slate-300 font-mono">{{ entry.pattern.groupedDigitsString }}</span>
+              </span>
+              <!-- Repeat controls -->
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-slate-500 text-[10px]">×</span>
+                <button class="w-6 h-6 rounded border border-white/10 hover:bg-white/5 text-xs" @click="onRepeatDec(t.id, pi)">−</button>
+                <input class="w-10 bg-slate-700 border border-white/10 rounded px-1 h-6 text-center text-xs"
+                  type="number" min="1" max="99"
+                  :value="entry.repeats"
+                  @input="onRepeatInput(t.id, pi, $event)" />
+                <button class="w-6 h-6 rounded border border-white/10 hover:bg-white/5 text-xs" @click="onRepeatInc(t.id, pi)">+</button>
+              </div>
+              <!-- Move / remove -->
+              <div class="flex items-center gap-1 shrink-0">
+                <button v-if="pi > 0" class="w-6 h-6 rounded border border-white/10 hover:bg-white/5 text-[10px]" @click="onMovePattern(t.id, pi, pi - 1)" title="Move up">↑</button>
+                <button v-if="pi < t.patterns.length - 1" class="w-6 h-6 rounded border border-white/10 hover:bg-white/5 text-[10px]" @click="onMovePattern(t.id, pi, pi + 1)" title="Move down">↓</button>
+                <button class="w-6 h-6 rounded border border-red-500/30 hover:bg-red-500/10 text-[10px]" @click="onRemovePattern(t.id, pi)" title="Remove pattern">×</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chain info -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="px-3 h-8 text-xs rounded border border-white/10 hover:bg-white/5" @click.stop="openPicker(t.id)">+ Pick pattern…</button>
+            <span v-if="t.patterns.length" class="text-[10px] text-slate-500">
+              chain: {{ chainCycleQN(t).toFixed(2) }} qn
+            </span>
+          </div>
         </div>
-        <!-- Updated layout for better readability on mobile -->
-        <div class="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1" v-if="t.pattern">
-          <span class="block w-full sm:w-auto">bits: {{ t.pattern.totalBits }}</span>
-          <span class="block w-full sm:w-auto">cycle: {{ (t.pattern.cycleQN * (t.timeScale || 1)).toFixed(3) }} qn</span>
-        </div>
-        <div class="grid gap-3 sm:gap-4 mt-3 sm:mt-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
+
+        <!-- Mix controls -->
+        <div class="mt-3 border-t border-white/5 pt-3 grid gap-3 sm:gap-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
+          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
+            <span class="w-24 shrink-0 text-slate-400">Note Length</span>
+            <div class="flex-1 flex items-center gap-2 min-w-0">
+              <input class="flex-1 min-w-0" type="range" min="0.01" max="1" step="0.01" :value="t.noteLength" @input="onFieldInput(t.id, 'noteLength', $event)" />
+              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.01" max="1" step="0.01" :value="t.noteLength" @input="onFieldInput(t.id, 'noteLength', $event)" />
+            </div>
+          </div>
           <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-24 shrink-0 text-slate-400">Volume</span>
             <div class="flex-1 flex items-center gap-2 min-w-0">
@@ -127,7 +168,6 @@
                 <option value="band">band</option>
               </select>
             </label>
-            <!-- Clap-like amplitude modulation on the noise -->
             <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
               <span class="w-28 shrink-0 text-slate-400">Amp Mod</span>
               <div class="flex-1 flex items-center gap-2 min-w-0">
@@ -149,7 +189,6 @@
                 <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="(t.params.noiseAmpModDepth ?? 1) as number" @input="onParamInput(t.id, 'noiseAmpModDepth', $event)" />
               </div>
             </label>
-            <!-- Band-limited noise controls -->
             <template v-if="(t.params.noiseType as string) === 'band'">
               <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
                 <span class="w-28 shrink-0 text-slate-400">Band Freq</span>
@@ -266,7 +305,6 @@
 
         <!-- Tanh Distortion and Filter Controls -->
         <div class="mt-4 grid gap-4" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
-          <!-- Distortion Input Gain (pre-distortion level in dB) -->
           <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-28 shrink-0 text-slate-400">Dist In Gain (dB)</span>
             <div class="flex-1 flex items-center gap-2 min-w-0">
@@ -303,8 +341,6 @@
               <input class="w-24 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="20" max="20000" step="1" :value="t.params.filterFrequency as number" @input="onParamInput(t.id, 'filterFrequency', $event)" />
             </div>
           </label>
-
-          <!-- Resonance Parameter -->
           <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-28 shrink-0 text-slate-400">Filter Resonance</span>
             <div class="flex-1 flex items-center gap-2 min-w-0">
@@ -312,8 +348,6 @@
               <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.1" max="10" step="0.1" :value="t.params.filterResonance as number" @input="onParamInput(t.id, 'filterResonance', $event)" />
             </div>
           </label>
-
-          <!-- Velocity -> Filter envelope modulation -->
           <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
             <span class="w-28 shrink-0 text-slate-400">Vel → Filter</span>
             <div class="flex-1 flex items-center gap-2 min-w-0">
@@ -365,10 +399,17 @@ import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
-// Explicitly depend on tracks length and ids for v-for
 const renderTracks = computed(() => tracks.value.map(t => t))
 
 const rstore = useRhythmStore()
+
+// Pitch note options for the pitch selector
+const pitchNotes = ['C0','C#0','D0','D#0','E0','F0','F#0','G0','G#0','A0','A#0','B0','C1','C#1','D1','D#1','E1','F1','F#1','G1','G#1','A1','A#1','B1','C2','C#2','D2','D#2','E2','F2','F#2','G2','G#2','A2','A#2','B2','C3','C#3','D3','D#3','E3','F3','F#3','G3','G#3','A3','A#3','B3','C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4','C5','C#5','D5','D#5','E5','F5','F#5','G5','G#5','A5','A#5','B5','C6']
+
+function chainCycleQN(t: any): number {
+  const ts = t.timeScale || 1
+  return t.patterns.reduce((sum: number, e: any) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
+}
 
 function onTypeChange(id: string, type: any) {
   seq.setTrackType(id, type)
@@ -379,7 +420,7 @@ function onNameInput(id: string, e: Event) {
   seq.updateTrackFields(id, { name: v })
 }
 
-function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom', e: Event) {
+function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'noteLength', e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   seq.updateTrackFields(id, { [key]: v } as any)
 }
@@ -400,13 +441,30 @@ function onParamSelect(id: string, key: string, e: Event) {
   seq.updateTrackParam(id, key, v)
 }
 
-function onMeterInput(id: string, which: 'num' | 'den', e: Event) {
-  const v = Math.max(1, Math.floor(Number((e.target as HTMLInputElement).value)))
-  const t = tracks.value.find(x => x.id === id)
-  if (!t || !t.pattern) return
-  const num = which === 'num' ? v : t.pattern.numerator
-  const den = which === 'den' ? v : t.pattern.denominator
-  seq.updateTrackPatternMeter(id, num, den)
+// Pattern chain management
+function onRemovePattern(trackId: string, index: number) {
+  seq.removePatternFromTrack(trackId, index)
+}
+
+function onRepeatInput(trackId: string, index: number, e: Event) {
+  const v = Math.max(1, Math.floor(Number((e.target as HTMLInputElement).value) || 1))
+  seq.setPatternRepeats(trackId, index, v)
+}
+
+function onRepeatInc(trackId: string, index: number) {
+  const t = tracks.value.find(x => x.id === trackId)
+  if (!t || !t.patterns[index]) return
+  seq.setPatternRepeats(trackId, index, t.patterns[index].repeats + 1)
+}
+
+function onRepeatDec(trackId: string, index: number) {
+  const t = tracks.value.find(x => x.id === trackId)
+  if (!t || !t.patterns[index]) return
+  seq.setPatternRepeats(trackId, index, Math.max(1, t.patterns[index].repeats - 1))
+}
+
+function onMovePattern(trackId: string, from: number, to: number) {
+  seq.movePatternInTrack(trackId, from, to)
 }
 
 function addTrack() { seq.addTrack('perc') }
@@ -422,7 +480,6 @@ function openPicker(trackId: string) {
 function onPick(id: string) {
   const item = rstore.items.find(r => r.id === id)
   if (!item || !pickerTrackId.value) return
-  // Pass current global meter as fallback; store will prefer item's own meter if present
   seq.assignRhythmToTrack(pickerTrackId.value, item, rstore.numerator, rstore.denominator)
 }
 
@@ -437,16 +494,4 @@ function defaultMidiKey(type: string): number {
 }
 </script>
 
-<style scoped>
-.pattern-placeholder {
-  display: block;
-  width: 100%;
-  text-align: center;
-  font-size: 0.95rem;
-  line-height: 1.4rem;
-  margin-top: 0.25rem;
-  color: #94a3b8;
-}
-
-/* Remove previous overrides on .text-slate-400 to avoid layout issues */
-</style>
+<style scoped></style>

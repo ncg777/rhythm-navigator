@@ -20,6 +20,11 @@ type Pattern = {
   cycleQN: number // length in quarter notes
 }
 
+export type PatternEntry = {
+  pattern: Pattern
+  repeats: number // >= 1
+}
+
 type Track = {
   id: string
   name: string
@@ -30,7 +35,8 @@ type Track = {
   velocity: number // 0..1 default velocity
   velRandom: number // 0..1 randomization extent
   timeScale: number // >0; multiplier on pattern duration (2 = half speed, 0.5 = double speed)
-  pattern: Pattern | null
+  noteLength: number // 0.01..1.0, fraction of legato (1 = full legato)
+  patterns: PatternEntry[]
   // synth parameters per type (simple flat bag to avoid complex unions)
   params: Record<string, number | string>
 }
@@ -101,7 +107,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
         voice: synth,
         preGain: inputGain,
         hitVca: postVca,
-        trigger: (time: number, vel: number) => {
+        trigger: (time: number, vel: number, duration?: number) => {
           // Use velocity provided by scheduler (already includes any track-level randomization)
           // Schedule post-VCA scaling so velocity is audible even after distortion/limiting
           try {
@@ -111,7 +117,11 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
             g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
             g.linearRampToValueAtTime?.(1, time + Math.max(0.03, dur))
           } catch {}
-          synth.triggerAttackRelease('C1', '8n', time, vel)
+          // Kick: always use low C1 note; ensure duration is long enough for
+          // the pitch sweep and amplitude body to develop naturally
+          const naturalDur = Number(params.pitchDecay ?? 0.02) + Number(params.envD ?? 0.3) + Number(params.envR ?? 0.1)
+          const dur = Math.max(naturalDur, duration ?? Tone.Time('8n').toSeconds())
+          synth.triggerAttackRelease('C1', dur, time, vel)
         }
       }
     }
@@ -160,7 +170,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
         color,
         preGain: inputGain,
         hitVca: postVca,
-        trigger: (time: number, vel: number) => {
+        trigger: (time: number, vel: number, duration?: number) => {
           try { (lfo as any).phase = 0 } catch {}
           // Per-hit burst gating for clear audible modulation
           try {
@@ -192,7 +202,9 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
             g2.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
             g2.linearRampToValueAtTime?.(1, time + Math.max(0.03, ms.duration))
           } catch {}
-          noise.triggerAttackRelease('16n', time, vel)
+          const naturalDur = Number(params.envD ?? 0.2) + Number(params.envR ?? 0.1)
+          const dur = Math.max(naturalDur, duration ?? Tone.Time('16n').toSeconds())
+          noise.triggerAttackRelease(dur, time, vel)
         }
       }
     }
@@ -216,7 +228,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
         voice: metal,
         preGain: inputGain,
         hitVca: postVca,
-        trigger: (time: number, vel: number) => {
+        trigger: (time: number, vel: number, duration?: number) => {
           try {
             const g: any = (postVca as any).gain
             const dur = Number(params.envD ?? 0.05) + Number(params.envR ?? 0.02) + 0.02
@@ -224,7 +236,10 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
             g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
             g.linearRampToValueAtTime?.(1, time + Math.max(0.02, dur))
           } catch {}
-          metal.triggerAttackRelease('C5', '32n', time, vel)
+          const freq = Number(params.frequency ?? 300)
+          const naturalDur = Number(params.envD ?? 0.05) + Number(params.envR ?? 0.02)
+          const dur = Math.max(naturalDur, duration ?? Tone.Time('32n').toSeconds())
+          metal.triggerAttackRelease(freq, dur, time, vel)
         }
       }
     }
@@ -241,7 +256,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
         voice: pluck,
         preGain: inputGain,
         hitVca: postVca,
-        trigger: (time: number, vel: number) => {
+        trigger: (time: number, vel: number, duration?: number) => {
           try {
             const g: any = (postVca as any).gain
             const dur = 0.2
@@ -249,7 +264,8 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
             g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
             g.linearRampToValueAtTime?.(1, time + Math.max(0.03, dur))
           } catch {}
-          pluck.triggerAttackRelease('C3', '16n', time, vel)
+          const dur = duration ?? Tone.Time('16n').toSeconds()
+          pluck.triggerAttackRelease('C3', dur, time, vel)
         }
       }
     }
@@ -367,7 +383,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       velocity: 0.8,
       velRandom: 0,
       timeScale: 1,
-      pattern: null,
+      noteLength: 0.5,
+      patterns: [],
       params: {
         filterType: 'lowpass',
         filterFrequency: 20000,
@@ -378,15 +395,16 @@ export const useSequencerStore = defineStore('sequencer', () => {
         filterEnvTime: 0.15,
         distortionInputGain: 0,
         midiKey: (type === 'kick' ? 36 : type === 'snare' ? 38 : type === 'hat' ? 42 : 39),
+
         ...(type === 'kick'
           ? { octaves: 2, pitchDecay: 0.02, envA: 0.001, envD: 0.3, envS: 0, envR: 0.1 }
       : type === 'snare'
-      ? { noiseType: 'white', envA: 0.001, envD: 0.2, envR: 0.1,
+      ? { noiseType: 'white', envA: 0.001, envD: 0.18, envR: 0.08,
         // extended noise coloring + clap-like tremolo
         noiseAmpModOn: 0, noiseAmpModFreq: 20, noiseAmpModDepth: 1,
         noiseBandFreq: 1500, noiseBandQ: 3 }
           : type === 'hat'
-          ? { frequency: 250, harmonicity: 5.1, modulationIndex: 32, resonance: 8000, octaves: 1.5, envA: 0.001, envD: 0.05, envR: 0.02 }
+          ? { frequency: 300, harmonicity: 5.1, modulationIndex: 32, resonance: 8000, octaves: 1.5, envA: 0.001, envD: 0.06, envR: 0.03 }
           : { dampening: 4000, resonance: 0.7 })
       }
     }
@@ -672,56 +690,71 @@ export const useSequencerStore = defineStore('sequencer', () => {
     Tone.Transport.loopEnd = qnToSeconds(loopQN)
 
   tracks.value.forEach((t) => {
-      const pat = t.pattern
-      if (!pat) return
+      if (!t.patterns.length) return
       const ts = t.timeScale || 1
-      const cycleQN = pat.cycleQN * ts
-      if (cycleQN <= 0) return
-      for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
-        for (const onset of pat.onsets) {
-          const onsetQN = (onset / pat.spb) * ts
-          const atQN = base + onsetQN
-          if (atQN > loopQN + 1e-9) break
-          const atSec = qnToSeconds(atQN)
-          const trackId = t.id
-          const id = Tone.Transport.schedule((time: number) => {
-            // Resolve latest track state at callback time so velocity/velRandom changes are live
-            const tLatest = tracks.value.find(x => x.id === trackId) || t
-            const vel = computeVelocity(tLatest, atSec)
-            // Branch: send Web MIDI if enabled and output selected
-            const out = midiEnabled.value ? getSelectedMidiOutput() : null
-            if (out) {
-              try {
-                const note = Number((tLatest.params as any)?.midiKey ?? midiNoteForType(tLatest.type))
-                const velocity = Math.max(1, Math.min(127, Math.round(vel * 127)))
-                const nowSec = Tone.now()
-                const tsMs = performance.now() + Math.max(0, (time - nowSec) * 1000)
-                const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
-                out.send([0x90 | ch, note, velocity], tsMs)
-                const noteLenQN = 1 / 8
-                const offMs = qnToSeconds(noteLenQN) * 1000
-                out.send([0x80 | ch, note, 0], tsMs + offMs)
-              } catch (e) {
-                console.warn('[sequencer] MIDI send failed', e)
-              }
-              return
+      const nl = t.noteLength || 0.5
+      // Compute the total chain length = sum of all pattern entries' cycleQN * repeats * timeScale
+      const chainQN = t.patterns.reduce((sum, e) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
+      if (chainQN <= 0) return
+      // Loop the chain within the global loop
+      for (let chainBase = 0; chainBase < loopQN - 1e-9; chainBase += chainQN) {
+        let offsetQN = chainBase
+        for (const entry of t.patterns) {
+          const pat = entry.pattern
+          const patCycleQN = pat.cycleQN * ts
+          for (let rep = 0; rep < entry.repeats; rep++) {
+            // Compute step duration for note length
+            const stepQN = (1 / pat.spb) * ts
+            const noteDurSec = qnToSeconds(stepQN * nl)
+            for (const onset of pat.onsets) {
+              const onsetQN = (onset / pat.spb) * ts
+              const atQN = offsetQN + onsetQN
+              if (atQN > loopQN + 1e-9) break
+              const atSec = qnToSeconds(atQN)
+              const trackId = t.id
+              const capturedNoteDur = noteDurSec
+              const id = Tone.Transport.schedule((time: number) => {
+                // Resolve latest track state at callback time so velocity/velRandom changes are live
+                const tLatest = tracks.value.find(x => x.id === trackId) || t
+                const vel = computeVelocity(tLatest, atSec)
+                // Branch: send Web MIDI if enabled and output selected
+                const out = midiEnabled.value ? getSelectedMidiOutput() : null
+                if (out) {
+                  try {
+                    const note = Number((tLatest.params as any)?.midiKey ?? midiNoteForType(tLatest.type))
+                    const velocity = Math.max(1, Math.min(127, Math.round(vel * 127)))
+                    const nowSec = Tone.now()
+                    const tsMs = performance.now() + Math.max(0, (time - nowSec) * 1000)
+                    const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
+                    out.send([0x90 | ch, note, velocity], tsMs)
+                    const offMs = capturedNoteDur * 1000
+                    out.send([0x80 | ch, note, 0], tsMs + offMs)
+                  } catch (e) {
+                    console.warn('[sequencer] MIDI send failed', e)
+                  }
+                  return
+                }
+                // Otherwise, trigger audio
+                const nb = nodes.value[trackId]
+                nb?.inst.trigger(time, vel, capturedNoteDur)
+                // Apply velocity-scaled filter envelope modulation per hit
+                try {
+                  const filterNode: any = (nb?.inst as any)?.filter ?? nb?.inst?.node
+                  const params: any = (tLatest as any)?.params || {}
+                  const baseHz = Number(params.filterFrequency ?? 20000)
+                  const amtCtl = Number(params.velToFilter ?? 0) // -1..1
+                  let envTime = Number(params.filterEnvTime ?? 0.15)
+                  envTime = Math.max(0.005, Math.min(2.0, envTime))
+                  const amount = amtCtl * Math.max(0, Math.min(1, vel))
+                  scheduleFilterEnv(filterNode, baseHz, amount, envTime, time)
+                } catch {}
+              }, atSec)
+              scheduledIds.push(id)
             }
-            // Otherwise, trigger audio
-            const nb = nodes.value[trackId]
-            nb?.inst.trigger(time, vel)
-            // Apply velocity-scaled filter envelope modulation per hit
-            try {
-              const filterNode: any = (nb?.inst as any)?.filter ?? nb?.inst?.node
-              const params: any = (tLatest as any)?.params || {}
-              const baseHz = Number(params.filterFrequency ?? 20000)
-              const amtCtl = Number(params.velToFilter ?? 0) // -1..1
-              let envTime = Number(params.filterEnvTime ?? 0.15)
-              envTime = Math.max(0.005, Math.min(2.0, envTime))
-              const amount = amtCtl * Math.max(0, Math.min(1, vel))
-              scheduleFilterEnv(filterNode, baseHz, amount, envTime, time)
-            } catch {}
-          }, atSec)
-          scheduledIds.push(id)
+            offsetQN += patCycleQN
+            if (offsetQN > loopQN + 1e-9) break
+          }
+          if (offsetQN > loopQN + 1e-9) break
         }
       }
     })
@@ -808,7 +841,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // Immutable updates for mix fields to avoid deep in-place mutations
-  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'timeScale'>>) {
+  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'timeScale' | 'noteLength'>>) {
     let changed = false
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
@@ -819,14 +852,15 @@ export const useSequencerStore = defineStore('sequencer', () => {
       next.velocity = Math.max(0, Math.min(1, Number(next.velocity)))
       next.velRandom = Math.max(0, Math.min(1, Number(next.velRandom)))
       next.timeScale = Math.max(0.0625, Math.min(16, Number(next.timeScale) || 1))
+      next.noteLength = Math.max(0.01, Math.min(1, Number(next.noteLength) || 0.5))
       changed = true
       return next
     })
     if (changed) {
       version.value++
       enqueueAudioSync()
-      // timeScale changes event timing which is baked into the Transport schedule
-      if ('timeScale' in patch && isPlaying.value) rebuildSchedule()
+      // timeScale or noteLength changes event timing which is baked into the Transport schedule
+      if (('timeScale' in patch || 'noteLength' in patch) && isPlaying.value) rebuildSchedule()
     }
   }
 
@@ -877,29 +911,67 @@ export const useSequencerStore = defineStore('sequencer', () => {
       onsets,
       cycleQN
     }
-  // set new pattern and force shallow copy to ensure reactivity in all consumers
-  // Immutable update of the track to ensure change detection
-  tracks.value = tracks.value.map((t, i) => i === idx ? { ...t, pattern, rev: t.rev + 1 } : t)
+  // Append pattern to the patterns list
+  const entry: PatternEntry = { pattern, repeats: 1 }
+  tracks.value = tracks.value.map((t, i) => i === idx ? { ...t, patterns: [...t.patterns, entry], rev: t.rev + 1 } : t)
   version.value++
     if (isPlaying.value) rebuildSchedule()
   }
 
-  // Update the assigned pattern's meter (numerator/denominator) per track
-  function updateTrackPatternMeter(id: string, numerator: number, denominator: number) {
+  // Remove a pattern at the given index from a track's pattern list
+  function removePatternFromTrack(trackId: string, patternIndex: number) {
+    tracks.value = tracks.value.map(t => {
+      if (t.id !== trackId) return t
+      const patterns = t.patterns.filter((_, i) => i !== patternIndex)
+      return { ...t, patterns, rev: t.rev + 1 }
+    })
+    version.value++
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  // Set the repeat count for a pattern entry
+  function setPatternRepeats(trackId: string, patternIndex: number, repeats: number) {
+    const r = Math.max(1, Math.floor(repeats))
+    tracks.value = tracks.value.map(t => {
+      if (t.id !== trackId) return t
+      const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, repeats: r } : e)
+      return { ...t, patterns, rev: t.rev + 1 }
+    })
+    version.value++
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  // Move a pattern entry up or down in the list
+  function movePatternInTrack(trackId: string, fromIndex: number, toIndex: number) {
+    tracks.value = tracks.value.map(t => {
+      if (t.id !== trackId) return t
+      const patterns = [...t.patterns]
+      if (fromIndex < 0 || fromIndex >= patterns.length || toIndex < 0 || toIndex >= patterns.length) return t
+      const [entry] = patterns.splice(fromIndex, 1)
+      patterns.splice(toIndex, 0, entry)
+      return { ...t, patterns, rev: t.rev + 1 }
+    })
+    version.value++
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  // Update the assigned pattern's meter (numerator/denominator) per track, at a specific pattern index
+  function updateTrackPatternMeter(id: string, numerator: number, denominator: number, patternIndex = 0) {
     const idx = tracks.value.findIndex((x) => x.id === id)
     if (idx < 0) return
     const t = tracks.value[idx]
-    if (!t.pattern) return
+    if (!t.patterns[patternIndex]) return
+    const pat = t.patterns[patternIndex].pattern
     const num = Math.max(1, Math.floor(Number(numerator)))
     const den = Math.max(1, Math.floor(Number(denominator)))
-    const mode = t.pattern.mode
+    const mode = pat.mode
     const bpd = bitsPerDigitForMode(mode)
     const dpb = den
     const spb = dpb * bpd
-    const totalBits = t.pattern.digits.length * bpd
+    const totalBits = pat.digits.length * bpd
     const cycleQN = totalBits / spb
     const nextPattern: Pattern = {
-      ...t.pattern,
+      ...pat,
       numerator: num,
       denominator: den,
       digitsPerBeat: dpb,
@@ -907,7 +979,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
       totalBits, // redundant but keep consistent
       cycleQN
     }
-    tracks.value = tracks.value.map((tr) => (tr.id === id ? { ...tr, pattern: nextPattern, rev: tr.rev + 1 } : tr))
+    tracks.value = tracks.value.map((tr) => {
+      if (tr.id !== id) return tr
+      const patterns = tr.patterns.map((e, i) => i === patternIndex ? { ...e, pattern: nextPattern } : e)
+      return { ...tr, patterns, rev: tr.rev + 1 }
+    })
     version.value++
     if (isPlaying.value) rebuildSchedule()
   }
@@ -927,22 +1003,34 @@ export const useSequencerStore = defineStore('sequencer', () => {
   )
 
   // --- Export helpers
-  function snapshotEvents(loopQN: number): { timeQN: number; timeSec: number; trackIndex: number; velocity: number }[] {
-    const events: { timeQN: number; timeSec: number; trackIndex: number; velocity: number }[] = []
+  function snapshotEvents(loopQN: number): { timeQN: number; timeSec: number; trackIndex: number; velocity: number; noteDurSec: number }[] {
+    const events: { timeQN: number; timeSec: number; trackIndex: number; velocity: number; noteDurSec: number }[] = []
     tracks.value.forEach((t, i) => {
-      const pat = t.pattern
-      if (!pat) return
+      if (!t.patterns.length) return
       const ts = t.timeScale || 1
-      const cycleQN = pat.cycleQN * ts
-      if (cycleQN <= 0) return
-      for (let base = 0; base < loopQN - 1e-9; base += cycleQN) {
-        for (const onset of pat.onsets) {
-          const onsetQN = (onset / pat.spb) * ts
-          const atQN = base + onsetQN
-          if (atQN > loopQN + 1e-9) break
-          const atSec = qnToSeconds(atQN)
-          const vel = computeVelocity(t, atSec)
-          events.push({ timeQN: atQN, timeSec: atSec, trackIndex: i, velocity: vel })
+      const nl = t.noteLength || 0.5
+      const chainQN = t.patterns.reduce((sum, e) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
+      if (chainQN <= 0) return
+      for (let chainBase = 0; chainBase < loopQN - 1e-9; chainBase += chainQN) {
+        let offsetQN = chainBase
+        for (const entry of t.patterns) {
+          const pat = entry.pattern
+          const patCycleQN = pat.cycleQN * ts
+          for (let rep = 0; rep < entry.repeats; rep++) {
+            const stepQN = (1 / pat.spb) * ts
+            const noteDurSec = qnToSeconds(stepQN * nl)
+            for (const onset of pat.onsets) {
+              const onsetQN = (onset / pat.spb) * ts
+              const atQN = offsetQN + onsetQN
+              if (atQN > loopQN + 1e-9) break
+              const atSec = qnToSeconds(atQN)
+              const vel = computeVelocity(t, atSec)
+              events.push({ timeQN: atQN, timeSec: atSec, trackIndex: i, velocity: vel, noteDurSec })
+            }
+            offsetQN += patCycleQN
+            if (offsetQN > loopQN + 1e-9) break
+          }
+          if (offsetQN > loopQN + 1e-9) break
         }
       }
     })
@@ -1066,24 +1154,36 @@ export const useSequencerStore = defineStore('sequencer', () => {
     type Ev = { tick: number; bytes: number[] }
     const perTrack: Ev[][] = tracks.value.map(() => [])
 
-    const noteLenTicks = Math.max(30, Math.floor(PPQ / 8))
-    // Collect events per track
+    // Collect events per track using multi-pattern and noteLength
     tracks.value.forEach((t, i) => {
-      const pat = t.pattern
-      if (!pat) return
+      if (!t.patterns.length) return
       const ts = t.timeScale || 1
-      const scaledCycleQN = pat.cycleQN * ts
-      for (let base = 0; base < loopQN - 1e-9; base += scaledCycleQN) {
-        for (const onset of pat.onsets) {
-          const onsetQN = (onset / pat.spb) * ts
-          const atQN = base + onsetQN
-          if (atQN > loopQN + 1e-9) break
-          const tick = Math.round(atQN * PPQ)
-          const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
-          const vel = Math.max(1, Math.min(127, Math.round(t.velocity * 127)))
-          const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
-          perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
-          perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+      const nl = t.noteLength || 0.5
+      const chainQN = t.patterns.reduce((sum, e) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
+      if (chainQN <= 0) return
+      for (let chainBase = 0; chainBase < loopQN - 1e-9; chainBase += chainQN) {
+        let offsetQN = chainBase
+        for (const entry of t.patterns) {
+          const pat = entry.pattern
+          const patCycleQN = pat.cycleQN * ts
+          for (let rep = 0; rep < entry.repeats; rep++) {
+            const stepQN = (1 / pat.spb) * ts
+            const noteLenTicks = Math.max(10, Math.round(stepQN * nl * PPQ))
+            for (const onset of pat.onsets) {
+              const onsetQN = (onset / pat.spb) * ts
+              const atQN = offsetQN + onsetQN
+              if (atQN > loopQN + 1e-9) break
+              const tick = Math.round(atQN * PPQ)
+              const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
+              const vel = Math.max(1, Math.min(127, Math.round(t.velocity * 127)))
+              const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
+              perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
+              perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+            }
+            offsetQN += patCycleQN
+            if (offsetQN > loopQN + 1e-9) break
+          }
+          if (offsetQN > loopQN + 1e-9) break
         }
       }
     })
@@ -1179,25 +1279,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
         const trk = locals[ev.trackIndex]
         if (!trk) continue
         const vel = ev.velocity
-        switch (trk.type) {
-          case 'kick':
-            // MembraneSynth: (note, dur, time, vel)
-            trk.inst.trigger(at, vel)
-            break
-          case 'snare':
-            // NoiseSynth: (dur, time, vel)
-            trk.inst.trigger(at, vel)
-            break
-          case 'hat':
-            // MetalSynth
-            trk.inst.trigger(at, vel)
-            break
-          case 'perc':
-          default:
-            // PluckSynth
-            trk.inst.trigger(at, vel)
-            break
-        }
+        const noteDur = ev.noteDurSec
+        // All types now use the unified trigger with duration
+        trk.inst.trigger(at, vel, noteDur)
         // Apply velocity-scaled filter envelope for offline too
         try {
           const filterNode: any = (trk.inst as any)?.filter ?? trk.inst.node
@@ -1268,7 +1352,14 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // --- Project save/load (JSON)
-  type SavedPattern = Omit<Pattern, 'onsets' | 'totalBits' | 'spb' | 'cycleQN'> & { digits: number[] }
+  type SavedPatternEntry = {
+    mode: Mode
+    groupedDigitsString: string
+    digits: number[]
+    numerator: number
+    denominator: number
+    repeats: number
+  }
   type SavedTrack = {
     id: string
     name: string
@@ -1278,8 +1369,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
     velocity: number
     velRandom: number
     timeScale: number
+    noteLength: number
     params: Record<string, number | string>
-    pattern: null | {
+    patterns: SavedPatternEntry[]
+    // Legacy support
+    pattern?: null | {
       mode: Mode
       groupedDigitsString: string
       digits: number[]
@@ -1306,14 +1400,16 @@ export const useSequencerStore = defineStore('sequencer', () => {
         velocity: t.velocity,
         velRandom: t.velRandom,
         timeScale: t.timeScale,
+        noteLength: t.noteLength,
         params: t.params,
-        pattern: t.pattern ? {
-          mode: t.pattern.mode,
-          groupedDigitsString: t.pattern.groupedDigitsString,
-          digits: t.pattern.digits,
-          numerator: t.pattern.numerator,
-          denominator: t.pattern.denominator
-        } : null
+        patterns: t.patterns.map(e => ({
+          mode: e.pattern.mode,
+          groupedDigitsString: e.pattern.groupedDigitsString,
+          digits: e.pattern.digits,
+          numerator: e.pattern.numerator,
+          denominator: e.pattern.denominator,
+          repeats: e.repeats
+        }))
       }))
     }
     const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.json`
@@ -1334,6 +1430,32 @@ export const useSequencerStore = defineStore('sequencer', () => {
     }
   }
 
+  function rebuildPatternEntry(sp: any): PatternEntry | null {
+    if (!sp || !sp.digits || !sp.mode) return null
+    const mode = sp.mode as Mode
+    const digits = sp.digits as number[]
+    const dpb = Math.max(1, Math.floor(sp.denominator ?? 1))
+    const bpd = bitsPerDigitForMode(mode)
+    const spb = dpb * bpd
+    const { onsets, totalBits } = digitsToOnsets(digits, mode)
+    const cycleQN = totalBits / spb
+    return {
+      pattern: {
+        mode,
+        groupedDigitsString: sp.groupedDigitsString ?? '',
+        digits,
+        numerator: Math.max(1, Math.floor(sp.numerator ?? 4)),
+        denominator: Math.max(1, Math.floor(sp.denominator ?? 1)),
+        digitsPerBeat: dpb,
+        totalBits,
+        spb,
+        onsets,
+        cycleQN
+      },
+      repeats: Math.max(1, Math.floor(sp.repeats ?? 1))
+    }
+  }
+
   function importProject(json: string) {
     try {
       const data = JSON.parse(json) as Project
@@ -1351,6 +1473,19 @@ export const useSequencerStore = defineStore('sequencer', () => {
       tracks.value = []
       data.tracks.forEach(st => {
         const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
+        const patterns: PatternEntry[] = []
+        // Load patterns array (new format)
+        if (Array.isArray(st.patterns) && st.patterns.length > 0) {
+          for (const sp of st.patterns) {
+            const entry = rebuildPatternEntry(sp)
+            if (entry) patterns.push(entry)
+          }
+        }
+        // Legacy: single pattern field
+        else if (st.pattern && st.pattern.digits && st.pattern.mode) {
+          const entry = rebuildPatternEntry({ ...st.pattern, repeats: 1 })
+          if (entry) patterns.push(entry)
+        }
         const t: Track = {
           id,
           name: st.name,
@@ -1361,30 +1496,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
           velocity: st.velocity,
           velRandom: st.velRandom,
           timeScale: Number(st.timeScale) || 1,
+          noteLength: Number(st.noteLength) || 0.5,
           params: st.params,
-          pattern: null
-        }
-        // Recompute pattern timing if present
-        if (st.pattern) {
-          const mode = st.pattern.mode
-          const digits = st.pattern.digits
-          const dpb = Math.max(1, Math.floor(st.pattern.denominator))
-          const bpd = bitsPerDigitForMode(mode)
-          const spb = dpb * bpd
-          const { onsets, totalBits } = digitsToOnsets(digits, mode)
-          const cycleQN = totalBits / spb
-          t.pattern = {
-            mode,
-            groupedDigitsString: st.pattern.groupedDigitsString,
-            digits,
-            numerator: st.pattern.numerator,
-            denominator: st.pattern.denominator,
-            digitsPerBeat: dpb,
-            totalBits,
-            spb,
-            onsets,
-            cycleQN
-          }
+          patterns
         }
         tracks.value = tracks.value.concat(t)
       })
@@ -1413,6 +1527,19 @@ export const useSequencerStore = defineStore('sequencer', () => {
       tracks.value = []
       saved.forEach(st => {
         const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
+        const patterns: PatternEntry[] = []
+        // Load patterns array (new format)
+        if (Array.isArray(st.patterns) && st.patterns.length > 0) {
+          for (const sp of st.patterns) {
+            const entry = rebuildPatternEntry(sp)
+            if (entry) patterns.push(entry)
+          }
+        }
+        // Legacy: single pattern field
+        else if (st.pattern && st.pattern.digits && st.pattern.mode) {
+          const entry = rebuildPatternEntry({ ...st.pattern, repeats: 1 })
+          if (entry) patterns.push(entry)
+        }
         const t: Track = {
           id,
           name: st.name ?? '',
@@ -1423,29 +1550,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
           velocity: Number(st.velocity ?? 0.8),
           velRandom: Number(st.velRandom ?? 0),
           timeScale: Number(st.timeScale) || 1,
+          noteLength: Number(st.noteLength) || 0.5,
           params: st.params ?? {},
-          pattern: null
-        }
-        if (st.pattern && st.pattern.digits && st.pattern.mode) {
-          const mode = st.pattern.mode as Mode
-          const digits = st.pattern.digits as number[]
-          const dpb = Math.max(1, Math.floor(st.pattern.denominator ?? 1))
-          const bpd = bitsPerDigitForMode(mode)
-          const spb = dpb * bpd
-          const { onsets, totalBits } = digitsToOnsets(digits, mode)
-          const cycleQN = totalBits / spb
-          t.pattern = {
-            mode,
-            groupedDigitsString: st.pattern.groupedDigitsString ?? '',
-            digits,
-            numerator: Math.max(1, Math.floor(st.pattern.numerator ?? 4)),
-            denominator: Math.max(1, Math.floor(st.pattern.denominator ?? 1)),
-            digitsPerBeat: dpb,
-            totalBits,
-            spb,
-            onsets,
-            cycleQN
-          }
+          patterns
         }
         tracks.value = tracks.value.concat(t)
       })
@@ -1475,14 +1582,16 @@ export const useSequencerStore = defineStore('sequencer', () => {
           velocity: t.velocity,
           velRandom: t.velRandom,
           timeScale: t.timeScale,
+          noteLength: t.noteLength,
           params: t.params,
-          pattern: t.pattern ? {
-            mode: t.pattern.mode,
-            groupedDigitsString: t.pattern.groupedDigitsString,
-            digits: t.pattern.digits,
-            numerator: t.pattern.numerator,
-            denominator: t.pattern.denominator
-          } : null
+          patterns: t.patterns.map(e => ({
+            mode: e.pattern.mode,
+            groupedDigitsString: e.pattern.groupedDigitsString,
+            digits: e.pattern.digits,
+            numerator: e.pattern.numerator,
+            denominator: e.pattern.denominator,
+            repeats: e.repeats
+          }))
         }))
       }
       localStorage.setItem(KEY, JSON.stringify(data))
@@ -1516,6 +1625,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
   updateTrackFields,
   updateTrackParam,
   assignRhythmToTrack,
+  removePatternFromTrack,
+  setPatternRepeats,
+  movePatternInTrack,
   updateTrackPatternMeter,
     enableMidiOutput,
     selectMidiOutput,

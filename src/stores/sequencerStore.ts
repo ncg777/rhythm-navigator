@@ -703,14 +703,28 @@ export const useSequencerStore = defineStore('sequencer', () => {
           const pat = entry.pattern
           const patCycleQN = pat.cycleQN * ts
           for (let rep = 0; rep < entry.repeats; rep++) {
-            // Compute step duration for note length
-            const stepQN = (1 / pat.spb) * ts
-            const noteDurSec = qnToSeconds(stepQN * nl)
-            for (const onset of pat.onsets) {
+            // For each onset, compute the inter-onset interval (IOI) with circular lookahead
+            for (let onsetIdx = 0; onsetIdx < pat.onsets.length; onsetIdx++) {
+              const onset = pat.onsets[onsetIdx]
               const onsetQN = (onset / pat.spb) * ts
               const atQN = offsetQN + onsetQN
               if (atQN > loopQN + 1e-9) break
               const atSec = qnToSeconds(atQN)
+              
+              // Calculate inter-onset interval: time from this onset to the next (wrapping circularly)
+              const nextOnsetIdx = (onsetIdx + 1) % pat.onsets.length
+              const nextOnset = pat.onsets[nextOnsetIdx]
+              let ioiQN: number
+              if (nextOnsetIdx > onsetIdx) {
+                // Next onset is later in the same pattern cycle
+                ioiQN = ((nextOnset - onset) / pat.spb) * ts
+              } else {
+                // Next onset wraps to the beginning of the next pattern cycle
+                ioiQN = ((pat.totalBits - onset + nextOnset) / pat.spb) * ts
+              }
+              
+              // Note duration = noteLength × inter-onset interval
+              const noteDurSec = qnToSeconds(ioiQN * nl)
               const trackId = t.id
               const capturedNoteDur = noteDurSec
               const id = Tone.Transport.schedule((time: number) => {

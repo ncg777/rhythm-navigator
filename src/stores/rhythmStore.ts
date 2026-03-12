@@ -4,6 +4,8 @@ import type { Mode, RhythmItem } from '@/utils/rhythm'
 import type { PredicateGroup } from '@/types/predicateExpression'
 import { defaultPredicateExpression } from '@/types/predicateExpression'
 
+export type GenerationMethod = 'enumerate' | 'sample'
+
 type WorkerMessage =
   | { type: 'batch'; items: RhythmItem[] }
   | { type: 'done' }
@@ -29,6 +31,11 @@ export const useRhythmStore = defineStore('rhythm', {
   // Percentage 0-100; 100 means keep all valid rhythms
   retentionProbability: 100,
 
+  // Generation method: 'enumerate' (exhaustive) or 'sample' (stochastic)
+  generationMethod: 'enumerate' as GenerationMethod,
+
+  // Max random attempts for stochastic sampling (0 = 1 million default)
+  maxSampleAttempts: 1_000_000,
 
     // generation state
     isGenerating: false,
@@ -127,7 +134,10 @@ export const useRhythmStore = defineStore('rhythm', {
       if (this.isGenerating) return
       this.isGenerating = true
 
-      const worker = new Worker(new URL('@/workers/generate.ts', import.meta.url), { type: 'module' })
+      const isStochastic = this.generationMethod === 'sample'
+      const worker = isStochastic
+        ? new Worker(new URL('@/workers/stochastic.ts', import.meta.url), { type: 'module' })
+        : new Worker(new URL('@/workers/generate.ts', import.meta.url), { type: 'module' })
       this._worker = worker
 
       worker.onmessage = (ev: MessageEvent<WorkerMessage>) => {
@@ -158,18 +168,26 @@ export const useRhythmStore = defineStore('rhythm', {
         }
       }
 
-      worker.postMessage({
-        type: 'start',
-        payload: {
-          mode: this.mode,
-          numerator: this.numerator,
-          denominator: this.denominator,
-          maxReps: this.maxReps,
-          // minOnsets/maxOnsets removed from UI; generation uses full range
-          predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression)),
-          retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
-        }
-      })
+      const basePayload = {
+        mode: this.mode,
+        numerator: this.numerator,
+        denominator: this.denominator,
+        maxReps: this.maxReps,
+        predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression)),
+        retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
+      }
+
+      if (isStochastic) {
+        worker.postMessage({
+          type: 'start',
+          payload: {
+            ...basePayload,
+            maxAttempts: this.maxSampleAttempts > 0 ? this.maxSampleAttempts : 1_000_000
+          }
+        })
+      } else {
+        worker.postMessage({ type: 'start', payload: basePayload })
+      }
     },
 
   // Generate all ordered pairs (A+B) where A and B share base and time signature, and A||B passes current filters.

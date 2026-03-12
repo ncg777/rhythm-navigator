@@ -1,0 +1,172 @@
+/**
+ * Rhythm Navigator MCP Server
+ *
+ * Exposes rhythm generation tools via the Model Context Protocol (MCP).
+ * Supports both enumerative and stochastic sampling approaches.
+ *
+ * Tools:
+ *   - enumerate_rhythms: Exhaustive generate-and-test rhythm enumeration
+ *   - sample_rhythms: Fast stochastic rhythm sampling
+ *   - list_predicates: List available predicate filters
+ */
+
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { z } from 'zod'
+import {
+  enumerateRhythms,
+  sampleRhythms,
+  ALL_PREDICATE_IDS,
+  PREDICATE_LABELS
+} from './engine.js'
+import type { PredicateGroup, PredicateId } from './engine.js'
+
+function buildPredicateExpression(predicateIds: string[]): PredicateGroup | null {
+  if (!predicateIds || predicateIds.length === 0) return null
+  const validIds = predicateIds.filter(id =>
+    ALL_PREDICATE_IDS.includes(id as PredicateId)
+  ) as PredicateId[]
+  if (validIds.length === 0) return null
+  return {
+    type: 'and',
+    children: validIds.map(id => ({ type: 'predicate' as const, id }))
+  }
+}
+
+export async function startMcpServer(): Promise<void> {
+  const server = new McpServer({
+    name: 'rhythm-navigator',
+    version: '0.3.1'
+  })
+
+  // Tool: enumerate_rhythms
+  server.tool(
+    'enumerate_rhythms',
+    'Exhaustive generate-and-test rhythm enumeration. Systematically explores all possible rhythm patterns within the search space and filters them using predicate conditions. Best for small search spaces where completeness is desired.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode: binary (1 bit/digit), octal (3 bits/digit), hex (4 bits/digit)'),
+      numerator: z.number().int().min(1).default(4)
+        .describe('Time signature numerator (number of beats)'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat'),
+      maxResults: z.number().int().min(0).default(0)
+        .describe('Maximum number of results to return (0 = unlimited, runs until space exhausted)'),
+      predicates: z.array(z.string()).default([])
+        .describe('Array of predicate filter IDs to apply as AND conditions. Available: isomorphic, maximallyEven, rop23, odd-intervals, no-antipodes, lowEntropy, noGaps, relativelyFlat, ordinal'),
+      retentionProbability: z.number().min(0).max(100).default(100)
+        .describe('Percentage probability (0-100) of keeping each valid rhythm')
+    },
+    async (params) => {
+      const predicateExpression = buildPredicateExpression(params.predicates)
+      const result = enumerateRhythms({
+        mode: params.mode,
+        numerator: params.numerator,
+        denominator: params.denominator,
+        maxReps: params.maxResults,
+        predicateExpression,
+        retentionProbability: Math.max(0, Math.min(1, params.retentionProbability / 100))
+      })
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            method: 'enumerate',
+            processed: result.processed,
+            emitted: result.emitted,
+            count: result.items.length,
+            items: result.items.map(item => ({
+              id: item.id,
+              base: item.base,
+              pattern: item.groupedDigitsString,
+              onsets: item.onsets,
+              contour: item.canonicalContour,
+              numerator: item.numerator,
+              denominator: item.denominator
+            }))
+          }, null, 2)
+        }]
+      }
+    }
+  )
+
+  // Tool: sample_rhythms
+  server.tool(
+    'sample_rhythms',
+    'Fast stochastic rhythm sampling. Randomly generates rhythm patterns and tests them against predicate filters. Much faster than enumeration for large search spaces. Discovers diverse results quickly.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode: binary (1 bit/digit), octal (3 bits/digit), hex (4 bits/digit)'),
+      numerator: z.number().int().min(1).default(4)
+        .describe('Time signature numerator (number of beats)'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat'),
+      maxResults: z.number().int().min(1).default(50)
+        .describe('Maximum number of results to return'),
+      maxAttempts: z.number().int().min(1).default(1000000)
+        .describe('Maximum number of random trials before stopping'),
+      predicates: z.array(z.string()).default([])
+        .describe('Array of predicate filter IDs to apply as AND conditions. Available: isomorphic, maximallyEven, rop23, odd-intervals, no-antipodes, lowEntropy, noGaps, relativelyFlat, ordinal'),
+      retentionProbability: z.number().min(0).max(100).default(100)
+        .describe('Percentage probability (0-100) of keeping each valid rhythm')
+    },
+    async (params) => {
+      const predicateExpression = buildPredicateExpression(params.predicates)
+      const result = sampleRhythms({
+        mode: params.mode,
+        numerator: params.numerator,
+        denominator: params.denominator,
+        maxResults: params.maxResults,
+        maxAttempts: params.maxAttempts,
+        predicateExpression,
+        retentionProbability: Math.max(0, Math.min(1, params.retentionProbability / 100))
+      })
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            method: 'sample',
+            attempts: result.attempts,
+            emitted: result.emitted,
+            count: result.items.length,
+            items: result.items.map(item => ({
+              id: item.id,
+              base: item.base,
+              pattern: item.groupedDigitsString,
+              onsets: item.onsets,
+              contour: item.canonicalContour,
+              numerator: item.numerator,
+              denominator: item.denominator
+            }))
+          }, null, 2)
+        }]
+      }
+    }
+  )
+
+  // Tool: list_predicates
+  server.tool(
+    'list_predicates',
+    'List all available predicate filters for rhythm analysis with their descriptions.',
+    {},
+    async () => {
+      const predicates = ALL_PREDICATE_IDS.map(id => ({
+        id,
+        label: PREDICATE_LABELS[id]
+      }))
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ predicates }, null, 2)
+        }]
+      }
+    }
+  )
+
+  // Start stdio transport
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+}

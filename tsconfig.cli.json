@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "outDir": "dist-cli",
+    "rootDir": "src",
+    "declaration": false,
+    "sourceMap": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": [
+    "src/cli/**/*.ts",
+    "src/utils/rhythm.ts",
+    "src/utils/contour.ts",
+    "src/utils/predicates.ts",
+    "src/utils/predicateEval.ts",
+    "src/utils/stochasticSampler.ts",
+    "src/types/predicateExpression.ts"
+  ]
+}

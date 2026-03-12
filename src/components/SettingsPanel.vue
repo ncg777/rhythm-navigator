@@ -46,12 +46,42 @@
       </div>
     </div>
 
+    <!-- Generation method toggle -->
+    <div class="flex flex-wrap items-center gap-4 mt-2">
+      <label class="text-xs uppercase tracking-wide text-slate-400">Method</label>
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-1 cursor-pointer text-sm"
+               :class="generationMethod === 'enumerate' ? 'text-white' : 'text-slate-500'">
+          <input type="radio" v-model="generationMethod" value="enumerate"
+                 class="accent-brand-500" />
+          Enumerate
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer text-sm"
+               :class="generationMethod === 'sample' ? 'text-white' : 'text-slate-500'">
+          <input type="radio" v-model="generationMethod" value="sample"
+                 class="accent-brand-500" />
+          Sample
+        </label>
+      </div>
+      <div v-if="generationMethod === 'sample'" class="flex items-center gap-2">
+        <label class="text-xs uppercase tracking-wide text-slate-400">Max attempts</label>
+        <input
+          v-model.number="maxSampleAttempts"
+          type="number"
+          min="1000"
+          step="1000"
+          class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-32"
+          title="Maximum random trials before stopping"
+        />
+      </div>
+    </div>
+
     <div class="flex flex-wrap items-center gap-4">
       <button
         class="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-500 transition"
         @click="isGenerating ? stop() : generate()"
       >
-        {{ isGenerating ? 'Stop' : 'Generate' }}
+        {{ isGenerating ? 'Stop' : (generationMethod === 'sample' ? 'Sample' : 'Generate') }}
       </button>
       <button
         class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
@@ -63,7 +93,7 @@
       </button>
       <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
         <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
-        <span>Processed: <b>{{ processed }}</b> / {{ processedMaxDisplay }}</span>
+        <span>{{ generationMethod === 'sample' ? 'Attempts' : 'Processed' }}: <b>{{ processed }}</b><template v-if="generationMethod === 'enumerate'"> / {{ processedMaxDisplay }}</template></span>
         <span>Emitted: <b>{{ emitted }}</b></span>
       </div>
     </div>
@@ -98,6 +128,8 @@ const {
   denominator,
   predicateExpression,
   retentionProbability,
+  generationMethod,
+  maxSampleAttempts,
   isGenerating,
   processed,
   emitted,

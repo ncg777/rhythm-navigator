@@ -63,209 +63,204 @@ function firstGroupLength(grouped: string): number {
 }
 
 function makeInstrument(type: TrackType, params: Record<string, number | string> = {}) {
-  // Support legacy key 'distortionGain' for older projects
-  // Clamp pre-gain to a safe range [-60, 120] dB
-  const preDb = Math.max(-60, Math.min(120, Number((params as any).distortionInputGain ?? (params as any).distortionGain ?? 0)))
+  // Shared signal chain: voice(s) → inputGain → distortion → filter → postVca
+  const preDb = Math.max(-60, Math.min(120, Number(params.distortionInputGain ?? 0)))
   const inputGain = markRaw(new Tone.Gain(Tone.dbToGain(preDb)));
-  const distortion = markRaw(new Tone.Distortion(1)); // Fixed distortion curve strength
+  const distortion = markRaw(new Tone.Distortion(1));
   const filter = markRaw(new Tone.Filter({
     frequency: Number(params.filterFrequency ?? 20000),
     type: String(params.filterType ?? 'lowpass') as BiquadFilterType,
     Q: Number(params.filterResonance ?? 1),
-    rolloff: Number(params.filterRolloff ?? -12) as any, // Tone supports -12,-24,-48,-96
+    rolloff: Number(params.filterRolloff ?? -12) as any,
   }));
-
-  // Smoothly ramp filter params
   try { filter.frequency.rampTo(Number(params.filterFrequency ?? 20000), 0.1) } catch {}
   try { filter.Q.rampTo(Number(params.filterResonance ?? 1), 0.1) } catch {}
-  try { (filter as any).rolloff = Number(params.filterRolloff ?? -12) } catch {}
 
-  // Connect inputGain -> distortion -> filter
   inputGain.connect(distortion);
   distortion.connect(filter);
-  // Post-filter VCA to enforce per-hit velocity scaling after heavy drive
   const postVca = markRaw(new Tone.Gain(1));
   ;(filter as any).connect(postVca)
 
-  // Build synth voice and route to: voice -> inputGain -> distortion -> filter (return filter as node)
+  // Helper: schedule post-VCA velocity envelope
+  function schedVelEnv(time: number, vel: number, envDur: number) {
+    try {
+      const g: any = (postVca as any).gain
+      g.cancelScheduledValues?.(time)
+      g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
+      g.linearRampToValueAtTime?.(1, time + Math.max(0.03, envDur))
+    } catch {}
+  }
+
   switch (type) {
+    // ===================== KICK (808/909 hybrid) =====================
     case 'kick': {
-      const synth = markRaw(new Tone.MembraneSynth({
-        octaves: Number(params.octaves ?? 2),
-        pitchDecay: Number(params.pitchDecay ?? 0.02),
+      const tune = Number(params.tune ?? 55)
+      const clickLevel = Math.max(0, Math.min(1, Number(params.click ?? 0.5)))
+      const sweepOct = Number(params.sweep ?? 4)
+      const sweepTime = Number(params.sweepTime ?? 0.04)
+      const bodyDecay = Number(params.decay ?? 0.4)
+      const subLevel = Math.max(0, Math.min(1, Number(params.sub ?? 0.6)))
+
+      // Body: MembraneSynth — pitched sweep + sub
+      const body = markRaw(new Tone.MembraneSynth({
+        octaves: sweepOct,
+        pitchDecay: sweepTime,
         envelope: {
-          attack: Number(params.envA ?? 0.01),
-          decay: Number(params.envD ?? 0.3),
-          sustain: Number(params.envS ?? 0.0),
-          release: Number(params.envR ?? 0.1)
+          attack: 0.003,
+          decay: bodyDecay,
+          sustain: subLevel,
+          release: Math.min(bodyDecay * 0.4, 0.15)
         }
-      }));
-      synth.connect(inputGain); // Route synth to inputGain
+      }))
+      // Click transient: short sine burst at higher pitch
+      const click = markRaw(new Tone.Synth({
+        oscillator: { type: 'sine' } as any,
+        envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
+      }))
+      const clickGain = markRaw(new Tone.Gain(clickLevel))
+      body.connect(inputGain)
+      click.connect(clickGain)
+      clickGain.connect(inputGain)
+
       return {
-        node: postVca,
-        filter,
-        voice: synth,
-        preGain: inputGain,
-        hitVca: postVca,
+        node: postVca, filter, voice: body, voice2: click, clickGain,
+        preGain: inputGain, hitVca: postVca,
         trigger: (time: number, vel: number, duration?: number) => {
-          // Use velocity provided by scheduler (already includes any track-level randomization)
-          // Schedule post-VCA scaling so velocity is audible even after distortion/limiting
-          try {
-            const g: any = (postVca as any).gain
-            const dur = Number(params.envD ?? 0.3) + Number(params.envR ?? 0.1) + 0.02
-            g.cancelScheduledValues?.(time)
-            g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
-            g.linearRampToValueAtTime?.(1, time + Math.max(0.03, dur))
-          } catch {}
-          // Kick: always use low C1 note; ensure duration is long enough for
-          // the pitch sweep and amplitude body to develop naturally
-          const naturalDur = Number(params.pitchDecay ?? 0.02) + Number(params.envD ?? 0.3) + Number(params.envR ?? 0.1)
-          const dur = Math.max(naturalDur, duration ?? Tone.Time('8n').toSeconds())
-          synth.triggerAttackRelease('C1', dur, time, vel)
+          const naturalDur = sweepTime + bodyDecay + 0.15
+          const dur = Math.max(naturalDur, duration ?? 0.4)
+          schedVelEnv(time, vel, naturalDur + 0.02)
+          // Convert tune Hz to a note string
+          body.triggerAttackRelease(tune, dur, time, vel)
+          if (clickLevel > 0.01) {
+            click.triggerAttackRelease(tune * 4, 0.03, time, vel * clickLevel)
+          }
         }
       }
     }
+    // ===================== SNARE (dual-layer: tone + noise) =====================
     case 'snare': {
-      // Map extended noise types to base Tone.Noise types (white, pink, brown)
+      const tune = Number(params.tune ?? 185)
+      const toneDecay = Number(params.toneDecay ?? 0.12)
       const nt = String(params.noiseType ?? 'white')
-      const baseNoiseType = (nt === 'pink' || nt === 'brown') ? (nt as any) : 'white'
+      const baseNoiseType = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white') as any
+      const noiseDecay = Number(params.noiseDecay ?? 0.2)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.7)))
+      const mix = Math.max(0, Math.min(1, Number(params.mix ?? 0.5)))
 
+      // Tone layer: short pitched body
+      const tone = markRaw(new Tone.Synth({
+        oscillator: { type: 'triangle' } as any,
+        envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * 0.3 }
+      }))
+      // Noise layer
       const noise = markRaw(new Tone.NoiseSynth({
         noise: { type: baseNoiseType },
-        envelope: {
-          attack: Number(params.envA ?? 0.001),
-          decay: Number(params.envD ?? 0.2),
-          sustain: 0,
-          release: Number(params.envR ?? 0.1)
-        }
-      }));
+        envelope: { attack: 0.002, decay: noiseDecay, sustain: 0, release: noiseDecay * 0.25 }
+      }))
+      // Snap transient: very short noise burst for click
+      const snapGain = markRaw(new Tone.Gain(snapLevel))
+      const snapSynth = markRaw(new Tone.NoiseSynth({
+        noise: { type: 'white' as any },
+        envelope: { attack: 0.0005, decay: 0.015, sustain: 0, release: 0.005 }
+      }))
 
-  // Amplitude modulation via LFO driving a VCA (placed POST-distortion for clear effect)
-  const modFreq = Number(params.noiseAmpModFreq ?? 20)
-  const modDepth = Math.max(0, Math.min(1, Number(params.noiseAmpModDepth ?? 1)))
-  const modOn = Number(params.noiseAmpModOn ?? 0) ? 1 : 0
-  const ampVca = markRaw(new Tone.Gain(1))
-  const lfo = markRaw(new Tone.LFO({ type: 'square', frequency: modFreq, min: modOn ? (1 - modDepth) : 1, max: 1 }).start())
+      // Mix: tone at (1-mix), noise at mix
+      const toneGain = markRaw(new Tone.Gain(1 - mix))
+      const noiseGain = markRaw(new Tone.Gain(mix))
 
-      // Coloration filter to simulate extended noise types (blue, violet, grey, bandpass)
-      const color = markRaw(new (Tone as any).Filter({ type: 'allpass', frequency: 20000, Q: 0.707 }))
+      tone.connect(toneGain)
+      noise.connect(noiseGain)
+      snapSynth.connect(snapGain)
+      toneGain.connect(inputGain)
+      noiseGain.connect(inputGain)
+      snapGain.connect(inputGain)
 
-  // Chain: noise -> color -> inputGain -> distortion -> ampVca -> filter -> postVca
-  noise.connect(color)
-  ;(color as any).connect(inputGain)
-  try { (distortion as any).disconnect?.() } catch {}
-  ;(distortion as any).connect(ampVca)
-  ;(ampVca as any).connect(filter)
-  // Attach shared post-VCA after the filter to keep velocity audible
-  ;(filter as any).connect(postVca)
-
-      const modSettings = { on: !!modOn, freq: modFreq, depth: modDepth, duration: Number(params.envD ?? 0.2) + Number(params.envR ?? 0.1) + 0.05 }
       return {
-        node: postVca,
-        filter,
-        voice: noise,
-        ampVca,
-        lfo,
-        modSettings,
-        color,
-        preGain: inputGain,
-        hitVca: postVca,
+        node: postVca, filter,
+        voice: tone, voice2: noise, voice3: snapSynth,
+        toneGain, noiseGain, snapGain,
+        preGain: inputGain, hitVca: postVca,
         trigger: (time: number, vel: number, duration?: number) => {
-          try { (lfo as any).phase = 0 } catch {}
-          // Per-hit burst gating for clear audible modulation
-          try {
-            const ms: any = ({} as any);
-            ms.on = (modSettings as any).on; ms.freq = (modSettings as any).freq; ms.depth = (modSettings as any).depth; ms.duration = (modSettings as any).duration;
-            const g: any = (ampVca as any).gain
-            g.cancelScheduledValues?.(time)
-            g.setValueAtTime?.(1, time)
-            if (ms.on && ms.depth > 0 && ms.freq > 0) {
-              const period = 1 / ms.freq
-              const total = Math.max(0.05, Number(ms.duration) || 0.2)
-              const pulses = Math.max(1, Math.min(12, Math.ceil(total / period)))
-              const low = Math.max(0, 1 - ms.depth)
-              for (let i = 0; i < pulses; i++) {
-                const t1 = time + i * period + period * 0.5
-                const t2 = time + (i + 1) * period
-                g.setValueAtTime?.(low, t1)
-                g.setValueAtTime?.(1, t2)
-              }
-              g.setValueAtTime?.(1, time + pulses * period + 0.001)
-            }
-          } catch {}
-          // Post-VCA velocity scaling envelope
-          try {
-            const g2: any = (postVca as any).gain
-            const ms: any = ({} as any)
-            ms.duration = Number((modSettings as any).duration ?? (Number(params.envD ?? 0.2) + Number(params.envR ?? 0.1) + 0.05))
-            g2.cancelScheduledValues?.(time)
-            g2.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
-            g2.linearRampToValueAtTime?.(1, time + Math.max(0.03, ms.duration))
-          } catch {}
-          const naturalDur = Number(params.envD ?? 0.2) + Number(params.envR ?? 0.1)
-          const dur = Math.max(naturalDur, duration ?? Tone.Time('16n').toSeconds())
+          const naturalDur = Math.max(toneDecay, noiseDecay) + 0.05
+          const dur = Math.max(naturalDur, duration ?? 0.2)
+          schedVelEnv(time, vel, naturalDur)
+          tone.triggerAttackRelease(tune, toneDecay + toneDecay * 0.3, time, vel)
           noise.triggerAttackRelease(dur, time, vel)
+          if (snapLevel > 0.01) {
+            snapSynth.triggerAttackRelease(0.02, time, vel * snapLevel)
+          }
         }
       }
     }
+    // ===================== HAT (metallic FM) =====================
     case 'hat': {
+      const tune = Number(params.tune ?? 300)
+      const decay = Number(params.decay ?? 0.08)
+      const brightness = Number(params.brightness ?? 8000)
+      const harmonicity = Number(params.harmonicity ?? 5.1)
+      const modIndex = Number(params.modIndex ?? 32)
+
       const metal = markRaw(new Tone.MetalSynth({
-        frequency: Number(params.frequency ?? 250),
-        envelope: {
-          attack: Number(params.envA ?? 0.001),
-          decay: Number(params.envD ?? 0.05),
-          release: Number(params.envR ?? 0.02)
-        },
-        harmonicity: Number(params.harmonicity ?? 5.1),
-        modulationIndex: Number(params.modulationIndex ?? 32),
-        resonance: Number(params.resonance ?? 8000),
-        octaves: Number(params.octaves ?? 1.5)
-      }));
-      metal.connect(inputGain); // Route metal synth to inputGain
+        frequency: tune,
+        envelope: { attack: 0.001, decay: decay, release: decay * 0.3 },
+        harmonicity: harmonicity,
+        modulationIndex: modIndex,
+        resonance: brightness,
+        octaves: 1.5
+      }))
+      metal.connect(inputGain)
+
       return {
-        node: postVca,
-        filter,
-        voice: metal,
-        preGain: inputGain,
-        hitVca: postVca,
+        node: postVca, filter, voice: metal,
+        preGain: inputGain, hitVca: postVca,
         trigger: (time: number, vel: number, duration?: number) => {
-          try {
-            const g: any = (postVca as any).gain
-            const dur = Number(params.envD ?? 0.05) + Number(params.envR ?? 0.02) + 0.02
-            g.cancelScheduledValues?.(time)
-            g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
-            g.linearRampToValueAtTime?.(1, time + Math.max(0.02, dur))
-          } catch {}
-          const freq = Number(params.frequency ?? 300)
-          const naturalDur = Number(params.envD ?? 0.05) + Number(params.envR ?? 0.02)
-          const dur = Math.max(naturalDur, duration ?? Tone.Time('32n').toSeconds())
-          metal.triggerAttackRelease(freq, dur, time, vel)
+          const dur = Math.max(decay + decay * 0.3, duration ?? 0.08)
+          schedVelEnv(time, vel, decay + 0.02)
+          metal.triggerAttackRelease(tune, dur, time, vel)
         }
       }
     }
+    // ===================== PERC (FM percussion: body + snap) =====================
     case 'perc':
     default: {
-      const pluck = markRaw(new Tone.PluckSynth({
-        dampening: Number(params.dampening ?? 4000),
-        resonance: Number(params.resonance ?? 0.7)
-      }));
-      pluck.connect(inputGain); // Route pluck to inputGain
+      const tune = Number(params.tune ?? 200)
+      const decay = Number(params.decay ?? 0.15)
+      const sweepOct = Number(params.sweep ?? 1)
+      const sweepTime = Number(params.sweepTime ?? 0.02)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.3)))
+      const colorHz = Number(params.color ?? 3000)
+
+      // Pitched body via MembraneSynth
+      const body = markRaw(new Tone.MembraneSynth({
+        octaves: sweepOct,
+        pitchDecay: sweepTime,
+        envelope: { attack: 0.001, decay: decay, sustain: 0, release: decay * 0.25 }
+      }))
+      // Noise snap with color filter
+      const snapNoise = markRaw(new Tone.NoiseSynth({
+        noise: { type: 'white' as any },
+        envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 }
+      }))
+      const snapFilter = markRaw(new Tone.Filter({ type: 'lowpass', frequency: colorHz, Q: 1 }))
+      const snapGain = markRaw(new Tone.Gain(snapLevel))
+
+      body.connect(inputGain)
+      snapNoise.connect(snapFilter)
+      snapFilter.connect(snapGain)
+      snapGain.connect(inputGain)
+
       return {
-        node: postVca,
-        filter,
-        voice: pluck,
-        preGain: inputGain,
-        hitVca: postVca,
+        node: postVca, filter, voice: body, voice2: snapNoise,
+        snapFilter, snapGain,
+        preGain: inputGain, hitVca: postVca,
         trigger: (time: number, vel: number, duration?: number) => {
-          try {
-            const g: any = (postVca as any).gain
-            const dur = 0.2
-            g.cancelScheduledValues?.(time)
-            g.setValueAtTime?.(Math.max(0, Math.min(1, vel)), time)
-            g.linearRampToValueAtTime?.(1, time + Math.max(0.03, dur))
-          } catch {}
-          const dur = duration ?? Tone.Time('16n').toSeconds()
-          pluck.triggerAttackRelease('C3', dur, time, vel)
+          const naturalDur = sweepTime + decay + decay * 0.25
+          const dur = Math.max(naturalDur, duration ?? 0.15)
+          schedVelEnv(time, vel, naturalDur + 0.02)
+          body.triggerAttackRelease(tune, dur, time, vel)
+          if (snapLevel > 0.01) {
+            snapNoise.triggerAttackRelease(0.04, time, vel * snapLevel)
+          }
         }
       }
     }
@@ -390,22 +385,18 @@ export const useSequencerStore = defineStore('sequencer', () => {
         filterFrequency: 20000,
         filterResonance: 1,
         filterRolloff: -12,
-        // Velocity → filter envelope modulation
         velToFilter: 0,
         filterEnvTime: 0.15,
         distortionInputGain: 0,
         midiKey: (type === 'kick' ? 36 : type === 'snare' ? 38 : type === 'hat' ? 42 : 39),
 
         ...(type === 'kick'
-          ? { octaves: 2, pitchDecay: 0.02, envA: 0.001, envD: 0.3, envS: 0, envR: 0.1 }
-      : type === 'snare'
-      ? { noiseType: 'white', envA: 0.001, envD: 0.18, envR: 0.08,
-        // extended noise coloring + clap-like tremolo
-        noiseAmpModOn: 0, noiseAmpModFreq: 20, noiseAmpModDepth: 1,
-        noiseBandFreq: 1500, noiseBandQ: 3 }
+          ? { tune: 55, click: 0.5, sweep: 4, sweepTime: 0.04, decay: 0.4, sub: 0.6 }
+          : type === 'snare'
+          ? { tune: 185, toneDecay: 0.12, noiseType: 'white', noiseDecay: 0.2, snap: 0.7, mix: 0.5 }
           : type === 'hat'
-          ? { frequency: 300, harmonicity: 5.1, modulationIndex: 32, resonance: 8000, octaves: 1.5, envA: 0.001, envD: 0.06, envR: 0.03 }
-          : { dampening: 4000, resonance: 0.7 })
+          ? { tune: 300, decay: 0.08, brightness: 8000, harmonicity: 5.1, modIndex: 32 }
+          : { tune: 200, decay: 0.15, sweep: 1, sweepTime: 0.02, snap: 0.3, color: 3000 })
       }
     }
   tracks.value = tracks.value.concat(t)
@@ -435,10 +426,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
     if (n) {
       n.pan.dispose()
       n.gain.dispose()
-  ;(n.inst as any)?.tremolo?.dispose?.()
-  ;(n.inst as any)?.lfo?.dispose?.()
-  ;(n.inst as any)?.ampVca?.dispose?.()
-      ;(n.inst as any)?.color?.dispose?.()
+      ;(n.inst as any)?.voice2?.dispose?.()
+      ;(n.inst as any)?.voice3?.dispose?.()
+      ;(n.inst as any)?.clickGain?.dispose?.()
+      ;(n.inst as any)?.toneGain?.dispose?.()
+      ;(n.inst as any)?.noiseGain?.dispose?.()
+      ;(n.inst as any)?.snapGain?.dispose?.()
+      ;(n.inst as any)?.snapFilter?.dispose?.()
       ;(n.inst.node as any).dispose?.()
       delete nodes.value[id]
     }
@@ -501,99 +495,72 @@ export const useSequencerStore = defineStore('sequencer', () => {
           switch (t.type) {
             case 'kick':
               voice.set({
-                octaves: Number((t.params as any)?.octaves ?? 2),
-                pitchDecay: Number((t.params as any)?.pitchDecay ?? 0.02),
+                octaves: Number((t.params as any)?.sweep ?? 4),
+                pitchDecay: Number((t.params as any)?.sweepTime ?? 0.04),
                 envelope: {
-                  attack: Number((t.params as any)?.envA ?? 0.01),
-                  decay: Number((t.params as any)?.envD ?? 0.3),
-                  sustain: Number((t.params as any)?.envS ?? 0.0),
-                  release: Number((t.params as any)?.envR ?? 0.1)
+                  attack: 0.003,
+                  decay: Number((t.params as any)?.decay ?? 0.4),
+                  sustain: Math.max(0, Math.min(1, Number((t.params as any)?.sub ?? 0.6))),
+                  release: Math.min(Number((t.params as any)?.decay ?? 0.4) * 0.4, 0.15)
                 }
               })
+              // Update click transient level
+              try {
+                const cg: any = (nb.inst as any)?.clickGain?.gain
+                if (cg) smoothSetParam(cg, Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))))
+              } catch {}
               break
-            case 'snare':
-              // Base noise type update (only white/pink/brown are native)
+            case 'snare': {
+              const nt = String((t.params as any)?.noiseType ?? 'white')
+              const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white')
+              const tDec = Number((t.params as any)?.toneDecay ?? 0.12)
+              const nDec = Number((t.params as any)?.noiseDecay ?? 0.2)
+              const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? 0.5)))
               voice.set({
-                noise: { type: ['white','pink','brown'].includes(String((t.params as any)?.noiseType ?? 'white'))
-                  ? String((t.params as any)?.noiseType ?? 'white')
-                  : 'white' },
-                envelope: {
-                  attack: Number((t.params as any)?.envA ?? 0.001),
-                  decay: Number((t.params as any)?.envD ?? 0.2),
-                  sustain: 0,
-                  release: Number((t.params as any)?.envR ?? 0.1)
-                }
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.001, decay: tDec, sustain: 0, release: tDec * 0.3 }
               })
-              // Tremolo (implemented via LFO + VCA) controls for clap-like textures
-              try {
-                const lfo: any = (nb.inst as any)?.lfo
-                const vca: any = (nb.inst as any)?.ampVca
-                const ms: any = (nb.inst as any)?.modSettings
-                if (lfo && vca) {
-                  const f = Number((t.params as any)?.noiseAmpModFreq ?? 20)
-                  const d = Math.max(0, Math.min(1, Number((t.params as any)?.noiseAmpModDepth ?? 1)))
-                  const on = Number((t.params as any)?.noiseAmpModOn ?? 0) ? 1 : 0
-                  if (lfo.frequency?.value != null) smoothSetParam(lfo.frequency, f)
-                  // Map depth/on to LFO min/max targeting the VCA gain
-                  const min = on ? (1 - d) : 1
-                  try { if (typeof lfo.set === 'function') lfo.set({ type: 'square', min, max: 1 }) } catch {}
-                  if (lfo.min != null) lfo.min = min
-                  if (lfo.max != null) lfo.max = 1
-                  // Ensure the VCA base gain is 0 so LFO fully controls amplitude
-                  if (vca.gain?.value != null && vca.gain.value < 0) vca.gain.value = 0
-                  // Update modSettings for per-hit pulse scheduling
-                  if (ms) {
-                    ms.on = !!on; ms.freq = f; ms.depth = d; ms.duration = Number((t.params as any)?.envD ?? 0.2) + Number((t.params as any)?.envR ?? 0.1) + 0.05
-                  }
-                }
-              } catch {}
-              // Coloration filter to emulate extended noise colors
-              try {
-                const color: any = (nb.inst as any)?.color
-                if (color) {
-                  const nt = String((t.params as any)?.noiseType ?? 'white')
-                  // Simple approximations:
-                  // - blue/violet: high-shelf boosts highs; implement as highpass with higher freq and Q
-                  // - grey: EQ flatter perceived loudness -> use peaking at mid freqs
-                  // - band: bandpass around specified frequency
-                  switch (nt) {
-                    case 'blue':
-                      color.type = 'highpass'; color.frequency.value = 3000; color.Q.value = 0.5; break
-                    case 'violet':
-                      color.type = 'highpass'; color.frequency.value = 6000; color.Q.value = 0.7; break
-                    case 'grey':
-                      color.type = 'peaking'; color.frequency.value = 1000; color.Q.value = 1; if (color.gain) color.gain.value = 3; break
-                    case 'band':
-                      color.type = 'bandpass'; color.frequency.value = Number((t.params as any)?.noiseBandFreq ?? 1500); color.Q.value = Number((t.params as any)?.noiseBandQ ?? 3); break
-                    case 'pink':
-                    case 'brown':
-                    case 'white':
-                    default:
-                      color.type = 'allpass'; color.frequency.value = 20000; color.Q.value = 0.707; break
-                  }
-                }
-              } catch {}
+              // Update noise voice
+              const v2: any = (nb.inst as any)?.voice2
+              if (v2 && typeof v2.set === 'function') {
+                v2.set({ noise: { type: baseNt }, envelope: { attack: 0.002, decay: nDec, sustain: 0, release: nDec * 0.25 } })
+              }
+              // Update mix gains
+              try { const tg: any = (nb.inst as any)?.toneGain?.gain; if (tg) smoothSetParam(tg, 1 - mix) } catch {}
+              try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, mix) } catch {}
+              // Update snap level
+              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7)))) } catch {}
               break
+            }
             case 'hat':
               voice.set({
-                frequency: Number((t.params as any)?.frequency ?? 250),
+                frequency: Number((t.params as any)?.tune ?? 300),
                 harmonicity: Number((t.params as any)?.harmonicity ?? 5.1),
-                modulationIndex: Number((t.params as any)?.modulationIndex ?? 32),
-                resonance: Number((t.params as any)?.resonance ?? 8000),
-                octaves: Number((t.params as any)?.octaves ?? 1.5),
+                modulationIndex: Number((t.params as any)?.modIndex ?? 32),
+                resonance: Number((t.params as any)?.brightness ?? 8000),
+                octaves: 1.5,
                 envelope: {
-                  attack: Number((t.params as any)?.envA ?? 0.001),
-                  decay: Number((t.params as any)?.envD ?? 0.05),
-                  release: Number((t.params as any)?.envR ?? 0.02)
+                  attack: 0.001,
+                  decay: Number((t.params as any)?.decay ?? 0.08),
+                  release: Number((t.params as any)?.decay ?? 0.08) * 0.3
                 }
               })
               break
             case 'perc':
             default:
               voice.set({
-                dampening: Number((t.params as any)?.dampening ?? 4000),
-                resonance: Number((t.params as any)?.resonance ?? 0.7)
+                octaves: Number((t.params as any)?.sweep ?? 1),
+                pitchDecay: Number((t.params as any)?.sweepTime ?? 0.02),
+                envelope: {
+                  attack: 0.001,
+                  decay: Number((t.params as any)?.decay ?? 0.15),
+                  sustain: 0,
+                  release: Number((t.params as any)?.decay ?? 0.15) * 0.25
+                }
               })
+              // Update snap level and color filter
+              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
+              try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3000)) } catch {}
               break
           }
         } catch {}

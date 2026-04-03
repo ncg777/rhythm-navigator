@@ -63,321 +63,142 @@
           </div>
         </div>
 
-        <!-- Mix controls -->
-        <div class="mt-3 border-t border-white/5 pt-3 grid gap-3 sm:gap-4 text-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Note Length</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0.01" max="1" step="0.01" :value="t.noteLength" @input="onFieldInput(t.id, 'noteLength', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.01" max="1" step="0.01" :value="t.noteLength" @input="onFieldInput(t.id, 'noteLength', $event)" />
-            </div>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Volume</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="t.volume" @input="onFieldInput(t.id, 'volume', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.volume" @input="onFieldInput(t.id, 'volume', $event)" />
-            </div>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Pan</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="-1" max="1" step="0.01" :value="t.pan" @input="onFieldInput(t.id, 'pan', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="-1" max="1" step="0.01" :value="t.pan" @input="onFieldInput(t.id, 'pan', $event)" />
-            </div>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Velocity</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="t.velocity" @input="onFieldInput(t.id, 'velocity', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.velocity" @input="onFieldInput(t.id, 'velocity', $event)" />
-            </div>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Vel random</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.velRandom" @input="onFieldInput(t.id, 'velRandom', $event)" />
-            </div>
-          </div>
-          <div class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-24 shrink-0 text-slate-400">Timescale</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0.0625" max="16" step="0.0625" :value="t.timeScale" @input="onTimeScaleInput(t.id, $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.0625" max="16" step="0.0625" :value="t.timeScale" @input="onTimeScaleInput(t.id, $event)" />
-            </div>
+        <!-- Mix controls (knobs) -->
+        <div class="mt-3 border-t border-white/5 pt-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Mix</div>
+          <div class="flex flex-wrap gap-3">
+            <Knob :modelValue="t.noteLength" @update:modelValue="v => onFieldInput2(t.id, 'noteLength', v)"
+              :min="0.01" :max="1" :step="0.01" label="Length" :defaultValue="0.5" :size="48" />
+            <Knob :modelValue="t.volume" @update:modelValue="v => onFieldInput2(t.id, 'volume', v)"
+              :min="0" :max="1" :step="0.01" label="Volume" :defaultValue="0.8" :size="48" />
+            <Knob :modelValue="t.pan" @update:modelValue="v => onFieldInput2(t.id, 'pan', v)"
+              :min="-1" :max="1" :step="0.01" label="Pan" :defaultValue="0" :size="48" color="#a78bfa" />
+            <Knob :modelValue="t.velocity" @update:modelValue="v => onFieldInput2(t.id, 'velocity', v)"
+              :min="0" :max="1" :step="0.01" label="Velocity" :defaultValue="0.8" :size="48" color="#fb923c" />
+            <Knob :modelValue="t.velRandom" @update:modelValue="v => onFieldInput2(t.id, 'velRandom', v)"
+              :min="0" :max="1" :step="0.01" label="Vel Rnd" :defaultValue="0" :size="48" color="#fb923c" />
+            <Knob :modelValue="t.timeScale" @update:modelValue="v => onFieldInput2(t.id, 'timeScale', v)"
+              :min="0.0625" :max="16" :step="0.0625" label="Time ×" :defaultValue="1" :size="48" color="#34d399" />
           </div>
         </div>
 
-        <!-- Instrument parameters -->
-        <div class="mt-4 grid gap-4" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
-          <template v-if="t.type === 'kick'">
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Octaves</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0.5" max="6" step="0.1" :value="t.params.octaves as number" @input="onParamInput(t.id, 'octaves', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.5" max="6" step="0.1" :value="t.params.octaves as number" @input="onParamInput(t.id, 'octaves', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Pitch Decay</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0.001" max="1" step="0.001" :value="t.params.pitchDecay as number" @input="onParamInput(t.id, 'pitchDecay', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.001" max="1" step="0.001" :value="t.params.pitchDecay as number" @input="onParamInput(t.id, 'pitchDecay', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Attack</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Decay</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Sustain</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.001" :value="t.params.envS as number" @input="onParamInput(t.id, 'envS', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.001" :value="t.params.envS as number" @input="onParamInput(t.id, 'envS', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Release</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-              </div>
-            </label>
-          </template>
-          <template v-else-if="t.type === 'snare'">
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Noise</span>
-              <select class="bg-slate-800 border border-white/10 rounded px-2 h-9" :value="t.params.noiseType as string" @change="onParamSelect(t.id, 'noiseType', $event)">
-                <option value="white">white</option>
-                <option value="pink">pink</option>
-                <option value="brown">brown</option>
-                <option value="blue">blue</option>
-                <option value="violet">violet</option>
-                <option value="grey">grey</option>
-                <option value="band">band</option>
-              </select>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Amp Mod</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="1" :value="(t.params.noiseAmpModOn ?? 0) as number" @input="onParamInput(t.id, 'noiseAmpModOn', $event)" />
-                <input class="w-16 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="1" :value="(t.params.noiseAmpModOn ?? 0) as number" @input="onParamInput(t.id, 'noiseAmpModOn', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Mod Freq</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="1" max="100" step="0.5" :value="(t.params.noiseAmpModFreq ?? 20) as number" @input="onParamInput(t.id, 'noiseAmpModFreq', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="1" max="50" step="0.5" :value="(t.params.noiseAmpModFreq ?? 20) as number" @input="onParamInput(t.id, 'noiseAmpModFreq', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Mod Depth</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="(t.params.noiseAmpModDepth ?? 1) as number" @input="onParamInput(t.id, 'noiseAmpModDepth', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="(t.params.noiseAmpModDepth ?? 1) as number" @input="onParamInput(t.id, 'noiseAmpModDepth', $event)" />
-              </div>
-            </label>
-            <template v-if="(t.params.noiseType as string) === 'band'">
-              <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-                <span class="w-28 shrink-0 text-slate-400">Band Freq</span>
-                <div class="flex-1 flex items-center gap-2 min-w-0">
-                  <input class="flex-1 min-w-0" type="range" min="50" max="12000" step="1" :value="(t.params.noiseBandFreq ?? 1500) as number" @input="onParamInput(t.id, 'noiseBandFreq', $event)" />
-                  <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="50" max="12000" step="1" :value="(t.params.noiseBandFreq ?? 1500) as number" @input="onParamInput(t.id, 'noiseBandFreq', $event)" />
-                </div>
-              </label>
-              <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-                <span class="w-28 shrink-0 text-slate-400">Band Q</span>
-                <div class="flex-1 flex items-center gap-2 min-w-0">
-                  <input class="flex-1 min-w-0" type="range" min="0.1" max="12" step="0.1" :value="(t.params.noiseBandQ ?? 3) as number" @input="onParamInput(t.id, 'noiseBandQ', $event)" />
-                  <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.1" max="12" step="0.1" :value="(t.params.noiseBandQ ?? 3) as number" @input="onParamInput(t.id, 'noiseBandQ', $event)" />
-                </div>
-              </label>
+        <!-- Instrument parameters (knobs) -->
+        <div class="mt-3 border-t border-white/5 pt-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">{{ t.type }} Synth</div>
+          <div class="flex flex-wrap gap-3">
+            <template v-if="t.type === 'kick'">
+              <Knob :modelValue="(t.params.tune as number) ?? 55" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="30" :max="120" :step="1" label="Tune" :defaultValue="55" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.click as number) ?? 0.5" @update:modelValue="v => onParam2(t.id, 'click', v)"
+                :min="0" :max="1" :step="0.01" label="Click" :defaultValue="0.5" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.sweep as number) ?? 4" @update:modelValue="v => onParam2(t.id, 'sweep', v)"
+                :min="0.5" :max="8" :step="0.1" label="Sweep" :defaultValue="4" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.sweepTime as number) ?? 0.04" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
+                :min="0.005" :max="0.2" :step="0.001" label="Swp Time" :defaultValue="0.04" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.decay as number) ?? 0.4" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.05" :max="2" :step="0.01" label="Decay" :defaultValue="0.4" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.sub as number) ?? 0.6" @update:modelValue="v => onParam2(t.id, 'sub', v)"
+                :min="0" :max="1" :step="0.01" label="Sub" :defaultValue="0.6" :size="48" color="#f472b6" />
             </template>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Attack</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
+            <template v-else-if="t.type === 'snare'">
+              <Knob :modelValue="(t.params.tune as number) ?? 185" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="80" :max="500" :step="1" label="Tune" :defaultValue="185" :size="48" color="#fbbf24" />
+              <Knob :modelValue="(t.params.toneDecay as number) ?? 0.12" @update:modelValue="v => onParam2(t.id, 'toneDecay', v)"
+                :min="0.02" :max="0.5" :step="0.005" label="Tone Dec" :defaultValue="0.12" :size="48" color="#fbbf24" />
+              <div class="inline-flex flex-col items-center" :style="{ width: '48px' }">
+                <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px] w-full" :value="t.params.noiseType as string" @change="onParamSelect(t.id, 'noiseType', $event)">
+                  <option value="white">white</option>
+                  <option value="pink">pink</option>
+                  <option value="brown">brown</option>
+                </select>
+                <div class="mt-0.5 text-[10px] text-slate-400 leading-tight">Noise</div>
               </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Decay</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Release</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-              </div>
-            </label>
-          </template>
-          <template v-else-if="t.type === 'hat'">
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Frequency</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="50" max="8000" step="1" :value="t.params.frequency as number" @input="onParamInput(t.id, 'frequency', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="50" max="8000" step="1" :value="t.params.frequency as number" @input="onParamInput(t.id, 'frequency', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Harmonicity</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0.1" max="20" step="0.1" :value="t.params.harmonicity as number" @input="onParamInput(t.id, 'harmonicity', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.1" max="20" step="0.1" :value="t.params.harmonicity as number" @input="onParamInput(t.id, 'harmonicity', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Mod Index</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="1" max="100" step="1" :value="t.params.modulationIndex as number" @input="onParamInput(t.id, 'modulationIndex', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="1" max="100" step="1" :value="t.params.modulationIndex as number" @input="onParamInput(t.id, 'modulationIndex', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Resonance</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="10" max="12000" step="1" :value="t.params.resonance as number" @input="onParamInput(t.id, 'resonance', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="10" max="12000" step="1" :value="t.params.resonance as number" @input="onParamInput(t.id, 'resonance', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Octaves</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0.1" max="8" step="0.1" :value="t.params.octaves as number" @input="onParamInput(t.id, 'octaves', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.1" max="8" step="0.1" :value="t.params.octaves as number" @input="onParamInput(t.id, 'octaves', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Attack</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.001" :value="t.params.envA as number" @input="onParamInput(t.id, 'envA', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Decay</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envD as number" @input="onParamInput(t.id, 'envD', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Release</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="2" step="0.001" :value="t.params.envR as number" @input="onParamInput(t.id, 'envR', $event)" />
-              </div>
-            </label>
-          </template>
-          <template v-else>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Dampening</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="100" max="12000" step="1" :value="t.params.dampening as number" @input="onParamInput(t.id, 'dampening', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="100" max="12000" step="1" :value="t.params.dampening as number" @input="onParamInput(t.id, 'dampening', $event)" />
-              </div>
-            </label>
-            <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-              <span class="w-28 shrink-0 text-slate-400">Resonance</span>
-              <div class="flex-1 flex items-center gap-2 min-w-0">
-                <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="t.params.resonance as number" @input="onParamInput(t.id, 'resonance', $event)" />
-                <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="t.params.resonance as number" @input="onParamInput(t.id, 'resonance', $event)" />
-              </div>
-            </label>
-          </template>
+              <Knob :modelValue="(t.params.noiseDecay as number) ?? 0.2" @update:modelValue="v => onParam2(t.id, 'noiseDecay', v)"
+                :min="0.02" :max="0.8" :step="0.005" label="Nse Dec" :defaultValue="0.2" :size="48" color="#fbbf24" />
+              <Knob :modelValue="(t.params.snap as number) ?? 0.7" @update:modelValue="v => onParam2(t.id, 'snap', v)"
+                :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.7" :size="48" color="#fbbf24" />
+              <Knob :modelValue="(t.params.mix as number) ?? 0.5" @update:modelValue="v => onParam2(t.id, 'mix', v)"
+                :min="0" :max="1" :step="0.01" label="Mix" :defaultValue="0.5" :size="48" color="#fbbf24" />
+            </template>
+            <template v-else-if="t.type === 'hat'">
+              <Knob :modelValue="(t.params.tune as number) ?? 300" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="100" :max="1000" :step="1" label="Tune" :defaultValue="300" :size="48" color="#38bdf8" />
+              <Knob :modelValue="(t.params.decay as number) ?? 0.08" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.01" :max="1" :step="0.005" label="Decay" :defaultValue="0.08" :size="48" color="#38bdf8" />
+              <Knob :modelValue="(t.params.brightness as number) ?? 8000" @update:modelValue="v => onParam2(t.id, 'brightness', v)"
+                :min="1000" :max="16000" :step="10" label="Bright" :defaultValue="8000" :size="48" color="#38bdf8" />
+              <Knob :modelValue="(t.params.harmonicity as number) ?? 5.1" @update:modelValue="v => onParam2(t.id, 'harmonicity', v)"
+                :min="1" :max="10" :step="0.1" label="Harmonic" :defaultValue="5.1" :size="48" color="#38bdf8" />
+              <Knob :modelValue="(t.params.modIndex as number) ?? 32" @update:modelValue="v => onParam2(t.id, 'modIndex', v)"
+                :min="5" :max="80" :step="1" label="Mod Idx" :defaultValue="32" :size="48" color="#38bdf8" />
+            </template>
+            <template v-else>
+              <Knob :modelValue="(t.params.tune as number) ?? 200" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="60" :max="800" :step="1" label="Tune" :defaultValue="200" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.decay as number) ?? 0.15" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.02" :max="1" :step="0.005" label="Decay" :defaultValue="0.15" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.sweep as number) ?? 1" @update:modelValue="v => onParam2(t.id, 'sweep', v)"
+                :min="0" :max="4" :step="0.1" label="Sweep" :defaultValue="1" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.sweepTime as number) ?? 0.02" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
+                :min="0.005" :max="0.1" :step="0.001" label="Swp Time" :defaultValue="0.02" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.snap as number) ?? 0.3" @update:modelValue="v => onParam2(t.id, 'snap', v)"
+                :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.3" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.color as number) ?? 3000" @update:modelValue="v => onParam2(t.id, 'color', v)"
+                :min="200" :max="8000" :step="10" label="Color" :defaultValue="3000" :size="48" color="#4ade80" />
+            </template>
+          </div>
         </div>
 
-        <!-- Tanh Distortion and Filter Controls -->
-        <div class="mt-4 grid gap-4" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Dist In Gain (dB)</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="-60" max="120" step="1" :value="(t.params.distortionInputGain ?? 0) as number" @input="onParamInput(t.id, 'distortionInputGain', $event)" />
-              <input class="w-24 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="-60" max="120" step="1" :value="(t.params.distortionInputGain ?? 0) as number" @input="onParamInput(t.id, 'distortionInputGain', $event)" />
+        <!-- Filter & Distortion -->
+        <div class="mt-3 border-t border-white/5 pt-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Filter / Drive</div>
+          <div class="flex flex-wrap gap-3 items-end">
+            <Knob :modelValue="((t.params.distortionInputGain ?? 0) as number)" @update:modelValue="v => onParam2(t.id, 'distortionInputGain', v)"
+              :min="-60" :max="120" :step="1" label="Drive dB" :defaultValue="0" :size="48" color="#ef4444" />
+
+            <div class="inline-flex flex-col items-center" :style="{ width: '56px' }">
+              <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px] w-full" :value="t.params.filterType as string" @change="onParamSelect(t.id, 'filterType', $event)">
+                <option value="lowpass">LP</option>
+                <option value="highpass">HP</option>
+                <option value="bandpass">BP</option>
+                <option value="notch">Notch</option>
+                <option value="allpass">AP</option>
+                <option value="peaking">Peak</option>
+                <option value="lowshelf">LS</option>
+                <option value="highshelf">HS</option>
+              </select>
+              <div class="mt-0.5 text-[10px] text-slate-400 leading-tight">Type</div>
             </div>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Filter Type</span>
-            <select class="bg-slate-800 border border-white/10 rounded px-2 h-9" :value="t.params.filterType as string" @change="onParamSelect(t.id, 'filterType', $event)">
-              <option value="lowpass">Low-pass</option>
-              <option value="highpass">High-pass</option>
-              <option value="bandpass">Band-pass</option>
-              <option value="notch">Notch</option>
-              <option value="allpass">All-pass</option>
-              <option value="peaking">Peaking</option>
-              <option value="lowshelf">Low-shelf</option>
-              <option value="highshelf">High-shelf</option>
-            </select>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Filter Slope</span>
-            <select class="bg-slate-800 border border-white/10 rounded px-2 h-9" :value="t.params.filterRolloff as number" @change="onParamSelect(t.id, 'filterRolloff', $event)">
-              <option value="-12">6 dB/oct</option>
-              <option value="-24">12 dB/oct</option>
-              <option value="-48">24 dB/oct</option>
-              <option value="-96">48 dB/oct</option>
-            </select>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Filter Frequency</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="20" max="20000" step="1" :value="t.params.filterFrequency as number" @input="onParamInput(t.id, 'filterFrequency', $event)" />
-              <input class="w-24 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="20" max="20000" step="1" :value="t.params.filterFrequency as number" @input="onParamInput(t.id, 'filterFrequency', $event)" />
+            <div class="inline-flex flex-col items-center" :style="{ width: '48px' }">
+              <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px] w-full" :value="t.params.filterRolloff as number" @change="onParamSelect(t.id, 'filterRolloff', $event)">
+                <option value="-12">6dB</option>
+                <option value="-24">12dB</option>
+                <option value="-48">24dB</option>
+                <option value="-96">48dB</option>
+              </select>
+              <div class="mt-0.5 text-[10px] text-slate-400 leading-tight">Slope</div>
             </div>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Filter Resonance</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0.1" max="10" step="0.1" :value="t.params.filterResonance as number" @input="onParamInput(t.id, 'filterResonance', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0.1" max="10" step="0.1" :value="t.params.filterResonance as number" @input="onParamInput(t.id, 'filterResonance', $event)" />
-            </div>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Vel → Filter</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="-1" max="1" step="0.01" :value="(t.params.velToFilter ?? 0) as number" @input="onParamInput(t.id, 'velToFilter', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="-1" max="1" step="0.01" :value="(t.params.velToFilter ?? 0) as number" @input="onParamInput(t.id, 'velToFilter', $event)" />
-            </div>
-          </label>
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">Filter Env Time</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <input class="flex-1 min-w-0" type="range" min="0" max="1" step="0.01" :value="(t.params.filterEnvTime ?? 0.15) as number" @input="onParamInput(t.id, 'filterEnvTime', $event)" />
-              <input class="w-20 shrink-0 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9" type="number" min="0" max="1" step="0.01" :value="(t.params.filterEnvTime ?? 0.15) as number" @input="onParamInput(t.id, 'filterEnvTime', $event)" />
-            </div>
-          </label>
+
+            <Knob :modelValue="(t.params.filterFrequency as number) ?? 20000" @update:modelValue="v => onParam2(t.id, 'filterFrequency', v)"
+              :min="20" :max="20000" :step="1" label="Freq" :defaultValue="20000" :size="48" color="#ef4444" />
+            <Knob :modelValue="(t.params.filterResonance as number) ?? 1" @update:modelValue="v => onParam2(t.id, 'filterResonance', v)"
+              :min="0.1" :max="10" :step="0.1" label="Reso" :defaultValue="1" :size="48" color="#ef4444" />
+            <Knob :modelValue="((t.params.velToFilter ?? 0) as number)" @update:modelValue="v => onParam2(t.id, 'velToFilter', v)"
+              :min="-1" :max="1" :step="0.01" label="Vel→Flt" :defaultValue="0" :size="48" color="#ef4444" />
+            <Knob :modelValue="((t.params.filterEnvTime ?? 0.15) as number)" @update:modelValue="v => onParam2(t.id, 'filterEnvTime', v)"
+              :min="0" :max="1" :step="0.01" label="Env Time" :defaultValue="0.15" :size="48" color="#ef4444" />
+          </div>
         </div>
 
-        <!-- MIDI Key Specification -->
-        <div class="mt-4 grid gap-4" style="grid-template-columns: repeat(12, minmax(0, 1fr));">
-          <label class="col-span-12 sm:col-span-6 lg:col-span-3 flex items-center gap-3">
-            <span class="w-28 shrink-0 text-slate-400">MIDI Key</span>
-            <input
-              class="flex-1 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-9"
-              type="number"
-              min="0"
-              max="127"
-              step="1"
-              :value="t.params.midiKey || defaultMidiKey(t.type)"
-              @input="onParamInput(t.id, 'midiKey', $event)"
-            />
-          </label>
+        <!-- MIDI Key -->
+        <div class="mt-3 border-t border-white/5 pt-3 flex items-center gap-3">
+          <span class="text-[10px] text-slate-500 uppercase tracking-wider">MIDI Key</span>
+          <input
+            class="w-16 bg-slate-800 text-slate-100 border border-white/10 rounded px-2 h-7 text-xs"
+            type="number" min="0" max="127" step="1"
+            :value="t.params.midiKey || defaultMidiKey(t.type)"
+            @input="onParamInput(t.id, 'midiKey', $event)"
+          />
         </div>
       </div>
     </div>
@@ -396,15 +217,13 @@ import { computed, ref } from 'vue'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
+import Knob from '@/components/Knob.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
 const renderTracks = computed(() => tracks.value.map(t => t))
 
 const rstore = useRhythmStore()
-
-// Pitch note options for the pitch selector
-const pitchNotes = ['C0','C#0','D0','D#0','E0','F0','F#0','G0','G#0','A0','A#0','B0','C1','C#1','D1','D#1','E1','F1','F#1','G1','G#1','A1','A#1','B1','C2','C#2','D2','D#2','E2','F2','F#2','G2','G#2','A2','A#2','B2','C3','C#3','D3','D#3','E3','F3','F#3','G3','G#3','A3','A#3','B3','C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4','C5','C#5','D5','D#5','E5','F5','F#5','G5','G#5','A5','A#5','B5','C6']
 
 function chainCycleQN(t: any): number {
   const ts = t.timeScale || 1
@@ -423,6 +242,18 @@ function onNameInput(id: string, e: Event) {
 function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'noteLength', e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   seq.updateTrackFields(id, { [key]: v } as any)
+}
+
+// Direct value update from Knob component (no Event needed)
+function onFieldInput2(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'noteLength'|'timeScale', v: number) {
+  if (key === 'timeScale') {
+    if (!Number.isFinite(v) || v <= 0) return
+  }
+  seq.updateTrackFields(id, { [key]: v } as any)
+}
+
+function onParam2(id: string, key: string, v: number) {
+  seq.updateTrackParam(id, key, v)
 }
 
 function onTimeScaleInput(id: string, e: Event) {

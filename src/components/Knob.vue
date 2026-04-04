@@ -5,9 +5,32 @@
     @mouseenter="hovering = true"
     @mouseleave="hovering = false"
   >
-    <!-- Tooltip -->
+    <!-- Tooltip / inline editor -->
     <transition name="knob-tip">
-      <div v-if="showTooltip" class="knob-tooltip">{{ displayValue }}</div>
+      <div
+        v-if="editing"
+        class="knob-tooltip knob-tooltip--edit"
+        @mousedown.stop
+        @touchstart.stop
+      >
+        <input
+          ref="inputRef"
+          type="number"
+          class="knob-input"
+          v-model="editValue"
+          :min="min"
+          :max="max"
+          :step="step"
+          @keydown.enter.prevent="commitEdit"
+          @keydown.escape.prevent="cancelEdit"
+          @blur="commitEdit"
+        />
+      </div>
+      <div
+        v-else-if="showTooltip"
+        class="knob-tooltip knob-tooltip--interactive"
+        @click.stop="startEditing"
+      >{{ displayValue }}</div>
     </transition>
 
     <svg
@@ -16,6 +39,7 @@
       :viewBox="`0 0 ${size} ${size}`"
       class="knob-svg"
       @mousedown.prevent="onPointerDown"
+      @touchstart.prevent="onTouchStart"
       @dblclick.prevent="onDoubleClick"
       @wheel.prevent="onWheel"
       role="slider"
@@ -77,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from 'vue'
+import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: number
@@ -163,6 +187,9 @@ const activeColor = computed(() => props.color)
 // --- Display ---
 const hovering = ref(false)
 const dragging = ref(false)
+const editing = ref(false)
+const editValue = ref('')
+const inputRef = ref<HTMLInputElement | null>(null)
 const showTooltip = computed(() => hovering.value || dragging.value)
 
 const displayValue = computed(() => {
@@ -174,7 +201,31 @@ const displayValue = computed(() => {
   return v.toFixed(3)
 })
 
-// --- Interaction ---
+// --- Manual input editing ---
+function startEditing() {
+  editValue.value = displayValue.value
+  editing.value = true
+  nextTick(() => {
+    inputRef.value?.select()
+    inputRef.value?.focus()
+  })
+}
+
+function commitEdit() {
+  if (!editing.value) return
+  editing.value = false
+  const parsed = parseFloat(editValue.value)
+  if (!isNaN(parsed)) {
+    const next = clampAndSnap(parsed)
+    if (next !== props.modelValue) emit('update:modelValue', next)
+  }
+}
+
+function cancelEdit() {
+  editing.value = false
+}
+
+// --- Mouse interaction ---
 let startY = 0
 let startVal = 0
 
@@ -240,6 +291,57 @@ function onDoubleClick() {
   }
 }
 
+// --- Touch interaction (mobile) ---
+const TOUCH_MOVE_THRESHOLD_PX = 4
+const PX_PER_FULL_RANGE = 200
+const TAP_DURATION_MS = 300
+
+let touchStartY = 0
+let touchStartYOrigin = 0
+let touchAccumValue = 0
+let touchMoved = false
+let touchStartTime = 0
+
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return
+  touchMoved = false
+  touchStartTime = Date.now()
+  dragging.value = true
+  touchStartY = e.touches[0].clientY
+  touchStartYOrigin = e.touches[0].clientY
+  touchAccumValue = props.modelValue
+  document.addEventListener('touchmove', onTouchMove, { passive: false })
+  document.addEventListener('touchend', onTouchEnd)
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!dragging.value || e.touches.length !== 1) return
+  e.preventDefault()
+  const dy = touchStartY - e.touches[0].clientY
+  // Use cumulative distance from origin for tap detection
+  if (Math.abs(e.touches[0].clientY - touchStartYOrigin) > TOUCH_MOVE_THRESHOLD_PX) {
+    touchMoved = true
+  }
+  touchStartY = e.touches[0].clientY
+  const range = props.max - props.min
+  const delta = (dy / PX_PER_FULL_RANGE) * range
+  // Accumulate the continuous value to avoid losing sub-step increments
+  touchAccumValue = Math.max(props.min, Math.min(props.max, touchAccumValue + delta))
+  const next = clampAndSnap(touchAccumValue)
+  if (next !== props.modelValue) emit('update:modelValue', next)
+}
+
+function onTouchEnd() {
+  dragging.value = false
+  document.removeEventListener('touchmove', onTouchMove)
+  document.removeEventListener('touchend', onTouchEnd)
+  const elapsed = Date.now() - touchStartTime
+  // Treat a short tap (no significant movement, < TAP_DURATION_MS) as a request to edit manually
+  if (!touchMoved && elapsed < TAP_DURATION_MS) {
+    startEditing()
+  }
+}
+
 function onKey(e: KeyboardEvent) {
   const mult = e.shiftKey ? 0.1 : 1
   if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
@@ -256,6 +358,8 @@ function onKey(e: KeyboardEvent) {
 onBeforeUnmount(() => {
   document.removeEventListener('mousemove', onPointerMove)
   document.removeEventListener('mouseup', onPointerUp)
+  document.removeEventListener('touchmove', onTouchMove)
+  document.removeEventListener('touchend', onTouchEnd)
   try { if (document.pointerLockElement) document.exitPointerLock?.() } catch {}
 })
 </script>
@@ -299,8 +403,35 @@ onBeforeUnmount(() => {
   border: 1px solid #334155;
   border-radius: 4px;
   white-space: nowrap;
-  pointer-events: none;
   z-index: 50;
+}
+.knob-tooltip--interactive {
+  cursor: text;
+  pointer-events: auto;
+}
+.knob-tooltip--interactive:hover {
+  border-color: #06b6d4;
+}
+.knob-tooltip--edit {
+  pointer-events: auto;
+  padding: 1px 3px;
+}
+.knob-input {
+  width: 56px;
+  background: #0f172a;
+  color: #f1f5f9;
+  border: none;
+  outline: none;
+  font-size: 11px;
+  text-align: center;
+  padding: 0;
+  /* Hide browser number input spinners */
+  -moz-appearance: textfield;
+}
+.knob-input::-webkit-outer-spin-button,
+.knob-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .knob-tip-enter-active,
 .knob-tip-leave-active {

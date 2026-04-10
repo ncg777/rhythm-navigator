@@ -72,9 +72,11 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
     type: String(params.filterType ?? 'lowpass') as BiquadFilterType,
     Q: Number(params.filterResonance ?? 1),
     rolloff: Number(params.filterRolloff ?? -12) as any,
+    gain: Number(params.filterGain ?? 0),
   }));
   try { filter.frequency.rampTo(Number(params.filterFrequency ?? 20000), 0.1) } catch {}
   try { filter.Q.rampTo(Number(params.filterResonance ?? 1), 0.1) } catch {}
+  try { filter.gain.rampTo(Number(params.filterGain ?? 0), 0.1) } catch {}
 
   inputGain.connect(distortion);
   distortion.connect(filter);
@@ -122,17 +124,17 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       click.connect(clickGain)
       clickGain.connect(inputGain)
 
+      const live = { tune, clickLevel }
       return {
         node: postVca, filter, voice: body, voice2: click, clickGain,
-        preGain: inputGain, hitVca: postVca,
+        preGain: inputGain, hitVca: postVca, live,
         trigger: (time: number, vel: number, duration?: number) => {
           const naturalDur = sweepTime + bodyDecay + 0.15
           const dur = Math.max(naturalDur, duration ?? 0.4)
           schedVelEnv(time, vel, naturalDur + 0.02)
-          // Convert tune Hz to a note string
-          body.triggerAttackRelease(tune, dur, time, vel)
-          if (clickLevel > 0.01) {
-            click.triggerAttackRelease(tune * 4, 0.03, time, vel * clickLevel)
+          body.triggerAttackRelease(live.tune, dur, time, vel)
+          if (live.clickLevel > 0.01) {
+            click.triggerAttackRelease(live.tune * 4, 0.03, time, vel * live.clickLevel)
           }
         }
       }
@@ -175,19 +177,20 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       noiseGain.connect(inputGain)
       snapGain.connect(inputGain)
 
+      const live = { tune, snapLevel }
       return {
         node: postVca, filter,
         voice: tone, voice2: noise, voice3: snapSynth,
         toneGain, noiseGain, snapGain,
-        preGain: inputGain, hitVca: postVca,
+        preGain: inputGain, hitVca: postVca, live,
         trigger: (time: number, vel: number, duration?: number) => {
           const naturalDur = Math.max(toneDecay, noiseDecay) + 0.05
           const dur = Math.max(naturalDur, duration ?? 0.2)
           schedVelEnv(time, vel, naturalDur)
-          tone.triggerAttackRelease(tune, toneDecay + toneDecay * 0.3, time, vel)
+          tone.triggerAttackRelease(live.tune, toneDecay + toneDecay * 0.3, time, vel)
           noise.triggerAttackRelease(dur, time, vel)
-          if (snapLevel > 0.01) {
-            snapSynth.triggerAttackRelease(0.02, time, vel * snapLevel)
+          if (live.snapLevel > 0.01) {
+            snapSynth.triggerAttackRelease(0.02, time, vel * live.snapLevel)
           }
         }
       }
@@ -210,13 +213,14 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }))
       metal.connect(inputGain)
 
+      const live = { tune }
       return {
         node: postVca, filter, voice: metal,
-        preGain: inputGain, hitVca: postVca,
+        preGain: inputGain, hitVca: postVca, live,
         trigger: (time: number, vel: number, duration?: number) => {
           const dur = Math.max(decay + decay * 0.3, duration ?? 0.08)
           schedVelEnv(time, vel, decay + 0.02)
-          metal.triggerAttackRelease(tune, dur, time, vel)
+          metal.triggerAttackRelease(live.tune, dur, time, vel)
         }
       }
     }
@@ -249,17 +253,18 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       snapFilter.connect(snapGain)
       snapGain.connect(inputGain)
 
+      const live = { tune, snapLevel }
       return {
         node: postVca, filter, voice: body, voice2: snapNoise,
         snapFilter, snapGain,
-        preGain: inputGain, hitVca: postVca,
+        preGain: inputGain, hitVca: postVca, live,
         trigger: (time: number, vel: number, duration?: number) => {
           const naturalDur = sweepTime + decay + decay * 0.25
           const dur = Math.max(naturalDur, duration ?? 0.15)
           schedVelEnv(time, vel, naturalDur + 0.02)
-          body.triggerAttackRelease(tune, dur, time, vel)
-          if (snapLevel > 0.01) {
-            snapNoise.triggerAttackRelease(0.04, time, vel * snapLevel)
+          body.triggerAttackRelease(live.tune, dur, time, vel)
+          if (live.snapLevel > 0.01) {
+            snapNoise.triggerAttackRelease(0.04, time, vel * live.snapLevel)
           }
         }
       }
@@ -385,6 +390,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
         filterFrequency: 20000,
         filterResonance: 1,
         filterRolloff: -12,
+        filterGain: 0,
         velToFilter: 0,
         filterEnvTime: 0.15,
         distortionInputGain: 0,
@@ -485,6 +491,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   const filter = ((nb.inst as any).filter ?? (nb.inst.node as any))
       try { if (filter?.frequency) smoothSetParam(filter.frequency, Number((t.params as any)?.filterFrequency ?? 20000)) } catch {}
       try { if (filter?.Q) smoothSetParam(filter.Q, Number((t.params as any)?.filterResonance ?? 1)) } catch {}
+      try { if (filter?.gain) smoothSetParam(filter.gain, Number((t.params as any)?.filterGain ?? 0)) } catch {}
       try { if ('type' in filter) filter.type = String((t.params as any)?.filterType ?? 'lowpass') } catch {}
       try { if ('rolloff' in filter) filter.rolloff = Number((t.params as any)?.filterRolloff ?? -12) } catch {}
 
@@ -509,6 +516,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
                 const cg: any = (nb.inst as any)?.clickGain?.gain
                 if (cg) smoothSetParam(cg, Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))))
               } catch {}
+              // Update live params used by trigger closure
+              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 55); li.clickLevel = Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))) } } catch {}
               break
             case 'snare': {
               const nt = String((t.params as any)?.noiseType ?? 'white')
@@ -530,6 +539,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
               try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, mix) } catch {}
               // Update snap level
               try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7)))) } catch {}
+              // Update live params used by trigger closure
+              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 185); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7))) } } catch {}
               break
             }
             case 'hat':
@@ -545,6 +556,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   release: Number((t.params as any)?.decay ?? 0.08) * 0.3
                 }
               })
+              // Update live params used by trigger closure
+              try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 300) } catch {}
               break
             case 'perc':
             default:
@@ -561,6 +574,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
               // Update snap level and color filter
               try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
               try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3000)) } catch {}
+              // Update live params used by trigger closure
+              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 200); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3))) } } catch {}
               break
           }
         } catch {}

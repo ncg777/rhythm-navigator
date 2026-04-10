@@ -183,6 +183,8 @@
               :min="20" :max="20000" :step="1" label="Freq" :defaultValue="20000" :size="48" color="#ef4444" />
             <Knob :modelValue="(t.params.filterResonance as number) ?? 1" @update:modelValue="v => onParam2(t.id, 'filterResonance', v)"
               :min="0.1" :max="10" :step="0.1" label="Reso" :defaultValue="1" :size="48" color="#ef4444" />
+            <Knob :modelValue="((t.params.filterGain ?? 0) as number)" @update:modelValue="v => onParam2(t.id, 'filterGain', v)"
+              :min="-24" :max="24" :step="0.5" label="Gain dB" :defaultValue="0" :size="48" color="#ef4444" />
             <Knob :modelValue="((t.params.velToFilter ?? 0) as number)" @update:modelValue="v => onParam2(t.id, 'velToFilter', v)"
               :min="-1" :max="1" :step="0.01" label="Vel→Flt" :defaultValue="0" :size="48" color="#ef4444" />
             <Knob :modelValue="((t.params.filterEnvTime ?? 0.15) as number)" @update:modelValue="v => onParam2(t.id, 'filterEnvTime', v)"

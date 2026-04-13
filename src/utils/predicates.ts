@@ -409,3 +409,38 @@ export function hasOrdinal(onsets: number[], L: number, n: number): boolean {
   }
   return true
 }
+
+/**
+ * Helper: check if n is a power of two (n > 0 and n & (n-1) === 0).
+ */
+function isPowerOfTwo(n: number): boolean {
+  return n > 0 && (n & (n - 1)) === 0
+}
+
+/**
+ * DuplePartitioned: checks whether the composition (circular IOI sequence)
+ * is "duple-partitioned".
+ *
+ * Algorithm (ported from Java OnCompositions.duplePartitioned):
+ * Walk the interval sequence left-to-right, maintaining a running sum (accumulator).
+ * Whenever the accumulator is NOT a power of two, the current interval must not
+ * exceed the previous one (non-increasing constraint). When the accumulator IS
+ * a power of two, the constraint resets and the next interval may be any size.
+ *
+ * @param onsets Array of onset positions (should be sorted and within [0, L))
+ * @param L Total length of the rhythm cycle
+ * @returns true if the rhythm's composition is duple-partitioned, false otherwise
+ */
+export function isDuplePartitioned(onsets: number[], L: number): boolean {
+  const intervals = circularIntervals(onsets, L)
+  if (intervals.length < 2) return true
+
+  let acc = intervals[0]
+  for (let i = 1; i < intervals.length; i++) {
+    if (!isPowerOfTwo(acc)) {
+      if (intervals[i] > intervals[i - 1]) return false
+    }
+    acc += intervals[i]
+  }
+  return true
+}

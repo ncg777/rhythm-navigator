@@ -4,7 +4,8 @@ import {
   isMaximallyEven, 
   hasROP23, 
   hasOddIntervalsOddity, 
-  noAntipodalPairs 
+  noAntipodalPairs,
+  isDuplePartitioned
 } from './predicates'
 
 describe('circularIntervals', () => {
@@ -220,5 +221,55 @@ describe('noAntipodalPairs', () => {
     
     // L=16, L/2=8, onsets [0,7,8,15] - 0 and 8 are antipodal, 7 and 15 are antipodal
     expect(noAntipodalPairs([0, 7, 8, 15], 16)).toBe(false)
+  })
+})
+
+describe('isDuplePartitioned', () => {
+  it('returns true for empty or single onset (trivial)', () => {
+    expect(isDuplePartitioned([], 8)).toBe(true)
+    expect(isDuplePartitioned([0], 8)).toBe(true)
+  })
+
+  it('returns true for two onsets (intervals always pass with power-of-two acc)', () => {
+    // Two onsets at 0,4 in L=8 -> intervals [4,4]
+    // acc=4 (power of 2), so constraint resets -> true
+    expect(isDuplePartitioned([0, 4], 8)).toBe(true)
+  })
+
+  it('returns true when all accumulator values are powers of two', () => {
+    // Onsets [0,4,8,12] in L=16 -> intervals [4,4,4,4]
+    // acc=4 (pow2), acc=8 (pow2), acc=12 (not pow2) -> intervals[3]=4 <= intervals[2]=4 -> ok
+    expect(isDuplePartitioned([0, 4, 8, 12], 16)).toBe(true)
+  })
+
+  it('returns false when interval increases within a non-power-of-two block', () => {
+    // Onsets [0,3,5,10] in L=16 -> intervals [3,2,5,6]
+    // acc=3 (not pow2) -> intervals[1]=2 <= intervals[0]=3 -> ok
+    // acc=5 (not pow2) -> intervals[2]=5 > intervals[1]=2 -> FAIL
+    expect(isDuplePartitioned([0, 3, 5, 10], 16)).toBe(false)
+  })
+
+  it('returns false when a later interval violates non-increasing rule', () => {
+    // Onsets [0,4,7,9] in L=16 -> intervals [4,3,2,7]
+    // acc=4 (pow2) -> no constraint
+    // acc=7 (not pow2) -> intervals[2]=2 <= intervals[1]=3 -> ok
+    // acc=9 (not pow2) -> intervals[3]=7 > intervals[2]=2 -> FAIL
+    expect(isDuplePartitioned([0, 4, 7, 9], 16)).toBe(false)
+  })
+
+  it('returns true when constraint resets at power-of-two boundaries', () => {
+    // Onsets [0,2,4] in L=8 -> intervals [2,2,4]
+    // acc=2 (pow2) -> no constraint
+    // acc=4 (pow2) -> no constraint
+    expect(isDuplePartitioned([0, 2, 4], 8)).toBe(true)
+  })
+
+  it('handles simple valid duple-partitioned rhythms', () => {
+    // Onsets [0,8] in L=16 -> intervals [8,8]
+    expect(isDuplePartitioned([0, 8], 16)).toBe(true)
+
+    // Onsets [0,1] in L=4 -> intervals [1,3]
+    // acc=1 (pow2) -> no constraint -> true
+    expect(isDuplePartitioned([0, 1], 4)).toBe(true)
   })
 })

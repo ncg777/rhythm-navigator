@@ -15,7 +15,8 @@ import {
   isLowEntropy,
   hasNoGaps,
   relativelyFlat,
-  hasOrdinal
+  hasOrdinal,
+  isDuplePartitioned
 } from './predicates'
 
 const DEFAULT_CONTOUR_OPTS: ContourOptions = {
@@ -101,6 +102,8 @@ function evaluateLeaf(
       const n = node.params?.n ?? 4
       return n >= 2 ? hasOrdinal(onsets, totalBits, n) : true
     }
+    case 'duplePartitioned':
+      return isDuplePartitioned(onsets, totalBits)
     default:
       return true
   }

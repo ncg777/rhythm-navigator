@@ -17,6 +17,7 @@ export type PredicateId =
   | 'noGaps'
   | 'relativelyFlat'
   | 'ordinal'
+  | 'duplePartitioned'
 
 export interface PredicateLeaf {
   type: 'predicate'
@@ -42,7 +43,8 @@ export const ALL_PREDICATE_IDS: PredicateId[] = [
   'lowEntropy',
   'noGaps',
   'relativelyFlat',
-  'ordinal'
+  'ordinal',
+  'duplePartitioned'
 ]
 
 /** Human-readable labels for each predicate. */
@@ -55,7 +57,8 @@ export const PREDICATE_LABELS: Record<PredicateId, string> = {
   'lowEntropy': 'Low entropy',
   'noGaps': 'No-gap interval vector',
   'relativelyFlat': 'Relatively flat',
-  'ordinal': 'Ordinal blocks'
+  'ordinal': 'Ordinal blocks',
+  'duplePartitioned': 'Duple-partitioned'
 }
 
 /** Default expression: AND( isomorphic ). */

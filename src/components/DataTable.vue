@@ -568,8 +568,8 @@ defineExpose({ processedRows })
 }
 .dt-spacer-row { pointer-events: none; }
 .dt-spacer-cell {
-  padding: 0 !important;
-  border: 0 !important;
+  padding: 0;
+  border: 0;
   font-size: 0;
   line-height: 0;
 }

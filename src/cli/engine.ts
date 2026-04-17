@@ -19,6 +19,11 @@ export {
   type PulsationInputSet,
   type PulsationResult
 } from '../utils/pulsations'
+export {
+  convolveRhythms,
+  type ConvolutionParams,
+  type ConvolutionResult
+} from '../utils/convolution'
 
 /**
  * Synchronous exhaustive (enumerative) rhythm generation.

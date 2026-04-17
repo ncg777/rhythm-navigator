@@ -481,7 +481,7 @@ defineExpose({ processedRows })
 .dt-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 .dt-thead {
   position: sticky;

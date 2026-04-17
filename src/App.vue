@@ -16,6 +16,7 @@
           <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" @click="rhythmsOpen = true" aria-label="Open generated rhythms">Open</button>
           <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="Pulsations" aria-label="Open pulsations builder" @click="pulsationsOpen = true">♩</button>
           <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="Generator & filters" aria-label="Open generator settings" @click="settingsOpen = true">⚙</button>
+          <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="XOR Convolution" aria-label="Open convolution tool" @click="convolutionOpen = true">✳️</button>
         </div>
       </div>
     </header>
@@ -61,6 +62,9 @@
       </div>
     </Modal>
 
+    <!-- Convolution modal -->
+    <ConvolutionModal :open="convolutionOpen" @close="convolutionOpen = false" />
+
     <footer class="border-t border-white/10">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 text-sm text-slate-400">
         Built with Vue 3 + TypeScript · PWA enabled
@@ -78,6 +82,7 @@ import TransportBar from '@/components/TransportBar.vue'
 import DrumTracks from '@/components/DrumTracks.vue'
 import Modal from '@/components/Modal.vue'
 import ToastHost from '@/components/ToastHost.vue'
+import ConvolutionModal from '@/components/ConvolutionModal.vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { ref } from 'vue'
@@ -87,6 +92,7 @@ const { items, numerator, denominator, mode } = storeToRefs(r)
 const rhythmsOpen = ref(false)
 const settingsOpen = ref(false)
 const pulsationsOpen = ref(false)
+const convolutionOpen = ref(false)
 </script>
 
 <style scoped></style>

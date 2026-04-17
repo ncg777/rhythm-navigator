@@ -114,6 +114,22 @@ export const useRhythmStore = defineStore('rhythm', {
     select(id: string) {
       this.selectedId = id
     },
+    /** Directly add pre-built items (e.g. from Pulsations). Deduplicates against existing. Returns count added. */
+    addItems(incoming: RhythmItem[]): number {
+      const toAdd: RhythmItem[] = []
+      for (const it of incoming) {
+        const key = `${it.base}:${it.groupedDigitsString}`
+        if (!this._itemKeySet.has(key)) {
+          this._itemKeySet.add(key)
+          toAdd.push(it)
+        }
+      }
+      if (toAdd.length) {
+        this.items = this.items.concat(toAdd)
+        if (!this.selectedId && this.items.length) this.selectedId = this.items[0].id
+      }
+      return toAdd.length
+    },
     stop() {
       if (this._worker) {
         this._worker.terminate()

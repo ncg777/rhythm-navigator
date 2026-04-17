@@ -14,6 +14,7 @@
             <div class="text-[10px] text-slate-500">{{ items.length }} · {{ numerator * denominator }} · {{ mode }}</div>
           </div>
           <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" @click="rhythmsOpen = true" aria-label="Open generated rhythms">Open</button>
+          <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="Pulsations" aria-label="Open pulsations builder" @click="pulsationsOpen = true">♩</button>
           <button class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5" title="Generator & filters" aria-label="Open generator settings" @click="settingsOpen = true">⚙</button>
         </div>
       </div>
@@ -28,6 +29,14 @@
 
   <!-- Global toast host -->
   <ToastHost />
+
+    <!-- Pulsations modal -->
+    <Modal :open="pulsationsOpen" @close="pulsationsOpen = false">
+      <template #title>
+        <h3 class="text-lg font-semibold">Pulsations</h3>
+      </template>
+      <PulsationsPanel />
+    </Modal>
 
     <!-- Settings modal -->
     <Modal :open="settingsOpen" @close="settingsOpen = false">
@@ -62,6 +71,7 @@
 
 <script setup lang="ts">
 import SettingsPanel from '@/components/SettingsPanel.vue'
+import PulsationsPanel from '@/components/PulsationsPanel.vue'
 import RhythmList from '@/components/RhythmList.vue'
 import RhythmRelations from '@/components/RhythmRelations.vue'
 import TransportBar from '@/components/TransportBar.vue'
@@ -76,6 +86,7 @@ const r = useRhythmStore()
 const { items, numerator, denominator, mode } = storeToRefs(r)
 const rhythmsOpen = ref(false)
 const settingsOpen = ref(false)
+const pulsationsOpen = ref(false)
 </script>
 
 <style scoped></style>

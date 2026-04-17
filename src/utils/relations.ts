@@ -1,6 +1,35 @@
 import { bitsPerDigitForMode, type Mode } from '@/utils/rhythm'
 import type { RhythmItem } from '@/utils/rhythm'
 
+/**
+ * Format a digit array into a grouped display string.
+ * encTable maps digit value → character (e.g. hex: 10 → 'A').
+ * perGroup controls how many digits appear between spaces.
+ */
+export function groupDigits(digits: number[], encTable: string[], perGroup: number): string {
+  const parts: string[] = []
+  let group = ''
+  for (let i = 0; i < digits.length; i++) {
+    group += encTable[digits[i]]
+    if ((i + 1) % perGroup === 0) {
+      parts.push(group)
+      group = ''
+    }
+  }
+  if (group) parts.push(group)
+  return parts.join(' ')
+}
+
+/**
+ * Build the encoding table for a mode (maps digit value to display character).
+ */
+export function makeEncTable(mode: Mode): string[] {
+  const base = mode === 'binary' ? 2 : mode === 'octal' ? 8 : 16
+  return Array.from({ length: base }, (_, i) =>
+    mode === 'hex' ? i.toString(16).toUpperCase() : String(i)
+  )
+}
+
 // Parse digits back from grouped string like "AF 2B" | "17 03" | "1010 1100"
 export function parseDigitsFromGroupedString(s: string, mode: Mode): number[] {
   const compact = s.replace(/\s+/g, '')

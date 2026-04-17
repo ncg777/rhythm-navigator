@@ -178,7 +178,7 @@ function addToList() {
     if (mode.value === 'hex') {
       digits.push(parseInt(c, 16))
     } else {
-      digits.push(c.charCodeAt(0) - 48)
+      digits.push(c.charCodeAt(0) - 48) // '0' -> 0
     }
   }
 

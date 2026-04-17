@@ -104,6 +104,7 @@
         :key="rowKey(row)"
         class="dt-card"
         :class="{ 'dt-card--selected': isSelected(row) }"
+        :style="{ height: mobileRH + 'px' }"
         @click="$emit('row-click', row)"
       >
         <div class="dt-card-grid">
@@ -581,6 +582,7 @@ defineExpose({ processedRows })
   transition: all 0.15s;
   /* 0.5rem matches MOBILE_CARD_GAP (8 px) in the virtual-scroll JS */
   margin-bottom: 0.5rem;
+  overflow: hidden;
 }
 .dt-card:hover { border-color: var(--dt-border-strong); background: var(--dt-row-hover); }
 .dt-card--selected {

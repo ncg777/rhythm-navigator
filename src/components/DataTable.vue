@@ -69,7 +69,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr :style="{ height: desktopTopPad + 'px' }" v-if="desktopTopPad > 0"><td :colspan="visibleColumns.length"></td></tr>
+          <tr v-if="desktopTopPad > 0" class="dt-spacer-row" aria-hidden="true">
+            <td :colspan="visibleColumns.length" class="dt-spacer-cell" :style="{ height: desktopTopPad + 'px' }"></td>
+          </tr>
           <tr
             v-for="row in desktopVisibleRows"
             :key="rowKey(row)"
@@ -91,7 +93,9 @@
               </slot>
             </td>
           </tr>
-          <tr :style="{ height: desktopBottomPad + 'px' }" v-if="desktopBottomPad > 0"><td :colspan="visibleColumns.length"></td></tr>
+          <tr v-if="desktopBottomPad > 0" class="dt-spacer-row" aria-hidden="true">
+            <td :colspan="visibleColumns.length" class="dt-spacer-cell" :style="{ height: desktopBottomPad + 'px' }"></td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -477,7 +481,7 @@ defineExpose({ processedRows })
 .dt-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 .dt-thead {
   position: sticky;
@@ -559,10 +563,15 @@ defineExpose({ processedRows })
 .dt-td {
   padding: 0 0.625rem;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   vertical-align: middle;
   line-height: 1;
+}
+.dt-spacer-row { pointer-events: none; }
+.dt-spacer-cell {
+  padding: 0;
+  border: 0;
+  font-size: 0;
+  line-height: 0;
 }
 
 /* ─── Mobile Cards ───────────────────────────────────────────── */
@@ -607,9 +616,8 @@ defineExpose({ processedRows })
 .dt-card-value {
   color: var(--dt-text);
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* ─── Footer ─────────────────────────────────────────────────── */

@@ -85,7 +85,7 @@ describe('parseBinaryRhythm', () => {
 })
 
 describe('scaleRhythm', () => {
-  it('should scale rhythm by 2', () => {
+  it('should dilate rhythm by 2', () => {
     const rhythm = new BinaryRhythm(4)
     rhythm.set(0, true)
     rhythm.set(2, true)
@@ -93,26 +93,32 @@ describe('scaleRhythm', () => {
     const scaled = scaleRhythm(rhythm, 2)
     expect(scaled.length).toBe(8)
     expect(scaled.get(0)).toBe(true)
-    expect(scaled.get(2)).toBe(true)
-    expect(scaled.get(4)).toBe(true)  // repeat
-    expect(scaled.get(6)).toBe(true)  // repeat
+    expect(scaled.get(2)).toBe(false)
+    expect(scaled.get(4)).toBe(true)
+    expect(scaled.get(6)).toBe(false)
   })
 
-  it('should scale rhythm by 3', () => {
-    const rhythm = new BinaryRhythm(2)
+  it('should preserve relative onset spacing when scaling by 3', () => {
+    const rhythm = new BinaryRhythm(3)
     rhythm.set(0, true)
+    rhythm.set(2, true)
 
     const scaled = scaleRhythm(rhythm, 3)
-    expect(scaled.length).toBe(6)
+    expect(scaled.length).toBe(9)
     expect(scaled.get(0)).toBe(true)
-    expect(scaled.get(2)).toBe(true)
-    expect(scaled.get(4)).toBe(true)
+    expect(scaled.get(3)).toBe(false)
+    expect(scaled.get(6)).toBe(true)
   })
 
   it('should throw error for non-positive scale', () => {
     const rhythm = new BinaryRhythm(4)
-    expect(() => scaleRhythm(rhythm, 0)).toThrow('Scale must be positive')
-    expect(() => scaleRhythm(rhythm, -1)).toThrow('Scale must be positive')
+    expect(() => scaleRhythm(rhythm, 0)).toThrow('Scale must be a positive integer')
+    expect(() => scaleRhythm(rhythm, -1)).toThrow('Scale must be a positive integer')
+  })
+
+  it('should throw error for non-integer scale', () => {
+    const rhythm = new BinaryRhythm(4)
+    expect(() => scaleRhythm(rhythm, 1.5)).toThrow('Scale must be a positive integer')
   })
 })
 
@@ -248,7 +254,7 @@ describe('convolveRhythms', () => {
 
     expect(result.carrierLength).toBe(4) // 2 bits scaled by 2
     expect(result.resultLength).toBe(4)
-    expect(result.result).toBe('1010')
+    expect(result.result).toBe('1000')
   })
 
   it('should scale impulse', () => {
@@ -262,7 +268,7 @@ describe('convolveRhythms', () => {
 
     expect(result.impulseLength).toBe(4) // 2 bits scaled by 2
     expect(result.resultLength).toBe(4)
-    expect(result.result).toBe('1010')
+    expect(result.result).toBe('1000')
   })
 
   it('should scale both carrier and impulse', () => {
@@ -278,7 +284,21 @@ describe('convolveRhythms', () => {
     expect(result.carrierLength).toBe(6) // 2 bits scaled by 3
     expect(result.impulseLength).toBe(6) // 2 bits scaled by 2, then padded to match carrier
     expect(result.resultLength).toBe(6) // padded to max length
-    expect(result.result).toBe('0000 00')
-    expect(result.onsets).toBe(0)
+    expect(result.result).toBe('1000 00')
+    expect(result.onsets).toBe(1)
+  })
+
+  it('should keep scaled convolution from collapsing to all zeros', () => {
+    const result = convolveRhythms({
+      carrier: '101',
+      impulse: '101',
+      mode: 'binary',
+      carrierScale: 2,
+      impulseScale: 2,
+      denominator: 3
+    })
+
+    expect(result.result).toBe('101 000')
+    expect(result.onsets).toBe(2)
   })
 })

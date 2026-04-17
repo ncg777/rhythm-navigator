@@ -73,8 +73,8 @@ SAMPLE OPTIONS:
 CONVOLVE OPTIONS:
   --carrier <rhythm>              Carrier rhythm (grouped digit string, e.g., "F0 3C")
   --impulse <rhythm>              Impulse rhythm (grouped digit string, e.g., "80 00")
-  --carrier-scale <n>             Scale carrier by repeating N times (default: 1)
-  --impulse-scale <n>             Scale impulse by repeating N times (default: 1)
+  --carrier-scale <n>             Dilate carrier onset positions by N (default: 1)
+  --impulse-scale <n>             Dilate impulse onset positions by N (default: 1)
 
 PULSATIONS OPTIONS:
   --composition <ints>            Space-separated positive integers (segment lengths)

@@ -100,19 +100,20 @@ export function parseBinaryRhythm(
 }
 
 /**
- * Scale a rhythm by repeating it N times
+ * Scale a rhythm by dilating its onset positions by N.
  */
 export function scaleRhythm(rhythm: BinaryRhythm, scale: number): BinaryRhythm {
-  if (scale <= 0) {
-    throw new Error('Scale must be positive')
+  if (!Number.isInteger(scale) || scale <= 0) {
+    throw new Error('Scale must be a positive integer')
   }
 
   const newLength = rhythm.length * scale
   const scaled = new BinaryRhythm(newLength)
 
-  for (let i = 0; i < newLength; i++) {
-    const originalIndex = i % rhythm.length
-    scaled.set(i, rhythm.get(originalIndex))
+  for (let i = 0; i < rhythm.length; i++) {
+    if (rhythm.get(i)) {
+      scaled.set(i * scale, true)
+    }
   }
 
   return scaled

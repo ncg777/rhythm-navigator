@@ -224,10 +224,6 @@ export function convolveRhythms(params: ConvolutionParams): ConvolutionResult {
   let carrier = parseBinaryRhythm(params.carrier, params.mode)
   let impulse = parseBinaryRhythm(params.impulse, params.mode)
 
-  // Reverse both (as per Java code)
-  carrier = carrier.reverse()
-  impulse = impulse.reverse()
-
   // Scale if needed
   if (carrierScale > 1) {
     carrier = scaleRhythm(carrier, carrierScale)

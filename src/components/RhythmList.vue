@@ -6,6 +6,7 @@
 
     <DataTable
       v-else
+      ref="dataTableRef"
       :columns="columns"
       :rows="items"
       :selectedKey="selectedId"
@@ -67,8 +68,8 @@ import type { Mode } from '@/utils/rhythm'
 const store = useRhythmStore()
 const { items, selectedId } = storeToRefs(store)
 const fileInput = ref<HTMLInputElement | null>(null)
+const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
 
-const modeRank: Record<string, number> = { binary: 0, octal: 1, hex: 2 }
 function modeShort(b: Mode): string {
   return b === 'binary' ? 'bin' : b === 'octal' ? 'oct' : 'hex'
 }
@@ -123,7 +124,9 @@ function select(id: string) {
 
 function exportCsv() {
   const header = ['mode', 'numerator', 'denominator', 'onsets', 'groupedDigitsString', 'canonicalContour']
-  const rows = items.value.map(r => [
+  // Export the currently sorted/filtered view from the DataTable
+  const source = dataTableRef.value?.processedRows ?? items.value
+  const rows = source.map((r: any) => [
     modeShort(r.base),
     r.numerator ?? '',
     r.denominator ?? '',

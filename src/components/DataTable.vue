@@ -266,6 +266,7 @@ const processedRows = computed(() => {
 })
 
 // ─── Virtual scrolling (desktop) ───────────────────────────────
+// Number of extra rows rendered above/below the visible viewport for smooth scrolling
 const BUFFER = 15
 const desktopViewport = ref<HTMLElement | null>(null)
 const desktopScrollTop = ref(0)
@@ -331,6 +332,9 @@ watch(() => processedRows.value.length, () => {
   desktopScrollTop.value = 0
   mobileScrollTop.value = 0
 })
+
+// Expose processed rows so parent can access sorted/filtered data (e.g. for CSV export)
+defineExpose({ processedRows })
 </script>
 
 <style scoped>

@@ -37,7 +37,12 @@
     </div>
 
     <!-- Desktop table view -->
-    <div class="dt-table-wrap hidden sm:block" ref="desktopViewport" @scroll="onDesktopScroll">
+    <div
+      class="dt-table-wrap"
+      :class="{ 'hidden sm:block': mobileLayout === 'cards', 'dt-table-wrap--mobile': mobileLayout === 'table' }"
+      ref="desktopViewport"
+      @scroll="onDesktopScroll"
+    >
       <table class="dt-table">
         <thead class="dt-thead">
           <tr>
@@ -101,7 +106,7 @@
     </div>
 
     <!-- Mobile card view -->
-    <div class="dt-mobile-wrap sm:hidden" ref="mobileViewport" @scroll="onMobileScroll">
+    <div v-if="mobileLayout === 'cards'" class="dt-mobile-wrap sm:hidden" ref="mobileViewport" @scroll="onMobileScroll">
       <div :style="{ height: mobileTopPad + 'px' }" v-if="mobileTopPad > 0"></div>
       <div
         v-for="row in mobileVisibleRows"
@@ -159,6 +164,7 @@ const props = defineProps({
   selectedKey: { type: String, default: '' },
   rowHeight: { type: Number, default: 36 },
   mobileRowHeight: { type: Number, default: 0 },
+  mobileLayout: { type: String as PropType<'cards' | 'table'>, default: 'cards' },
   compact: { type: Boolean, default: false },
 })
 
@@ -478,6 +484,9 @@ defineExpose({ processedRows })
   border-radius: var(--dt-radius);
   max-height: 65vh;
 }
+.dt-table-wrap--mobile {
+  display: block;
+}
 .dt-table {
   width: 100%;
   border-collapse: collapse;
@@ -630,5 +639,14 @@ defineExpose({ processedRows })
 .dt-count {
   font-size: 0.6875rem;
   color: var(--dt-text-dim);
+}
+
+@media (max-width: 639px) {
+  .dt-table-wrap--mobile {
+    max-width: 100%;
+  }
+  .dt-table-wrap--mobile .dt-table {
+    min-width: 36rem;
+  }
 }
 </style>

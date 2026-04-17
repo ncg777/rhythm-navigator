@@ -12,6 +12,7 @@
       :selectedKey="selectedId"
       :rowHeight="32"
       :mobileRowHeight="160"
+      mobileLayout="table"
       @row-click="(row: any) => select(row.id)"
     >
       <template #toolbar-end>

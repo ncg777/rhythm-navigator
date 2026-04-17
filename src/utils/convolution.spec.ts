@@ -145,8 +145,16 @@ describe('xorCircularConvolution', () => {
     impulse.set(1, true)
 
     const result = xorCircularConvolution(carrier, impulse)
-    // XOR convolution should produce specific pattern
-    expect(result.length).toBe(4)
+    expect(result.toBits()).toEqual([true, false, true, false])
+  })
+
+  it('should rotate the carrier when the impulse is shifted', () => {
+    const carrier = parseBinaryRhythm('1010', 'binary')
+    const impulse = parseBinaryRhythm('0100', 'binary')
+
+    const result = xorCircularConvolution(carrier, impulse)
+
+    expect(result.toBits()).toEqual([false, true, false, true])
   })
 
   it('should handle all-zeros impulse', () => {
@@ -212,7 +220,8 @@ describe('convolveRhythms', () => {
     })
 
     expect(result.resultLength).toBe(8)
-    expect(result.result).toBeDefined()
+    expect(result.result).toBe('1010 1010')
+    expect(result.onsets).toBe(4)
   })
 
   it('should convolve two hex rhythms', () => {
@@ -224,7 +233,8 @@ describe('convolveRhythms', () => {
     })
 
     expect(result.resultLength).toBe(8)
-    expect(result.result).toBeDefined()
+    expect(result.result).toBe('F0')
+    expect(result.onsets).toBe(4)
   })
 
   it('should scale carrier', () => {
@@ -238,6 +248,7 @@ describe('convolveRhythms', () => {
 
     expect(result.carrierLength).toBe(4) // 2 bits scaled by 2
     expect(result.resultLength).toBe(4)
+    expect(result.result).toBe('1010')
   })
 
   it('should scale impulse', () => {
@@ -251,6 +262,7 @@ describe('convolveRhythms', () => {
 
     expect(result.impulseLength).toBe(4) // 2 bits scaled by 2
     expect(result.resultLength).toBe(4)
+    expect(result.result).toBe('1010')
   })
 
   it('should scale both carrier and impulse', () => {
@@ -266,5 +278,7 @@ describe('convolveRhythms', () => {
     expect(result.carrierLength).toBe(6) // 2 bits scaled by 3
     expect(result.impulseLength).toBe(6) // 2 bits scaled by 2, then padded to match carrier
     expect(result.resultLength).toBe(6) // padded to max length
+    expect(result.result).toBe('0000 00')
+    expect(result.onsets).toBe(0)
   })
 })

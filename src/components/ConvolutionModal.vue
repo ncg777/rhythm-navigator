@@ -113,7 +113,7 @@ import RhythmPickerModal from './RhythmPickerModal.vue'
 import { convolveRhythms } from '@/utils/convolution'
 import type { ConvolutionResult } from '@/utils/convolution'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
-import { bitsPerDigitForMode, countOnsets, digitsToBits } from '@/utils/rhythm'
+import { countOnsets, digitsToBits } from '@/utils/rhythm'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { useUiStore } from '@/stores/uiStore'
 import { canonicalContourFromOnsets } from '@/utils/contour'
@@ -163,7 +163,10 @@ function validate(): boolean {
   if (!impulseRhythm.value) {
     errors.impulse = 'Pick an impulse rhythm'
   }
-  return !errors.carrier && !errors.impulse
+  if (carrierRhythm.value && impulseRhythm.value && carrierRhythm.value.base !== impulseRhythm.value.base) {
+    convError.value = 'Carrier and impulse must use the same mode (binary/octal/hex)'
+  }
+  return !errors.carrier && !errors.impulse && !convError.value
 }
 
 function runConvolution() {
@@ -173,7 +176,7 @@ function runConvolution() {
   result.value = null
   convError.value = ''
 
-  // Use the carrier's mode for the convolution; both rhythms must share the same mode
+  // Use the carrier's mode (validated to match impulse)
   const mode = cr.base
   const denom = cr.denominator || 1
 

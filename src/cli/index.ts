@@ -2,15 +2,17 @@
  * Rhythm Navigator CLI
  *
  * Supports both enumerative (generate-and-test) and stochastic sampling
- * approaches for polyphonic rhythm generation.
+ * approaches for polyphonic rhythm generation, as well as XOR circular
+ * convolution operations.
  *
  * Usage:
  *   npx rhythm-navigator enumerate --mode hex --numerator 4 --denominator 1
  *   npx rhythm-navigator sample --mode hex --numerator 4 --denominator 1 --max-results 50
+ *   npx rhythm-navigator convolve --mode hex --carrier "F0" --impulse "80" --denominator 2
  *   npx rhythm-navigator mcp   (starts MCP server on stdio)
  */
 
-import { enumerateRhythms, sampleRhythms, buildAllPulsations } from './engine.js'
+import { enumerateRhythms, sampleRhythms, buildAllPulsations, convolveRhythms } from './engine.js'
 import type { Mode } from './engine.js'
 import type { PredicateGroup, PredicateId } from './engine.js'
 import { ALL_PREDICATE_IDS } from './engine.js'
@@ -48,6 +50,8 @@ Rhythm Navigator CLI
 COMMANDS:
   enumerate   Exhaustive generate-and-test rhythm enumeration
   sample      Fast stochastic sampling of rhythms
+  convolve    XOR circular convolution of two rhythms with optional scaling
+  pulsations  Generate rhythms from pulsation specifications
   mcp         Start MCP (Model Context Protocol) server on stdio
 
 COMMON OPTIONS:
@@ -66,6 +70,12 @@ ENUMERATE OPTIONS:
 SAMPLE OPTIONS:
   --max-attempts <n>              Maximum random trials (default: 1000000)
 
+CONVOLVE OPTIONS:
+  --carrier <rhythm>              Carrier rhythm (grouped digit string, e.g., "F0 3C")
+  --impulse <rhythm>              Impulse rhythm (grouped digit string, e.g., "80 00")
+  --carrier-scale <n>             Scale carrier by repeating N times (default: 1)
+  --impulse-scale <n>             Scale impulse by repeating N times (default: 1)
+
 PULSATIONS OPTIONS:
   --composition <ints>            Space-separated positive integers (segment lengths)
   --head-tails <H/T tokens>       Space-separated H or T per segment (cycles if shorter)
@@ -79,6 +89,8 @@ AVAILABLE PREDICATES:
 EXAMPLES:
   rhythm-navigator enumerate --mode hex --numerator 4 --denominator 1 --max-results 10
   rhythm-navigator sample --mode binary --numerator 8 --denominator 1 --predicates maximallyEven
+  rhythm-navigator convolve --mode hex --carrier "F0" --impulse "80" --denominator 2
+  rhythm-navigator convolve --mode binary --carrier "1010" --impulse "1000" --carrier-scale 2 --denominator 4
   rhythm-navigator pulsations --mode hex --numerator 4 --denominator 1 --composition "4 4 4 4" --head-tails "H" --durations "1" --multiples "2"
   rhythm-navigator mcp
 `)
@@ -172,6 +184,45 @@ async function main() {
       items: result.items
     }
     console.log(pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output))
+  } else if (command === 'convolve') {
+    const carrier = opts['carrier']
+    const impulse = opts['impulse']
+    const carrierScale = parseInt(opts['carrier-scale'] || '1', 10)
+    const impulseScale = parseInt(opts['impulse-scale'] || '1', 10)
+
+    if (!carrier) {
+      console.error('--carrier is required for convolve')
+      process.exit(1)
+    }
+    if (!impulse) {
+      console.error('--impulse is required for convolve')
+      process.exit(1)
+    }
+
+    try {
+      const result = convolveRhythms({
+        carrier,
+        impulse,
+        mode,
+        carrierScale,
+        impulseScale,
+        denominator
+      })
+
+      const output = {
+        method: 'convolve',
+        params: { mode, denominator, carrier, impulse, carrierScale, impulseScale },
+        result: result.result,
+        carrierLength: result.carrierLength,
+        impulseLength: result.impulseLength,
+        resultLength: result.resultLength,
+        onsets: result.onsets
+      }
+      console.log(pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output))
+    } catch (error) {
+      console.error('Convolution error:', error instanceof Error ? error.message : String(error))
+      process.exit(1)
+    }
   } else if (command === 'pulsations') {
     const composition = opts['composition'] || ''
     const headTails = opts['head-tails'] || 'H'

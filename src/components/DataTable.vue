@@ -286,17 +286,22 @@ function onDesktopScroll() {
 
 // ─── Virtual scrolling (mobile) ────────────────────────────────
 const MOBILE_ROW_HEIGHT_DEFAULT = 140
+// Gap between mobile cards in px — must match the margin-bottom on .dt-card in CSS
+const MOBILE_CARD_GAP = 8
 const mobileRH = computed(() => props.mobileRowHeight || MOBILE_ROW_HEIGHT_DEFAULT)
+// Effective per-row height includes the card's margin-bottom so spacer calculations
+// match the actual scroll position, preventing drift past the first screenful.
+const mobileEffRH = computed(() => mobileRH.value + MOBILE_CARD_GAP)
 const mobileViewport = ref<HTMLElement | null>(null)
 const mobileScrollTop = ref(0)
 const mobileViewportHeight = ref(600)
 
-const mobileStartIdx = computed(() => Math.max(0, Math.floor(mobileScrollTop.value / mobileRH.value) - BUFFER))
-const mobileVisibleCount = computed(() => Math.ceil(mobileViewportHeight.value / mobileRH.value) + BUFFER * 2)
+const mobileStartIdx = computed(() => Math.max(0, Math.floor(mobileScrollTop.value / mobileEffRH.value) - BUFFER))
+const mobileVisibleCount = computed(() => Math.ceil(mobileViewportHeight.value / mobileEffRH.value) + BUFFER * 2)
 const mobileEndIdx = computed(() => Math.min(processedRows.value.length, mobileStartIdx.value + mobileVisibleCount.value))
 const mobileVisibleRows = computed(() => processedRows.value.slice(mobileStartIdx.value, mobileEndIdx.value))
-const mobileTopPad = computed(() => mobileStartIdx.value * mobileRH.value)
-const mobileBottomPad = computed(() => Math.max(0, (processedRows.value.length - mobileEndIdx.value) * mobileRH.value))
+const mobileTopPad = computed(() => mobileStartIdx.value * mobileEffRH.value)
+const mobileBottomPad = computed(() => Math.max(0, (processedRows.value.length - mobileEndIdx.value) * mobileEffRH.value))
 
 function onMobileScroll() {
   if (!mobileViewport.value) return
@@ -565,7 +570,6 @@ defineExpose({ processedRows })
   max-height: 65vh;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
   padding: 0.25rem;
 }
 .dt-card {
@@ -575,6 +579,8 @@ defineExpose({ processedRows })
   background: var(--dt-bg);
   cursor: pointer;
   transition: all 0.15s;
+  /* 0.5rem matches MOBILE_CARD_GAP (8 px) in the virtual-scroll JS */
+  margin-bottom: 0.5rem;
 }
 .dt-card:hover { border-color: var(--dt-border-strong); background: var(--dt-row-hover); }
 .dt-card--selected {

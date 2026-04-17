@@ -77,7 +77,8 @@ export function buildPulsationRhythm(
     const m = multiples[i % multiples.length]
 
     for (let j = 0; j < m; j++) {
-      const pos = isTail ? acc + c - (j + 1) * d : acc + j * d
+      const raw = isTail ? c - (j + 1) * d : j * d
+      const pos = acc + ((raw % c) + c) % c
       bits[pos] = 1
     }
 
@@ -160,21 +161,9 @@ export function buildPulsationFromStrings(
 
   if (errors.length > 0) return { ok: false, errors }
 
-  // Cross-field validation
   const comp = composition!
   const dur = durations!
   const mult = multiples!
-
-  for (let i = 0; i < comp.length; i++) {
-    const d = dur[i % dur.length]
-    const m = mult[i % mult.length]
-    if (m * d > comp[i]) {
-      errors.push({
-        field: 'multiples',
-        message: `Segment ${i + 1}: duration×multiple (${d}×${m}=${d * m}) must not exceed composition element (${comp[i]}).`
-      })
-    }
-  }
 
   const totalBits = comp.reduce((s, c) => s + c, 0)
   const bpd = bitsPerDigitForMode(mode)

@@ -12,6 +12,13 @@ export { ALL_PREDICATE_IDS, PREDICATE_LABELS, defaultPredicateExpression } from 
 export { evaluatePredicateTree } from '../utils/predicateEval'
 export { canonicalContourFromOnsets } from '../utils/contour'
 export { sampleRhythms, type SamplerParams, type SamplerResult } from '../utils/stochasticSampler'
+export {
+  buildPulsationFromStrings,
+  buildAllPulsations,
+  expandCartesian,
+  type PulsationInputSet,
+  type PulsationResult
+} from '../utils/pulsations'
 
 /**
  * Synchronous exhaustive (enumerative) rhythm generation.

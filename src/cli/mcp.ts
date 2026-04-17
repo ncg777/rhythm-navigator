@@ -7,6 +7,7 @@
  * Tools:
  *   - enumerate_rhythms: Exhaustive generate-and-test rhythm enumeration
  *   - sample_rhythms: Fast stochastic rhythm sampling
+ *   - build_pulsations: Generate rhythms from a Pulsations specification
  *   - list_predicates: List available predicate filters
  */
 
@@ -16,10 +17,11 @@ import { z } from 'zod'
 import {
   enumerateRhythms,
   sampleRhythms,
+  buildAllPulsations,
   ALL_PREDICATE_IDS,
   PREDICATE_LABELS
 } from './engine.js'
-import type { PredicateGroup, PredicateId } from './engine.js'
+import type { PredicateGroup, PredicateId, RhythmItem } from './engine.js'
 
 function buildPredicateExpression(predicateIds: string[]): PredicateGroup | null {
   if (!predicateIds || predicateIds.length === 0) return null
@@ -53,7 +55,7 @@ export async function startMcpServer(): Promise<void> {
       maxResults: z.number().int().min(0).default(0)
         .describe('Maximum number of results to return (0 = unlimited, runs until space exhausted)'),
       predicates: z.array(z.string()).default([])
-        .describe('Array of predicate filter IDs to apply as AND conditions. Available: isomorphic, maximallyEven, rop23, odd-intervals, no-antipodes, lowEntropy, noGaps, relativelyFlat, ordinal'),
+        .describe(`Array of predicate filter IDs to apply as AND conditions. Available: ${ALL_PREDICATE_IDS.join(', ')}`),
       retentionProbability: z.number().min(0).max(100).default(100)
         .describe('Percentage probability (0-100) of keeping each valid rhythm')
     },
@@ -107,7 +109,7 @@ export async function startMcpServer(): Promise<void> {
       maxAttempts: z.number().int().min(1).default(1000000)
         .describe('Maximum number of random trials before stopping'),
       predicates: z.array(z.string()).default([])
-        .describe('Array of predicate filter IDs to apply as AND conditions. Available: isomorphic, maximallyEven, rop23, odd-intervals, no-antipodes, lowEntropy, noGaps, relativelyFlat, ordinal'),
+        .describe(`Array of predicate filter IDs to apply as AND conditions. Available: ${ALL_PREDICATE_IDS.join(', ')}`),
       retentionProbability: z.number().min(0).max(100).default(100)
         .describe('Percentage probability (0-100) of keeping each valid rhythm')
     },
@@ -132,6 +134,61 @@ export async function startMcpServer(): Promise<void> {
             emitted: result.emitted,
             count: result.items.length,
             items: result.items.map(item => ({
+              id: item.id,
+              base: item.base,
+              pattern: item.groupedDigitsString,
+              onsets: item.onsets,
+              contour: item.canonicalContour,
+              numerator: item.numerator,
+              denominator: item.denominator
+            }))
+          }, null, 2)
+        }]
+      }
+    }
+  )
+
+  // Tool: build_pulsations
+  server.tool(
+    'build_pulsations',
+    'Generate rhythm patterns from a Pulsations specification. Segments of a composition are each filled with evenly-spaced pulses, placed from the Head (start) or Tail (end). Comma-separate any parameter to produce the Cartesian product of all alternatives.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode: binary (1 bit/digit), octal (3 bits/digit), hex (4 bits/digit)'),
+      numerator: z.number().int().min(1).default(4)
+        .describe('Time signature numerator (number of beats)'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat'),
+      composition: z.string()
+        .describe('Space-separated positive integers giving the length of each segment (e.g. "4 4 4 4"). Comma-separate for multiple alternatives.'),
+      headTails: z.string().default('H')
+        .describe('Space-separated H or T tokens — one per segment, cycling if shorter than composition (e.g. "H T"). Comma-separate for alternatives.'),
+      durations: z.string().default('1')
+        .describe('Space-separated positive integers for pulse spacing — one per segment, cycling if shorter (e.g. "1 2"). Comma-separate for alternatives.'),
+      multiples: z.string().default('1')
+        .describe('Space-separated positive integers for pulse count — one per segment, cycling if shorter (e.g. "2 3"). Comma-separate for alternatives.')
+    },
+    async (params) => {
+      const { items, errors } = buildAllPulsations(
+        {
+          composition: params.composition,
+          headTails: params.headTails,
+          durations: params.durations,
+          multiples: params.multiples
+        },
+        params.mode,
+        params.numerator,
+        params.denominator
+      )
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            method: 'pulsations',
+            emitted: items.length,
+            errors,
+            items: items.map((item: RhythmItem) => ({
               id: item.id,
               base: item.base,
               pattern: item.groupedDigitsString,

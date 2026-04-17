@@ -132,15 +132,16 @@ describe('buildPulsationFromStrings', () => {
     }
   })
 
-  it('returns error when duration*multiple exceeds composition element', () => {
-    // d=3, m=2 → 6 > 4 (composition element)
+  it('cycles within segment when duration*multiple exceeds composition element', () => {
+    // d=3, m=2, comp=4: head positions (0*3)%4=0, (1*3)%4=3 → bits 0,3 → "1001"
     const result = buildPulsationFromStrings(
       { composition: '4', headTails: 'H', durations: '3', multiples: '2' },
       'binary', 1, 4
     )
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.errors.some((e) => e.field === 'multiples')).toBe(true)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.item.groupedDigitsString).toBe('1001')
+      expect(result.item.onsets).toBe(2)
     }
   })
 

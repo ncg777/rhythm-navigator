@@ -10,7 +10,7 @@
  *   npx rhythm-navigator mcp   (starts MCP server on stdio)
  */
 
-import { enumerateRhythms, sampleRhythms } from './engine.js'
+import { enumerateRhythms, sampleRhythms, buildAllPulsations } from './engine.js'
 import type { Mode } from './engine.js'
 import type { PredicateGroup, PredicateId } from './engine.js'
 import { ALL_PREDICATE_IDS } from './engine.js'
@@ -66,12 +66,20 @@ ENUMERATE OPTIONS:
 SAMPLE OPTIONS:
   --max-attempts <n>              Maximum random trials (default: 1000000)
 
+PULSATIONS OPTIONS:
+  --composition <ints>            Space-separated positive integers (segment lengths)
+  --head-tails <H/T tokens>       Space-separated H or T per segment (cycles if shorter)
+  --durations <ints>              Space-separated pulse spacings (cycles if shorter)
+  --multiples <ints>              Space-separated pulse counts per segment (cycles if shorter)
+  Comma-separate any field for multiple alternatives (cartesian product).
+
 AVAILABLE PREDICATES:
   ${ALL_PREDICATE_IDS.join(', ')}
 
 EXAMPLES:
   rhythm-navigator enumerate --mode hex --numerator 4 --denominator 1 --max-results 10
   rhythm-navigator sample --mode binary --numerator 8 --denominator 1 --predicates maximallyEven
+  rhythm-navigator pulsations --mode hex --numerator 4 --denominator 1 --composition "4 4 4 4" --head-tails "H" --durations "1" --multiples "2"
   rhythm-navigator mcp
 `)
 }
@@ -162,6 +170,32 @@ async function main() {
       attempts: result.attempts,
       emitted: result.emitted,
       items: result.items
+    }
+    console.log(pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output))
+  } else if (command === 'pulsations') {
+    const composition = opts['composition'] || ''
+    const headTails = opts['head-tails'] || 'H'
+    const durations = opts['durations'] || '1'
+    const multiples = opts['multiples'] || '1'
+
+    if (!composition) {
+      console.error('--composition is required for pulsations')
+      process.exit(1)
+    }
+
+    const { items, errors } = buildAllPulsations(
+      { composition, headTails, durations, multiples },
+      mode,
+      numerator,
+      denominator
+    )
+
+    const output = {
+      method: 'pulsations',
+      params: { mode, numerator, denominator, composition, headTails, durations, multiples },
+      emitted: items.length,
+      errors,
+      items
     }
     console.log(pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output))
   } else {

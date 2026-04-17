@@ -9,37 +9,27 @@
 
     <div class="space-y-5">
       <p class="text-sm text-slate-400 leading-relaxed">
-        Convolve two rhythms using XOR circular convolution. Enter carrier and impulse as
-        grouped digit strings (spaces optional). The result can be added to your rhythm list.
+        Convolve two rhythms using XOR circular convolution. Pick a carrier and impulse from
+        your rhythm list. The result can be added back to the list.
       </p>
-
-      <!-- Mode & denominator -->
-      <div class="flex flex-wrap gap-4 items-end">
-        <div>
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Mode</label>
-          <select v-model="mode" class="bg-slate-800 border border-white/10 rounded px-3 py-2 text-sm">
-            <option value="binary">Binary</option>
-            <option value="octal">Octal</option>
-            <option value="hex">Hexadecimal</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Digits per group</label>
-          <input v-model.number="denominator" type="number" min="1" max="64"
-            class="bg-slate-800 border border-white/10 rounded px-3 py-2 text-sm w-28" />
-        </div>
-      </div>
 
       <!-- Carrier -->
       <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">
-          Carrier
-          <span class="ml-1 normal-case text-slate-500">(grouped digit string)</span>
-        </label>
-        <div class="flex gap-2 items-end">
-          <input v-model="carrier" type="text" placeholder="e.g. F0 or 1010 1010"
-            class="flex-1 bg-slate-800 border border-white/10 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-white/30"
-            :class="{ 'border-red-500/60': errors.carrier }" />
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Carrier</label>
+        <div class="flex gap-2 items-center">
+          <div
+            class="flex-1 bg-slate-800 border rounded px-3 py-2 text-sm font-mono min-h-[38px] flex items-center"
+            :class="errors.carrier ? 'border-red-500/60' : 'border-white/10'"
+          >
+            <span v-if="carrierRhythm" class="text-brand-300 break-all">{{ carrierRhythm.groupedDigitsString }}</span>
+            <span v-else class="text-slate-500">No rhythm selected</span>
+          </div>
+          <button
+            class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5 shrink-0"
+            @click="carrierPickerOpen = true"
+          >
+            Pick
+          </button>
           <div>
             <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Scale</label>
             <input v-model.number="carrierScale" type="number" min="1" max="64"
@@ -51,14 +41,21 @@
 
       <!-- Impulse -->
       <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">
-          Impulse
-          <span class="ml-1 normal-case text-slate-500">(grouped digit string)</span>
-        </label>
-        <div class="flex gap-2 items-end">
-          <input v-model="impulse" type="text" placeholder="e.g. 80 or 1000 0000"
-            class="flex-1 bg-slate-800 border border-white/10 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-white/30"
-            :class="{ 'border-red-500/60': errors.impulse }" />
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Impulse</label>
+        <div class="flex gap-2 items-center">
+          <div
+            class="flex-1 bg-slate-800 border rounded px-3 py-2 text-sm font-mono min-h-[38px] flex items-center"
+            :class="errors.impulse ? 'border-red-500/60' : 'border-white/10'"
+          >
+            <span v-if="impulseRhythm" class="text-brand-300 break-all">{{ impulseRhythm.groupedDigitsString }}</span>
+            <span v-else class="text-slate-500">No rhythm selected</span>
+          </div>
+          <button
+            class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5 shrink-0"
+            @click="impulsePickerOpen = true"
+          >
+            Pick
+          </button>
           <div>
             <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Scale</label>
             <input v-model.number="impulseScale" type="number" min="1" max="64"
@@ -103,11 +100,16 @@
       <p v-if="convError" class="text-sm text-red-400">{{ convError }}</p>
     </div>
   </Modal>
+
+  <!-- Rhythm pickers (teleported to body by RhythmPickerModal) -->
+  <RhythmPickerModal :open="carrierPickerOpen" @close="carrierPickerOpen = false" @pick="onCarrierPick" />
+  <RhythmPickerModal :open="impulsePickerOpen" @close="impulsePickerOpen = false" @pick="onImpulsePick" />
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import Modal from './Modal.vue'
+import RhythmPickerModal from './RhythmPickerModal.vue'
 import { convolveRhythms } from '@/utils/convolution'
 import type { ConvolutionResult } from '@/utils/convolution'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
@@ -122,43 +124,67 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 const store = useRhythmStore()
 const ui = useUiStore()
 
-const mode = ref<Mode>('hex')
-const denominator = ref(1)
-const carrier = ref('')
-const impulse = ref('')
+const carrierId = ref<string | null>(null)
+const impulseId = ref<string | null>(null)
 const carrierScale = ref(1)
 const impulseScale = ref(1)
 const result = ref<ConvolutionResult | null>(null)
 const convError = ref('')
 const errors = reactive({ carrier: '', impulse: '' })
 
+const carrierPickerOpen = ref(false)
+const impulsePickerOpen = ref(false)
+
+const carrierRhythm = computed(() =>
+  carrierId.value ? store.items.find(r => r.id === carrierId.value) ?? null : null
+)
+const impulseRhythm = computed(() =>
+  impulseId.value ? store.items.find(r => r.id === impulseId.value) ?? null : null
+)
+
+function onCarrierPick(id: string) {
+  carrierId.value = id
+  errors.carrier = ''
+}
+
+function onImpulsePick(id: string) {
+  impulseId.value = id
+  errors.impulse = ''
+}
+
 function validate(): boolean {
   errors.carrier = ''
   errors.impulse = ''
   convError.value = ''
 
-  if (!carrier.value.trim()) {
-    errors.carrier = 'Carrier is required'
+  if (!carrierRhythm.value) {
+    errors.carrier = 'Pick a carrier rhythm'
   }
-  if (!impulse.value.trim()) {
-    errors.impulse = 'Impulse is required'
+  if (!impulseRhythm.value) {
+    errors.impulse = 'Pick an impulse rhythm'
   }
   return !errors.carrier && !errors.impulse
 }
 
 function runConvolution() {
   if (!validate()) return
+  const cr = carrierRhythm.value!
+  const ir = impulseRhythm.value!
   result.value = null
   convError.value = ''
 
+  // Use the carrier's mode for the convolution; both rhythms must share the same mode
+  const mode = cr.base
+  const denom = cr.denominator || 1
+
   try {
     result.value = convolveRhythms({
-      carrier: carrier.value.trim(),
-      impulse: impulse.value.trim(),
-      mode: mode.value,
+      carrier: cr.groupedDigitsString,
+      impulse: ir.groupedDigitsString,
+      mode,
       carrierScale: carrierScale.value,
       impulseScale: impulseScale.value,
-      denominator: denominator.value
+      denominator: denom
     })
   } catch (err: any) {
     convError.value = err?.message ?? 'Convolution failed'
@@ -166,27 +192,28 @@ function runConvolution() {
 }
 
 function addToList() {
-  if (!result.value) return
+  if (!result.value || !carrierRhythm.value) return
+  const cr = carrierRhythm.value
+  const mode = cr.base
+  const denom = cr.denominator || 1
 
   const grouped = result.value.result
-  const bpd = bitsPerDigitForMode(mode.value)
 
   // Parse digits from the grouped string
   const compact = grouped.replace(/\s+/g, '')
   const digits: number[] = []
   for (const c of compact) {
-    if (mode.value === 'hex') {
+    if (mode === 'hex') {
       digits.push(parseInt(c, 16))
     } else {
       digits.push(c.charCodeAt(0) - 48) // '0' -> 0
     }
   }
 
-  const bits = digitsToBits(digits, mode.value)
+  const bits = digitsToBits(digits, mode)
   const onsetCount = countOnsets(bits)
   const totalBits = bits.length
   const totalDigits = digits.length
-  const denom = denominator.value || 1
   const numerator = Math.ceil(totalDigits / denom)
 
   // Compute onset positions for contour calculation
@@ -199,7 +226,7 @@ function addToList() {
 
   const item: RhythmItem = {
     id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    base: mode.value,
+    base: mode,
     groupedDigitsString: grouped,
     onsets: onsetCount,
     canonicalContour: contour,

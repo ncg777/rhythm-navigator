@@ -10,6 +10,7 @@
         :selectedKey="''"
         :rowHeight="32"
         :mobileRowHeight="140"
+        mobileLayout="table"
         @row-click="(row: any) => pickById(row.id)"
       >
         <template #cell-base="{ value }">

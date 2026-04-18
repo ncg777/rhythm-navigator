@@ -8,6 +8,7 @@
  *   - enumerate_rhythms: Exhaustive generate-and-test rhythm enumeration
  *   - sample_rhythms: Fast stochastic rhythm sampling
  *   - build_pulsations: Generate rhythms from a Pulsations specification
+ *   - convolve_rhythms: XOR circular convolution of two rhythms
  *   - list_predicates: List available predicate filters
  */
 
@@ -18,6 +19,7 @@ import {
   enumerateRhythms,
   sampleRhythms,
   buildAllPulsations,
+  convolveRhythms,
   ALL_PREDICATE_IDS,
   PREDICATE_LABELS
 } from './engine.js'
@@ -199,6 +201,62 @@ export async function startMcpServer(): Promise<void> {
             }))
           }, null, 2)
         }]
+      }
+    }
+  )
+
+  // Tool: convolve_rhythms
+  server.tool(
+    'convolve_rhythms',
+    'XOR circular convolution of two rhythms. Combines a carrier and impulse rhythm by placing a copy of the impulse at each carrier onset, using XOR to merge overlapping pulses. Supports optional dilation (scaling) of either rhythm before convolution.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode: binary (1 bit/digit), octal (3 bits/digit), hex (4 bits/digit)'),
+      carrier: z.string()
+        .describe('Carrier rhythm as a grouped digit string (e.g. "F0" in hex, "1010" in binary)'),
+      impulse: z.string()
+        .describe('Impulse rhythm as a grouped digit string (e.g. "80" in hex, "1000" in binary)'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat (controls output grouping)'),
+      carrierScale: z.number().int().min(1).default(1)
+        .describe('Dilation factor for carrier onset positions (default: 1, no scaling)'),
+      impulseScale: z.number().int().min(1).default(1)
+        .describe('Dilation factor for impulse onset positions (default: 1, no scaling)')
+    },
+    async (params) => {
+      try {
+        const result = convolveRhythms({
+          carrier: params.carrier,
+          impulse: params.impulse,
+          mode: params.mode,
+          carrierScale: params.carrierScale,
+          impulseScale: params.impulseScale,
+          denominator: params.denominator
+        })
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              method: 'convolve',
+              result: result.result,
+              carrierLength: result.carrierLength,
+              impulseLength: result.impulseLength,
+              resultLength: result.resultLength,
+              onsets: result.onsets
+            }, null, 2)
+          }]
+        }
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }],
+          isError: true
+        }
       }
     }
   )

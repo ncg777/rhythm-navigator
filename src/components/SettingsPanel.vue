@@ -166,14 +166,18 @@
         </div>
       </div>
 
-      <textarea
+      <div
         v-if="matrixOutput || isGeneratingMatrix"
-        :value="matrixOutput"
-        readonly
-        rows="12"
-        class="w-full bg-slate-900 border border-white/10 rounded px-3 py-2 font-mono text-xs text-slate-200 resize-y"
-        placeholder="Generated matrices will appear here…"
-      />
+        class="relative w-full bg-slate-900 border border-white/10 rounded font-mono text-xs text-slate-200"
+      >
+        <button
+          v-if="matrixOutput"
+          @click="copyMatrix"
+          class="absolute top-2 right-2 px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-300 transition"
+          title="Copy to clipboard"
+        >{{ copiedMatrix ? '✓ Copied' : 'Copy' }}</button>
+        <pre class="px-3 py-2 overflow-x-auto whitespace-pre">{{ matrixOutput || 'Generating…' }}</pre>
+      </div>
     </div>
   </div>
 </template>
@@ -181,7 +185,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import PredicateTreeEditor from '@/components/PredicateTreeEditor.vue'
 
 const store = useRhythmStore()
@@ -240,4 +244,13 @@ const canAgglutinate = computed(() => store.items.length > 1)
 function generateMatrix() { store.generateMatrix() }
 function stopMatrix() { store.stopMatrix() }
 function clearMatrixOutput() { store.clearMatrixOutput() }
+
+const copiedMatrix = ref(false)
+async function copyMatrix() {
+  try {
+    await navigator.clipboard.writeText(matrixOutput.value)
+    copiedMatrix.value = true
+    setTimeout(() => { copiedMatrix.value = false }, 2000)
+  } catch {}
+}
 </script>

@@ -183,7 +183,7 @@
         >
           Sequence columns
         </button>
-        <span class="text-xs text-slate-500">Comma-separated 0-based column indices (e.g. <code class="font-mono">2,0,3</code>)</span>
+        <span class="text-xs text-slate-500">Comma-separated 0-based column indices</span>
       </div>
 
       <div

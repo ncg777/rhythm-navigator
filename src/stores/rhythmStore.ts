@@ -365,12 +365,11 @@ export const useRhythmStore = defineStore('rhythm', {
 
       const indices: number[] = []
       for (const part of parts) {
-        const n = Number(part)
-        if (!Number.isInteger(n) || isNaN(n) || part.includes('.')) {
-          ui.pushToast(`Invalid value "${part}": all values must be integers.`, 'error')
+        if (!/^\d+$/.test(part)) {
+          ui.pushToast(`Invalid value "${part}": all values must be non-negative integers.`, 'error')
           return
         }
-        indices.push(n)
+        indices.push(parseInt(part, 10))
       }
 
       const numCols = this.matrixColumns

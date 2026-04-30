@@ -306,8 +306,7 @@ export const useRhythmStore = defineStore('rhythm', {
         const msg = ev.data
         if (msg.type === 'batch') {
           if (msg.matrices.length) {
-            const separator = this.matrixOutput ? '\n\n' : ''
-            this.matrixOutput += separator + msg.matrices.join('\n\n')
+            this.matrixOutput = msg.matrices[0]
           }
         } else if (msg.type === 'progress') {
           this.matrixAttempts = msg.attempts
@@ -327,7 +326,7 @@ export const useRhythmStore = defineStore('rhythm', {
           denominator: this.denominator,
           rowCount: this.matrixRows,
           columnCount: this.matrixColumns,
-          maxResults: 0,
+          maxResults: 1,
           maxAttempts: this.matrixMaxAttempts > 0 ? this.matrixMaxAttempts : 10_000,
           maxCellRetries: this.matrixMaxCellRetries > 0 ? this.matrixMaxCellRetries : 100,
           predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression))

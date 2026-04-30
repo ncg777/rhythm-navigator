@@ -11,6 +11,11 @@ type WorkerMessage =
   | { type: 'done' }
   | { type: 'progress'; processed: number; emitted: number }
 
+type MatrixWorkerMessage =
+  | { type: 'batch'; matrices: string[] }
+  | { type: 'progress'; attempts: number; emitted: number }
+  | { type: 'done' }
+
 export const useRhythmStore = defineStore('rhythm', {
   state: () => ({
     mode: 'hex' as Mode,
@@ -55,7 +60,23 @@ export const useRhythmStore = defineStore('rhythm', {
     _itemKeySet: new Set<string>() as Set<string>,
 
     _worker: null as Worker | null,
-    _agglWorker: null as Worker | null
+    _agglWorker: null as Worker | null,
+
+    // Matrix generation parameters
+    matrixRows: 3,
+    matrixColumns: 4,
+    matrixMaxAttempts: 10_000,
+    matrixMaxCellRetries: 100,
+
+    // Matrix generation state
+    isGeneratingMatrix: false,
+    matrixAttempts: 0,
+    matrixEmitted: 0,
+
+    // Accumulated text output (one block per matrix, separated by blank lines)
+    matrixOutput: '',
+
+    _matrixWorker: null as Worker | null
   }),
   getters: {
     selected(state) {
@@ -270,6 +291,62 @@ export const useRhythmStore = defineStore('rhythm', {
           retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })
+    },
+
+    generateMatrix() {
+      if (this.isGeneratingMatrix) return
+      this.isGeneratingMatrix = true
+      this.matrixAttempts = 0
+      this.matrixEmitted = 0
+
+      const worker = new Worker(new URL('@/workers/matrix.ts', import.meta.url), { type: 'module' })
+      this._matrixWorker = worker
+
+      worker.onmessage = (ev: MessageEvent<MatrixWorkerMessage>) => {
+        const msg = ev.data
+        if (msg.type === 'batch') {
+          if (msg.matrices.length) {
+            const separator = this.matrixOutput ? '\n\n' : ''
+            this.matrixOutput += separator + msg.matrices.join('\n\n')
+          }
+        } else if (msg.type === 'progress') {
+          this.matrixAttempts = msg.attempts
+          this.matrixEmitted = msg.emitted
+        } else if (msg.type === 'done') {
+          this.isGeneratingMatrix = false
+          worker.terminate()
+          if (this._matrixWorker === worker) this._matrixWorker = null
+        }
+      }
+
+      worker.postMessage({
+        type: 'start',
+        payload: {
+          mode: this.mode,
+          numerator: this.numerator,
+          denominator: this.denominator,
+          rowCount: this.matrixRows,
+          columnCount: this.matrixColumns,
+          maxResults: 0,
+          maxAttempts: this.matrixMaxAttempts > 0 ? this.matrixMaxAttempts : 10_000,
+          maxCellRetries: this.matrixMaxCellRetries > 0 ? this.matrixMaxCellRetries : 100,
+          predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression))
+        }
+      })
+    },
+
+    stopMatrix() {
+      if (this._matrixWorker) {
+        this._matrixWorker.terminate()
+        this._matrixWorker = null
+      }
+      this.isGeneratingMatrix = false
+    },
+
+    clearMatrixOutput() {
+      this.matrixOutput = ''
+      this.matrixAttempts = 0
+      this.matrixEmitted = 0
     }
   }
 })

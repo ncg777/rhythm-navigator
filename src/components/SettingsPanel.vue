@@ -251,6 +251,8 @@ async function copyMatrix() {
     await navigator.clipboard.writeText(matrixOutput.value)
     copiedMatrix.value = true
     setTimeout(() => { copiedMatrix.value = false }, 2000)
-  } catch {}
+  } catch (err) {
+    console.warn('[SettingsPanel] clipboard write failed:', err)
+  }
 }
 </script>

@@ -166,6 +166,9 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
           if (hasPredicates) {
             let ok = true
 
+            // Individual cell check
+            if (!evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) ok = false
+
             // Row adjacency union: union of (c-1) and c
             if (ok && c > 0) {
               for (let i = 0; i < segmentBits; i++) pairBits[i] = cellBits[r][c - 1][i] | candidateBits[i]

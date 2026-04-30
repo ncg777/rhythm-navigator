@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sampleRhythmMatrices, sequenceMatrixColumns, type MatrixSamplerParams } from './matrixSampler'
+import { sampleRhythmMatrices, sequenceMatrixColumns, extractMatrixRhythmItems, type MatrixSamplerParams } from './matrixSampler'
 
 describe('sampleRhythmMatrices', () => {
   it('returns empty result when maxAttempts is very small', () => {
@@ -223,5 +223,103 @@ describe('sequenceMatrixColumns', () => {
     expect(restored).toBe(matText)
     // Row count must be preserved
     expect(permuted.split('\n').length).toBe(matText.split('\n').length)
+  })
+})
+
+describe('extractMatrixRhythmItems', () => {
+  // 2 rows, 3 columns, binary mode; denominator=1, numerator=1 per token
+  // Each cell is a single-character token: e.g. '0' or '1'
+  // Using a well-formed binary matrix: tokensPerRow=3 (1 token per cell × 3 cols)
+  // with numerator=1, denominator=1 so each cell contains 1 digit
+  const mat = '# Matrix 1\n1 0 1\n0 1 0'
+
+  it('extracts cells with correct base, numerator, denominator', () => {
+    const items = extractMatrixRhythmItems(mat, 3, 'binary', 1, 1, 'cells')
+    // 2 rows × 3 cols = 6 cells
+    expect(items).toHaveLength(6)
+    for (const item of items) {
+      expect(item.base).toBe('binary')
+      expect(item.numerator).toBe(1)
+      expect(item.denominator).toBe(1)
+      expect(typeof item.groupedDigitsString).toBe('string')
+      expect(typeof item.canonicalContour).toBe('string')
+    }
+  })
+
+  it('extracts rows with numerator = columnCount * numerator', () => {
+    const items = extractMatrixRhythmItems(mat, 3, 'binary', 1, 1, 'rows')
+    // 2 rows
+    expect(items).toHaveLength(2)
+    for (const item of items) {
+      expect(item.base).toBe('binary')
+      expect(item.numerator).toBe(3) // 3 cols × 1
+      expect(item.denominator).toBe(1)
+    }
+  })
+
+  it('extracts both cells and rows with include="both"', () => {
+    const items = extractMatrixRhythmItems(mat, 3, 'binary', 1, 1, 'both')
+    // 2 rows + 6 cells = 8 items
+    expect(items).toHaveLength(8)
+  })
+
+  it('returns groupedDigitsString matching the cell/row content', () => {
+    const items = extractMatrixRhythmItems(mat, 3, 'binary', 1, 1, 'cells')
+    // Row 0: cells are '1', '0', '1'
+    expect(items[0].groupedDigitsString).toBe('1')
+    expect(items[1].groupedDigitsString).toBe('0')
+    expect(items[2].groupedDigitsString).toBe('1')
+  })
+
+  it('returns row groupedDigitsString as the full row text', () => {
+    const items = extractMatrixRhythmItems(mat, 3, 'binary', 1, 1, 'rows')
+    expect(items[0].groupedDigitsString).toBe('1 0 1')
+    expect(items[1].groupedDigitsString).toBe('0 1 0')
+  })
+
+  it('handles multi-token cells (numerator > 1)', () => {
+    // 2 cols, numerator=2, denominator=1 (binary) → 2 tokens per cell per row
+    const mat2 = '# Matrix 1\n1 0 1 1\n0 1 0 0'
+    const cells = extractMatrixRhythmItems(mat2, 2, 'binary', 2, 1, 'cells')
+    // 2 rows × 2 cols = 4 cells
+    expect(cells).toHaveLength(4)
+    expect(cells[0].groupedDigitsString).toBe('1 0')
+    expect(cells[1].groupedDigitsString).toBe('1 1')
+    expect(cells[0].numerator).toBe(2)
+    const rows = extractMatrixRhythmItems(mat2, 2, 'binary', 2, 1, 'rows')
+    expect(rows[0].groupedDigitsString).toBe('1 0 1 1')
+    expect(rows[0].numerator).toBe(4) // 2 cols × 2
+  })
+
+  it('returns empty array for empty matrix text', () => {
+    const items = extractMatrixRhythmItems('# Matrix 1', 3, 'binary', 1, 1, 'both')
+    expect(items).toHaveLength(0)
+  })
+
+  it('throws when row tokens not divisible by columnCount', () => {
+    expect(() => extractMatrixRhythmItems(mat, 2, 'binary', 1, 1, 'cells')).toThrow(/not divisible/)
+  })
+
+  it('works on a generated matrix and all items have valid fields', () => {
+    const sample = sampleRhythmMatrices({
+      mode: 'hex',
+      numerator: 4,
+      denominator: 1,
+      rowCount: 2,
+      columnCount: 3,
+      maxResults: 1,
+      maxAttempts: 10_000,
+      maxCellRetries: 50
+    })
+    expect(sample.matrices.length).toBeGreaterThanOrEqual(1)
+    const items = extractMatrixRhythmItems(sample.matrices[0], 3, 'hex', 4, 1, 'both')
+    // 2 rows + 6 cells = 8 items
+    expect(items).toHaveLength(8)
+    for (const item of items) {
+      expect(item.base).toBe('hex')
+      expect(item.id).toBeTruthy()
+      expect(typeof item.onsets).toBe('number')
+      expect(Array.isArray(item.digits)).toBe(true)
+    }
   })
 })

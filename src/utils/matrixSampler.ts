@@ -15,10 +15,12 @@
  * of rhythm segments instead of a single rhythm.
  */
 
-import type { Mode } from '@/utils/rhythm'
-import { bitsPerDigitForMode } from '@/utils/rhythm'
+import type { Mode, RhythmItem } from '@/utils/rhythm'
+import { bitsPerDigitForMode, digitsToBits } from '@/utils/rhythm'
 import { evaluatePredicateTree } from '@/utils/predicateEval'
 import type { PredicateGroup } from '@/types/predicateExpression'
+import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { canonicalContourFromOnsets } from '@/utils/contour'
 
 export type MatrixSamplerParams = {
   mode: Mode
@@ -273,4 +275,94 @@ export function sequenceMatrixColumns(
   })
 
   return `${header}\n${newDataLines.join('\n')}`
+}
+
+// ---------------------------------------------------------------------------
+// Extracting matrix cells/rows as RhythmItems
+// ---------------------------------------------------------------------------
+
+const _canonicalOpts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
+let _idCounter = 0
+
+function groupedStringToRhythmItem(
+  groupedStr: string,
+  mode: Mode,
+  numerator: number,
+  denominator: number,
+  idTag: string
+): RhythmItem {
+  const digits = parseDigitsFromGroupedString(groupedStr, mode)
+  const bits = digitsToBits(digits, mode)
+  const onsetsArr: number[] = []
+  for (let i = 0; i < bits.length; i++) if (bits[i]) onsetsArr.push(i)
+  const contour = canonicalContourFromOnsets(onsetsArr, bits.length, _canonicalOpts)
+  return {
+    id: `${idTag}-${++_idCounter}`,
+    base: mode,
+    groupedDigitsString: groupedStr,
+    onsets: onsetsArr.length,
+    canonicalContour: contour,
+    numerator,
+    denominator,
+    digits
+  }
+}
+
+/**
+ * Extract rhythm items from a formatted matrix text block.
+ *
+ * @param matrixText  The matrix text block (e.g. produced by `sampleRhythmMatrices`).
+ * @param columnCount Number of columns in the matrix (determines cell boundaries).
+ * @param mode        Rhythm encoding mode.
+ * @param numerator   Beats per cell (used as the numerator for cell items;
+ *                    row items use `columnCount * numerator`).
+ * @param denominator Digits per beat.
+ * @param include     Which items to extract: `'cells'`, `'rows'`, or `'both'`.
+ * @returns Array of `RhythmItem` objects ready to be added to the rhythm store.
+ * @throws Error if the matrix text cannot be parsed with the given `columnCount`.
+ */
+export function extractMatrixRhythmItems(
+  matrixText: string,
+  columnCount: number,
+  mode: Mode,
+  numerator: number,
+  denominator: number,
+  include: 'cells' | 'rows' | 'both'
+): RhythmItem[] {
+  const lines = matrixText.split('\n')
+  const dataLines = lines.slice(1).filter(l => l.length > 0)
+
+  if (dataLines.length === 0 || columnCount <= 0) return []
+
+  const tokensPerRow = dataLines[0].split(' ').length
+  if (tokensPerRow % columnCount !== 0) {
+    throw new Error(
+      `Cannot parse matrix: row has ${tokensPerRow} token(s), which is not divisible by column count ${columnCount}.`
+    )
+  }
+  const tokensPerCell = tokensPerRow / columnCount
+  const rowNumerator = columnCount * numerator
+
+  const items: RhythmItem[] = []
+
+  for (let r = 0; r < dataLines.length; r++) {
+    const tokens = dataLines[r].split(' ')
+
+    if (include === 'rows' || include === 'both') {
+      items.push(groupedStringToRhythmItem(
+        dataLines[r], mode, rowNumerator, denominator, `matrix-row-${r}`
+      ))
+    }
+
+    if (include === 'cells' || include === 'both') {
+      for (let c = 0; c < columnCount; c++) {
+        const cellStr = tokens.slice(c * tokensPerCell, (c + 1) * tokensPerCell).join(' ')
+        items.push(groupedStringToRhythmItem(
+          cellStr, mode, numerator, denominator, `matrix-cell-${r}-${c}`
+        ))
+      }
+    }
+  }
+
+  return items
 }

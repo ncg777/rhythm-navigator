@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import type { PredicateGroup } from '@/types/predicateExpression'
 import { defaultPredicateExpression } from '@/types/predicateExpression'
+import { sequenceMatrixColumns, extractMatrixRhythmItems } from '@/utils/matrixSampler'
 
 export type GenerationMethod = 'enumerate' | 'sample'
 
@@ -346,6 +347,72 @@ export const useRhythmStore = defineStore('rhythm', {
       this.matrixOutput = ''
       this.matrixAttempts = 0
       this.matrixEmitted = 0
+    },
+
+    applyColumnSequence(sequenceStr: string) {
+      const ui = useUiStore()
+      if (!this.matrixOutput) {
+        ui.pushToast('No matrix to sequence. Generate a matrix first.', 'error')
+        return
+      }
+
+      // Parse the sequence string into integer indices
+      const parts = sequenceStr.split(',').map(s => s.trim()).filter(s => s.length > 0)
+      if (parts.length === 0) {
+        ui.pushToast('Column sequence cannot be empty. Enter comma-separated 0-based column indices.', 'error')
+        return
+      }
+
+      const indices: number[] = []
+      for (const part of parts) {
+        if (!/^\d+$/.test(part)) {
+          ui.pushToast(`Invalid value "${part}": all values must be non-negative integers.`, 'error')
+          return
+        }
+        indices.push(parseInt(part, 10))
+      }
+
+      const numCols = this.matrixColumns
+      for (const idx of indices) {
+        if (idx < 0 || idx >= numCols) {
+          ui.pushToast(
+            `Column index ${idx} is out of bounds (matrix has ${numCols} column(s), 0-based: 0–${numCols - 1}).`,
+            'error'
+          )
+          return
+        }
+      }
+
+      try {
+        // Extract cells and rows from the original matrix before sequencing
+        const originalItems = extractMatrixRhythmItems(
+          this.matrixOutput, numCols,
+          this.mode, this.numerator, this.denominator,
+          'both'
+        )
+        const origAdded = this.addItems(originalItems)
+
+        // Apply column sequencing
+        const newMatrixText = sequenceMatrixColumns(this.matrixOutput, indices, numCols)
+
+        // Extract rows from the sequenced matrix
+        const seqItems = extractMatrixRhythmItems(
+          newMatrixText, indices.length,
+          this.mode, this.numerator, this.denominator,
+          'rows'
+        )
+        const seqAdded = this.addItems(seqItems)
+
+        // Update state: matrixOutput and matrixColumns (so re-sequencing works)
+        this.matrixOutput = newMatrixText
+        this.matrixColumns = indices.length
+
+        const totalAdded = origAdded + seqAdded
+        const itemMsg = totalAdded > 0 ? ` ${totalAdded} rhythm${totalAdded === 1 ? '' : 's'} added to list.` : ''
+        ui.pushToast(`Column sequence [${indices.join(', ')}] applied.${itemMsg}`, 'success')
+      } catch (e: unknown) {
+        ui.pushToast(e instanceof Error ? e.message : 'Failed to sequence columns.', 'error')
+      }
     }
   }
 })

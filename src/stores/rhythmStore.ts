@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import type { PredicateGroup } from '@/types/predicateExpression'
 import { defaultPredicateExpression } from '@/types/predicateExpression'
+import { sequenceMatrixColumns } from '@/utils/matrixSampler'
 
 export type GenerationMethod = 'enumerate' | 'sample'
 
@@ -346,6 +347,49 @@ export const useRhythmStore = defineStore('rhythm', {
       this.matrixOutput = ''
       this.matrixAttempts = 0
       this.matrixEmitted = 0
+    },
+
+    applyColumnSequence(sequenceStr: string) {
+      const ui = useUiStore()
+      if (!this.matrixOutput) {
+        ui.pushToast('No matrix to sequence. Generate a matrix first.', 'error')
+        return
+      }
+
+      // Parse the sequence string into integer indices
+      const parts = sequenceStr.split(',').map(s => s.trim()).filter(s => s.length > 0)
+      if (parts.length === 0) {
+        ui.pushToast('Column sequence cannot be empty. Enter comma-separated 0-based column indices.', 'error')
+        return
+      }
+
+      const indices: number[] = []
+      for (const part of parts) {
+        const n = Number(part)
+        if (!Number.isInteger(n) || isNaN(n) || part.includes('.')) {
+          ui.pushToast(`Invalid value "${part}": all values must be integers.`, 'error')
+          return
+        }
+        indices.push(n)
+      }
+
+      const numCols = this.matrixColumns
+      for (const idx of indices) {
+        if (idx < 0 || idx >= numCols) {
+          ui.pushToast(
+            `Column index ${idx} is out of bounds (matrix has ${numCols} column(s), 0-based: 0–${numCols - 1}).`,
+            'error'
+          )
+          return
+        }
+      }
+
+      try {
+        this.matrixOutput = sequenceMatrixColumns(this.matrixOutput, indices, numCols)
+        ui.pushToast(`Column sequence [${indices.join(', ')}] applied.`, 'success')
+      } catch (e: unknown) {
+        ui.pushToast(e instanceof Error ? e.message : 'Failed to sequence columns.', 'error')
+      }
     }
   }
 })

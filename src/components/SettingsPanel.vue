@@ -166,6 +166,26 @@
         </div>
       </div>
 
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          v-model="columnSequence"
+          type="text"
+          class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-48 font-mono text-sm disabled:opacity-50"
+          placeholder="e.g. 2,0,3"
+          :disabled="!matrixOutput || isGeneratingMatrix"
+          title="0-based column indices to select/reorder, comma-separated (e.g. 2,0,3)"
+        />
+        <button
+          class="px-4 py-2 rounded-md bg-sky-700 hover:bg-sky-600 transition disabled:opacity-50"
+          @click="applyColumnSequence()"
+          :disabled="!matrixOutput || isGeneratingMatrix || !columnSequence.trim()"
+          title="Create a new matrix with columns selected/reordered by the given 0-based sequence"
+        >
+          Sequence columns
+        </button>
+        <span class="text-xs text-slate-500">Comma-separated 0-based column indices (e.g. <code class="font-mono">2,0,3</code>)</span>
+      </div>
+
       <div
         v-if="matrixOutput || isGeneratingMatrix"
         class="relative w-full bg-slate-900 border border-white/10 rounded font-mono text-xs text-slate-200"
@@ -244,6 +264,12 @@ const canAgglutinate = computed(() => store.items.length > 1)
 function generateMatrix() { store.generateMatrix() }
 function stopMatrix() { store.stopMatrix() }
 function clearMatrixOutput() { store.clearMatrixOutput() }
+
+const columnSequence = ref('')
+
+function applyColumnSequence() {
+  store.applyColumnSequence(columnSequence.value)
+}
 
 const copiedMatrix = ref(false)
 async function copyMatrix() {

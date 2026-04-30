@@ -218,3 +218,59 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
 
   return { matrices, attempts, emitted: matrices.length }
 }
+
+// ---------------------------------------------------------------------------
+// Column sequencing
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-order or subset the columns of a formatted matrix text block.
+ *
+ * Each cell in a row occupies exactly `tokensPerCell` space-separated tokens
+ * (because `groupDigits` splits digits into `numerator` groups, each of
+ * `denominator` characters, joined by spaces — so `tokensPerCell = numerator`).
+ *
+ * @param matrixText    The matrix text block produced by `sampleRhythmMatrices`.
+ * @param columnIndices 0-based column indices in the desired output order.
+ *   Duplicates are allowed; the result has exactly `columnIndices.length` columns.
+ * @param columnCount   The number of columns in the original matrix.
+ * @returns A new matrix text block with columns re-ordered / subsetted.
+ * @throws Error if `columnIndices` contains out-of-bounds indices or if the
+ *   matrix text cannot be parsed with the given `columnCount`.
+ */
+export function sequenceMatrixColumns(
+  matrixText: string,
+  columnIndices: number[],
+  columnCount: number
+): string {
+  const lines = matrixText.split('\n')
+  const header = lines[0]
+  const dataLines = lines.slice(1).filter(l => l.length > 0)
+
+  if (dataLines.length === 0 || columnCount <= 0) return matrixText
+
+  const tokensPerRow = dataLines[0].split(' ').length
+  if (tokensPerRow % columnCount !== 0) {
+    throw new Error(
+      `Cannot parse matrix: row has ${tokensPerRow} token(s), which is not divisible by column count ${columnCount}.`
+    )
+  }
+  const tokensPerCell = tokensPerRow / columnCount
+
+  for (const idx of columnIndices) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= columnCount) {
+      throw new Error(
+        `Column index ${idx} is out of bounds (matrix has ${columnCount} column(s), 0-based).`
+      )
+    }
+  }
+
+  const newDataLines = dataLines.map(line => {
+    const tokens = line.split(' ')
+    return columnIndices
+      .map(ci => tokens.slice(ci * tokensPerCell, (ci + 1) * tokensPerCell).join(' '))
+      .join(' ')
+  })
+
+  return `${header}\n${newDataLines.join('\n')}`
+}

@@ -210,8 +210,7 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
     if (seen.has(key)) continue
     seen.add(key)
 
-    const body = cellText.map(row => row.join(' ')).join('\n')
-    matrices.push(`# Matrix ${matrices.length + 1}\n${body}`)
+    matrices.push(`# Matrix ${matrices.length + 1}\n${key}`)
   }
 
   return { matrices, attempts, emitted: matrices.length }

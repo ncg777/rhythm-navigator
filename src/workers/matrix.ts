@@ -48,7 +48,9 @@ self.onmessage = (ev: MessageEvent<InMsg>) => {
   }
   if (msg.type === 'start') {
     stopping = false
-    run(msg.payload).catch(() => {})
+    run(msg.payload).catch((err) => {
+      console.error('[matrix worker] unhandled error:', err)
+    })
   }
 }
 
@@ -254,8 +256,7 @@ async function run(p: StartPayload) {
     if (seen.has(key)) continue
     seen.add(key)
 
-    const body = cellText.map(row => row.join(' ')).join('\n')
-    batch.push(`# Matrix ${emitted + 1}\n${body}`)
+    batch.push(`# Matrix ${emitted + 1}\n${key}`)
     emitted++
 
     if (batch.length >= BATCH_SIZE) pushBatch()

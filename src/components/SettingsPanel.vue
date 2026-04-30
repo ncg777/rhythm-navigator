@@ -112,6 +112,69 @@
         {{ agglProcessed }} / {{ agglTotalPairs }} checked · added {{ agglEmitted }}
       </span>
     </div>
+
+    <!-- Matrix generator section -->
+    <div class="border-t border-white/10 pt-4 space-y-3">
+      <h3 class="text-sm uppercase tracking-wide text-slate-400">Rhythm Matrix Generator</h3>
+      <p class="text-xs text-slate-500">
+        Generates random R×C matrices of rhythm segments. The predicate expression is enforced on
+        the union of each adjacent row pair (cyclically) and on the full column union.
+      </p>
+
+      <div class="flex flex-wrap gap-4 items-end">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Rows</label>
+          <input v-model.number="matrixRows" type="number" min="1" max="32"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-20" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Columns</label>
+          <input v-model.number="matrixColumns" type="number" min="1" max="32"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-20" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Max attempts</label>
+          <input v-model.number="matrixMaxAttempts" type="number" min="1" step="1000"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28"
+                 title="Maximum number of matrix construction attempts before stopping" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Max cell retries</label>
+          <input v-model.number="matrixMaxCellRetries" type="number" min="1" step="10"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28"
+                 title="Maximum retries per cell before abandoning the current matrix attempt" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4">
+        <button
+          class="px-4 py-2 rounded-md bg-violet-600 hover:bg-violet-500 transition"
+          @click="isGeneratingMatrix ? stopMatrix() : generateMatrix()"
+        >
+          {{ isGeneratingMatrix ? 'Stop matrix' : 'Generate matrix' }}
+        </button>
+        <button
+          class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
+          @click="clearMatrixOutput()"
+          :disabled="isGeneratingMatrix"
+        >
+          Clear
+        </button>
+        <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
+          <span>Attempts: <b>{{ matrixAttempts }}</b></span>
+          <span>Emitted: <b>{{ matrixEmitted }}</b></span>
+        </div>
+      </div>
+
+      <textarea
+        v-if="matrixOutput || isGeneratingMatrix"
+        :value="matrixOutput"
+        readonly
+        rows="12"
+        class="w-full bg-slate-900 border border-white/10 rounded px-3 py-2 font-mono text-xs text-slate-200 resize-y"
+        placeholder="Generated matrices will appear here…"
+      />
+    </div>
   </div>
 </template>
 
@@ -136,7 +199,15 @@ const {
   isAgglutinating,
   agglProcessed,
   agglEmitted,
-  agglTotalPairs
+  agglTotalPairs,
+  matrixRows,
+  matrixColumns,
+  matrixMaxAttempts,
+  matrixMaxCellRetries,
+  isGeneratingMatrix,
+  matrixAttempts,
+  matrixEmitted,
+  matrixOutput
 } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
@@ -166,4 +237,7 @@ function clear() { store.clear() }
 function agglutinate() { store.agglutinate() }
 function stopAgglutination() { store.stopAgglutination() }
 const canAgglutinate = computed(() => store.items.length > 1)
+function generateMatrix() { store.generateMatrix() }
+function stopMatrix() { store.stopMatrix() }
+function clearMatrixOutput() { store.clearMatrixOutput() }
 </script>

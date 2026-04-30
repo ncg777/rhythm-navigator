@@ -86,6 +86,45 @@ describe('sampleRhythmMatrices', () => {
     expect(result.matrices.length).toBeLessThanOrEqual(3)
   })
 
+  it('enforces predicate on individual cells (noGaps)', () => {
+    // noGaps requires all onsets to be contiguous (no gaps in the bit pattern)
+    // We run with enough attempts so results are likely, and verify each cell's onsets are contiguous
+    const result = sampleRhythmMatrices({
+      mode: 'binary',
+      numerator: 4,
+      denominator: 1,
+      rowCount: 2,
+      columnCount: 2,
+      maxResults: 3,
+      maxAttempts: 100_000,
+      maxCellRetries: 200,
+      predicateExpression: {
+        type: 'and',
+        children: [{ type: 'predicate', id: 'noGaps' }]
+      }
+    })
+    for (const matrix of result.matrices) {
+      const lines = matrix.split('\n').slice(1) // skip "# Matrix N" header
+      for (const line of lines) {
+        const cells = line.split(' ')
+        for (const cell of cells) {
+          // Each cell is a binary string of length numerator*denominator = 4
+          // noGaps means the 1s form a contiguous block (no 0 between two 1s)
+          const bits = cell.split('').map(Number)
+          const onBits = bits.filter(b => b === 1).length
+          // Find first and last 1
+          if (onBits === 0 || onBits === bits.length) continue
+          const first = bits.indexOf(1)
+          const last = bits.lastIndexOf(1)
+          // All bits between first and last should be 1 (no gap)
+          for (let i = first; i <= last; i++) {
+            expect(bits[i]).toBe(1)
+          }
+        }
+      }
+    }
+  })
+
   it('works with predicate expression (isomorphic)', () => {
     const result = sampleRhythmMatrices({
       mode: 'hex',

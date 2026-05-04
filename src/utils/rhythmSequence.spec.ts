@@ -78,9 +78,23 @@ describe('rhythmSequence utilities', () => {
   it('builds bounced positions from integer differences', () => {
     const walk = buildBouncedWalk([2, 2, -5, 4], -1, 3, 0)
 
-    expect(walk.differences).toEqual([2, 2, -5, 4])
+    expect(walk.differences).toEqual([2, 0, -1, 0])
     expect(walk.positions).toEqual([2, 2, 1, 1])
     expect(walk.positions.every((value) => value >= -1 && value <= 3)).toBe(true)
+  })
+
+  it('returns differences that reconstruct the same bounded walk', () => {
+    const walk = buildBouncedWalk([2, 2, -5, 4], -1, 3, 0)
+    const replayed: number[] = []
+    let current = 0
+
+    for (const difference of walk.differences) {
+      current += difference
+      replayed.push(current)
+    }
+
+    expect(replayed).toEqual(walk.positions)
+    expect(replayed.every((value) => value >= -1 && value <= 3)).toBe(true)
   })
 })
 
@@ -99,7 +113,7 @@ describe('segmentation optimizer', () => {
     expect(meanAbsoluteDeviation([1, 1, 4])).toBeCloseTo(1.333333, 5)
   })
 
-  it('scores multi-block segmentations above a single stable block when variance drops', () => {
+  it('uses the Java segmentation score formula', () => {
     const composition = { values: [1, 1, 4, 4], totalDuration: 10 }
     const oneBlockScore = scoreSegmentation(composition, [
       { start: 0, end: 4, values: [1, 1, 4, 4], mad: meanAbsoluteDeviation([1, 1, 4, 4]) }
@@ -109,12 +123,22 @@ describe('segmentation optimizer', () => {
       { start: 2, end: 4, values: [4, 4], mad: 0 },
     ])
 
+    expect(oneBlockScore).toBe(0)
+    expect(splitScore).toBeCloseTo(Math.log10(7), 8)
     expect(splitScore).toBeGreaterThan(oneBlockScore)
   })
 
-  it('memoizes toward repeated stable phrases', () => {
+  it('keeps a constant composition as one block', () => {
+    const result = optimizeSegmentation({ values: [2, 2, 2, 2], totalDuration: 8 })
+
+    expect(result.blocks.map((block) => block.values)).toEqual([[2, 2, 2, 2]])
+    expect(result.score).toBe(1)
+  })
+
+  it('follows the best refinement branch for repeated stable phrases', () => {
     const result = optimizeSegmentation({ values: [1, 1, 4, 4], totalDuration: 10 })
     expect(result.blocks.map((block) => block.values)).toEqual([[1, 1], [4, 4]])
+    expect(result.score).toBeCloseTo(Math.log10(7), 8)
   })
 })
 
@@ -169,6 +193,13 @@ describe('generateRhythmDrivenSequence', () => {
     expect(generated.differences).toHaveLength(item.onsets)
     expect(generated.positions).toHaveLength(item.onsets)
     expect(generated.differences.every(Number.isInteger)).toBe(true)
+    expect(generated.positions).toEqual(
+      generated.differences.reduce<number[]>((acc, difference, index) => {
+        const previous = index === 0 ? generated.start : acc[index - 1]
+        acc.push(previous + difference)
+        return acc
+      }, [])
+    )
     expect(generated.positions.every((value) => value >= -3 && value <= 3)).toBe(true)
     expect(generated.differences.every((value) => Math.abs(value) <= 2)).toBe(true)
   })

@@ -147,13 +147,16 @@ export function reflectIntoRange(value: number, min: number, max: number): numbe
 }
 
 export function buildBouncedWalk(differences: number[], min: number, max: number, start = min): BouncedWalk {
+  const bouncedDifferences: number[] = []
   const positions: number[] = []
   let current = reflectIntoRange(start, min, max)
   for (const difference of differences) {
-    current = reflectIntoRange(current + difference, min, max)
-    positions.push(current)
+    const next = reflectIntoRange(current + difference, min, max)
+    bouncedDifferences.push(next - current)
+    current = next
+    positions.push(next)
   }
-  return { differences: [...differences], positions }
+  return { differences: bouncedDifferences, positions }
 }
 
 export function meanAbsoluteDeviation(values: number[]): number {
@@ -163,10 +166,51 @@ export function meanAbsoluteDeviation(values: number[]): number {
   return total / values.length
 }
 
+type SegmentationPartition = number[]
+
+function roundSegmentationScore(value: number): number {
+  return Number.isFinite(value) ? Number(value.toFixed(8)) : value
+}
+
+function partitionToBlocks(composition: Composition, partition: SegmentationPartition): SegmentBlock[] {
+  const blocks: SegmentBlock[] = []
+  let offset = 0
+
+  for (const size of partition) {
+    const values = composition.values.slice(offset, offset + size)
+    blocks.push({
+      start: offset,
+      end: offset + size,
+      values,
+      mad: meanAbsoluteDeviation(values),
+    })
+    offset += size
+  }
+
+  return blocks
+}
+
+function refinePartition(partition: SegmentationPartition): SegmentationPartition[] | null {
+  const refinements: SegmentationPartition[] = []
+
+  for (let blockIndex = 0; blockIndex < partition.length; blockIndex++) {
+    const size = partition[blockIndex]
+    for (let leftSize = 1; leftSize < size; leftSize++) {
+      refinements.push([
+        ...partition.slice(0, blockIndex),
+        leftSize,
+        size - leftSize,
+        ...partition.slice(blockIndex + 1),
+      ])
+    }
+  }
+
+  return refinements.length > 0 ? refinements : null
+}
+
 export function scoreSegmentation(composition: Composition, blocks: SegmentBlock[]): number {
   const n = composition.values.length
   if (n <= 1 || blocks.length === 0) return 0
-  if (blocks.length === 1) return 0
 
   const totalMad = meanAbsoluteDeviation(composition.values)
   const blockMadSum = blocks.reduce((sum, block) => sum + block.mad, 0)
@@ -174,13 +218,9 @@ export function scoreSegmentation(composition: Composition, blocks: SegmentBlock
   const factor = (n - k) / (n - 1)
   const compression = Math.log10((factor * 9) + 1)
   if (Math.abs(totalMad) < 1e-9) {
-    return compression * (n / k)
+    return compression
   }
-  const residual = totalMad - blockMadSum
-  if (Math.abs(residual) < 1e-9) {
-    return compression * n
-  }
-  return compression * (totalMad / residual)
+  return compression * ((totalMad - blockMadSum) / totalMad)
 }
 
 export function optimizeSegmentation(composition: Composition): SegmentationResult {
@@ -192,53 +232,58 @@ export function optimizeSegmentation(composition: Composition): SegmentationResu
     return { blocks: block, score: 0 }
   }
 
-  const cache = new Map<string, SegmentationResult>()
-
-  const evaluate = (start: number, end: number): SegmentationResult => {
-    const cacheKey = `${start}:${end}`
-    const cached = cache.get(cacheKey)
-    if (cached) return cached
-
-    const slice = values.slice(start, end)
-    const singleBlock: SegmentBlock = {
-      start,
-      end,
-      values: slice,
-      mad: meanAbsoluteDeviation(slice),
-    }
-    let best: SegmentationResult = { blocks: [singleBlock], score: scoreSegmentation({ values: slice, totalDuration: slice.reduce((sum, value) => sum + value, 0) }, [singleBlock]) }
-
-    for (let split = start + 1; split < end; split++) {
-      const left = evaluate(start, split)
-      const right = evaluate(split, end)
-      const merged: SegmentationResult = {
-        blocks: left.blocks.concat(right.blocks),
-        score: scoreSegmentation(
-          { values: slice, totalDuration: slice.reduce((sum, value) => sum + value, 0) },
-          left.blocks.concat(right.blocks).map((block) => ({
-            start: block.start - start,
-            end: block.end - start,
-            values: block.values,
-            mad: block.mad,
-          }))
-        ),
-      }
-      if (merged.score > best.score) {
-        best = {
-          blocks: left.blocks.concat(right.blocks),
-          score: merged.score,
-        }
-      }
-    }
-
-    cache.set(cacheKey, best)
-    return best
+  const evaluatePartition = (partition: SegmentationPartition): number => {
+    return roundSegmentationScore(scoreSegmentation(composition, partitionToBlocks(composition, partition)))
   }
 
-  const best = evaluate(0, values.length)
+  const optimizePartition = (partition: SegmentationPartition, optima: SegmentationPartition[]): number => {
+    const score = evaluatePartition(partition)
+    const next = refinePartition(partition)
+
+    if (!next || next.length === 0) {
+      optima.push([...partition])
+      return score
+    }
+
+    const scores = next.map(candidate => evaluatePartition(candidate))
+    let optimum = score
+
+    for (const candidateScore of scores) {
+      if (candidateScore > optimum) optimum = candidateScore
+    }
+
+    if (optimum === score) {
+      optima.push([...partition])
+      return score
+    }
+
+    const refinedScores: Array<number | undefined> = new Array(next.length).fill(undefined)
+    const refinedOptima: SegmentationPartition[][] = next.map(() => [])
+
+    for (let index = 0; index < next.length; index++) {
+      if (scores[index] !== optimum) continue
+      refinedScores[index] = optimizePartition(next[index], refinedOptima[index])
+      if (typeof refinedScores[index] === 'number' && refinedScores[index]! > optimum) {
+        optimum = refinedScores[index]!
+      }
+    }
+
+    for (let index = 0; index < next.length; index++) {
+      if (refinedScores[index] === optimum) {
+        optima.push(...refinedOptima[index].map(candidate => [...candidate]))
+      }
+    }
+
+    return optimum
+  }
+
+  const optima: SegmentationPartition[] = []
+  const bestScore = optimizePartition([values.length], optima)
+  const bestPartition = optima[0] ?? [values.length]
+
   return {
-    blocks: best.blocks.map((block) => ({ ...block, values: [...block.values] })),
-    score: best.score,
+    blocks: partitionToBlocks(composition, bestPartition).map((block) => ({ ...block, values: [...block.values] })),
+    score: bestScore,
   }
 }
 
@@ -393,18 +438,18 @@ export function generateRhythmDrivenSequence(params: SequenceGeneratorParams): G
   const segmentation = optimizeSegmentation(composition)
   const symmetry = buildSymmetryLayer(segmentation, params.maxAmplitude, rng)
   const factor = buildFactorLayer(composition, params.maxAmplitude, rng)
-  const differences = composition.values.map((_, index) =>
+  const rawDifferences = composition.values.map((_, index) =>
     clampDifference((symmetry.layer[index] ?? 0) + (factor.layer[index] ?? 0), params.maxAmplitude)
   )
   const start = Math.round((params.min + params.max) / 2)
-  const walk = buildBouncedWalk(differences, params.min, params.max, start)
+  const walk = buildBouncedWalk(rawDifferences, params.min, params.max, start)
 
   return {
     composition,
     segmentation,
     symmetryLayer: symmetry.layer,
     factorLayer: factor.layer,
-    differences,
+    differences: walk.differences,
     positions: walk.positions,
     phrases: symmetry.phrases,
     selectedFactors: factor.selectedFactors,

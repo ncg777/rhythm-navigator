@@ -112,13 +112,100 @@
         {{ agglProcessed }} / {{ agglTotalPairs }} checked · added {{ agglEmitted }}
       </span>
     </div>
+
+    <!-- Matrix generator section -->
+    <div class="border-t border-white/10 pt-4 space-y-3">
+      <h3 class="text-sm uppercase tracking-wide text-slate-400">Rhythm Matrix Generator</h3>
+      <p class="text-xs text-slate-500">
+        Generates random R×C matrices of rhythm segments. The predicate expression is enforced on
+        the union of each adjacent row pair (cyclically) and on the full column union.
+      </p>
+
+      <div class="flex flex-wrap gap-4 items-end">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Rows</label>
+          <input v-model.number="matrixRows" type="number" min="1" max="32"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-20" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Columns</label>
+          <input v-model.number="matrixColumns" type="number" min="1" max="32"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-20" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Max attempts</label>
+          <input v-model.number="matrixMaxAttempts" type="number" min="1" step="1000"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28"
+                 title="Maximum number of matrix construction attempts before stopping" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400">Max cell retries</label>
+          <input v-model.number="matrixMaxCellRetries" type="number" min="1" step="10"
+                 class="mt-1 bg-slate-800 border border-white/10 rounded px-3 py-2 w-28"
+                 title="Maximum retries per cell before abandoning the current matrix attempt" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4">
+        <button
+          class="px-4 py-2 rounded-md bg-violet-600 hover:bg-violet-500 transition"
+          @click="isGeneratingMatrix ? stopMatrix() : generateMatrix()"
+        >
+          {{ isGeneratingMatrix ? 'Stop matrix' : 'Generate matrix' }}
+        </button>
+        <button
+          class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
+          @click="clearMatrixOutput()"
+          :disabled="isGeneratingMatrix"
+        >
+          Clear
+        </button>
+        <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
+          <span>Attempts: <b>{{ matrixAttempts }}</b></span>
+          <span>Emitted: <b>{{ matrixEmitted }}</b></span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          v-model="columnSequence"
+          type="text"
+          class="bg-slate-800 border border-white/10 rounded px-3 py-2 w-48 font-mono text-sm disabled:opacity-50"
+          placeholder="e.g. 2,0,3"
+          :disabled="!matrixOutput || isGeneratingMatrix"
+          title="0-based column indices to select/reorder, comma-separated (e.g. 2,0,3)"
+        />
+        <button
+          class="px-4 py-2 rounded-md bg-sky-700 hover:bg-sky-600 transition disabled:opacity-50"
+          @click="applyColumnSequence()"
+          :disabled="!matrixOutput || isGeneratingMatrix || !columnSequence.trim()"
+          title="Create a new matrix with columns selected/reordered by the given 0-based sequence"
+        >
+          Sequence columns
+        </button>
+        <span class="text-xs text-slate-500">Comma-separated 0-based column indices</span>
+      </div>
+
+      <div
+        v-if="matrixOutput || isGeneratingMatrix"
+        class="relative w-full bg-slate-900 border border-white/10 rounded font-mono text-xs text-slate-200"
+      >
+        <button
+          v-if="matrixOutput"
+          @click="copyMatrix"
+          class="absolute top-2 right-2 px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-300 transition"
+          title="Copy to clipboard"
+        >{{ copiedMatrix ? '✓ Copied' : 'Copy' }}</button>
+        <pre class="px-3 py-2 overflow-x-auto whitespace-pre">{{ matrixOutput || 'Generating…' }}</pre>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import PredicateTreeEditor from '@/components/PredicateTreeEditor.vue'
 
 const store = useRhythmStore()
@@ -136,7 +223,15 @@ const {
   isAgglutinating,
   agglProcessed,
   agglEmitted,
-  agglTotalPairs
+  agglTotalPairs,
+  matrixRows,
+  matrixColumns,
+  matrixMaxAttempts,
+  matrixMaxCellRetries,
+  isGeneratingMatrix,
+  matrixAttempts,
+  matrixEmitted,
+  matrixOutput
 } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
@@ -166,4 +261,24 @@ function clear() { store.clear() }
 function agglutinate() { store.agglutinate() }
 function stopAgglutination() { store.stopAgglutination() }
 const canAgglutinate = computed(() => store.items.length > 1)
+function generateMatrix() { store.generateMatrix() }
+function stopMatrix() { store.stopMatrix() }
+function clearMatrixOutput() { store.clearMatrixOutput() }
+
+const columnSequence = ref('')
+
+function applyColumnSequence() {
+  store.applyColumnSequence(columnSequence.value)
+}
+
+const copiedMatrix = ref(false)
+async function copyMatrix() {
+  try {
+    await navigator.clipboard.writeText(matrixOutput.value)
+    copiedMatrix.value = true
+    setTimeout(() => { copiedMatrix.value = false }, 2000)
+  } catch (err) {
+    console.warn('[SettingsPanel] clipboard write failed:', err)
+  }
+}
 </script>

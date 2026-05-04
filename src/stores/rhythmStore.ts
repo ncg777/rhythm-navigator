@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import type { PredicateGroup } from '@/types/predicateExpression'
 import { defaultPredicateExpression } from '@/types/predicateExpression'
+import { sequenceMatrixColumns, extractMatrixRhythmItems } from '@/utils/matrixSampler'
 
 export type GenerationMethod = 'enumerate' | 'sample'
 
@@ -10,6 +11,11 @@ type WorkerMessage =
   | { type: 'batch'; items: RhythmItem[] }
   | { type: 'done' }
   | { type: 'progress'; processed: number; emitted: number }
+
+type MatrixWorkerMessage =
+  | { type: 'batch'; matrices: string[] }
+  | { type: 'progress'; attempts: number; emitted: number }
+  | { type: 'done' }
 
 export const useRhythmStore = defineStore('rhythm', {
   state: () => ({
@@ -55,7 +61,23 @@ export const useRhythmStore = defineStore('rhythm', {
     _itemKeySet: new Set<string>() as Set<string>,
 
     _worker: null as Worker | null,
-    _agglWorker: null as Worker | null
+    _agglWorker: null as Worker | null,
+
+    // Matrix generation parameters
+    matrixRows: 3,
+    matrixColumns: 4,
+    matrixMaxAttempts: 10_000,
+    matrixMaxCellRetries: 100,
+
+    // Matrix generation state
+    isGeneratingMatrix: false,
+    matrixAttempts: 0,
+    matrixEmitted: 0,
+
+    // Accumulated text output (one block per matrix, separated by blank lines)
+    matrixOutput: '',
+
+    _matrixWorker: null as Worker | null
   }),
   getters: {
     selected(state) {
@@ -270,6 +292,127 @@ export const useRhythmStore = defineStore('rhythm', {
           retentionProbability: Math.max(0, Math.min(1, (this.retentionProbability ?? 100) / 100))
         }
       })
+    },
+
+    generateMatrix() {
+      if (this.isGeneratingMatrix) return
+      this.isGeneratingMatrix = true
+      this.matrixAttempts = 0
+      this.matrixEmitted = 0
+
+      const worker = new Worker(new URL('@/workers/matrix.ts', import.meta.url), { type: 'module' })
+      this._matrixWorker = worker
+
+      worker.onmessage = (ev: MessageEvent<MatrixWorkerMessage>) => {
+        const msg = ev.data
+        if (msg.type === 'batch') {
+          if (msg.matrices.length) {
+            this.matrixOutput = msg.matrices[0]
+          }
+        } else if (msg.type === 'progress') {
+          this.matrixAttempts = msg.attempts
+          this.matrixEmitted = msg.emitted
+        } else if (msg.type === 'done') {
+          this.isGeneratingMatrix = false
+          worker.terminate()
+          if (this._matrixWorker === worker) this._matrixWorker = null
+        }
+      }
+
+      worker.postMessage({
+        type: 'start',
+        payload: {
+          mode: this.mode,
+          numerator: this.numerator,
+          denominator: this.denominator,
+          rowCount: this.matrixRows,
+          columnCount: this.matrixColumns,
+          maxResults: 1,
+          maxAttempts: this.matrixMaxAttempts > 0 ? this.matrixMaxAttempts : 10_000,
+          maxCellRetries: this.matrixMaxCellRetries > 0 ? this.matrixMaxCellRetries : 100,
+          predicateExpression: JSON.parse(JSON.stringify(this.predicateExpression))
+        }
+      })
+    },
+
+    stopMatrix() {
+      if (this._matrixWorker) {
+        this._matrixWorker.terminate()
+        this._matrixWorker = null
+      }
+      this.isGeneratingMatrix = false
+    },
+
+    clearMatrixOutput() {
+      this.matrixOutput = ''
+      this.matrixAttempts = 0
+      this.matrixEmitted = 0
+    },
+
+    applyColumnSequence(sequenceStr: string) {
+      const ui = useUiStore()
+      if (!this.matrixOutput) {
+        ui.pushToast('No matrix to sequence. Generate a matrix first.', 'error')
+        return
+      }
+
+      // Parse the sequence string into integer indices
+      const parts = sequenceStr.split(',').map(s => s.trim()).filter(s => s.length > 0)
+      if (parts.length === 0) {
+        ui.pushToast('Column sequence cannot be empty. Enter comma-separated 0-based column indices.', 'error')
+        return
+      }
+
+      const indices: number[] = []
+      for (const part of parts) {
+        if (!/^\d+$/.test(part)) {
+          ui.pushToast(`Invalid value "${part}": all values must be non-negative integers.`, 'error')
+          return
+        }
+        indices.push(parseInt(part, 10))
+      }
+
+      const numCols = this.matrixColumns
+      for (const idx of indices) {
+        if (idx < 0 || idx >= numCols) {
+          ui.pushToast(
+            `Column index ${idx} is out of bounds (matrix has ${numCols} column(s), 0-based: 0–${numCols - 1}).`,
+            'error'
+          )
+          return
+        }
+      }
+
+      try {
+        // Extract cells and rows from the original matrix before sequencing
+        const originalItems = extractMatrixRhythmItems(
+          this.matrixOutput, numCols,
+          this.mode, this.numerator, this.denominator,
+          'both'
+        )
+        const origAdded = this.addItems(originalItems)
+
+        // Apply column sequencing
+        const newMatrixText = sequenceMatrixColumns(this.matrixOutput, indices, numCols)
+
+        // Extract rows from the sequenced matrix
+        const seqItems = extractMatrixRhythmItems(
+          newMatrixText, indices.length,
+          this.mode, this.numerator, this.denominator,
+          'rows'
+        )
+        const seqAdded = this.addItems(seqItems)
+
+        // Update state: matrixOutput and matrixColumns (so re-sequencing works)
+        this.matrixOutput = newMatrixText
+        this.matrixColumns = indices.length
+
+        const totalAdded = origAdded + seqAdded
+        const itemMsg = totalAdded > 0 ? ` ${totalAdded} rhythm${totalAdded === 1 ? '' : 's'} added to list.` : ''
+        ui.pushToast(`Column sequence [${indices.join(', ')}] applied.${itemMsg}`, 'success')
+      } catch (e: unknown) {
+        ui.pushToast(e instanceof Error ? e.message : 'Failed to sequence columns.', 'error')
+      }
     }
   }
 })

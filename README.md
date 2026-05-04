@@ -12,6 +12,7 @@ Built with Vue 3, TypeScript, Vite, Pinia, Tailwind, and Tone.js.
 - Two generation methods: exhaustive **enumeration** and fast **stochastic sampling**
 - Filter by shadow-contour isomorphism and several music-theory predicates
 - Agglutinate: concatenate compatible segments while maintaining constraints
+- **Matrix generator**: build random R×C rhythm segment matrices whose row-pair unions and column unions all satisfy the predicate expression
 - Browse a virtualized library and quickly search by grouped digits, base string, or contour
 - Analyze any rhythm: contours, density, syncopation metrics, and predicates at a glance
 - Sequence rhythms across multiple drum tracks (kick/snare/hat/perc) with per-track controls
@@ -38,6 +39,12 @@ Generator and library
 	- Relatively flat (counts near the mean)
 	- Ordinal(n) blocks
 - Agglutination engine to build longer strings from compatible parts
+- **Rhythm matrix generator** — constructive stochastic R×C matrix sampler:
+	- Each cell is a rhythm segment using the current mode/numerator/denominator settings.
+	- Predicate expression is enforced on the *union* of each adjacent row pair (cyclically last↔first) and on the full column union.
+	- Incremental constructive algorithm with early pruning: fills row by row, left to right, and immediately tests partial constraints at each cell placement.
+	- Controls: row count, column count, max matrix attempts, max cell retries.
+	- Output displayed as labelled text blocks in a monospace textarea (`# Matrix N` followed by one line per row).
 - The retention probability feature allows you to control the likelihood of retaining individual rhythms during the generation and agglutination processes. This parameter, expressed as a percentage (0-100), introduces probabilistic filtering to the rhythm generation pipeline.
 - Virtualized results list with fast search and sorting
 
@@ -75,7 +82,10 @@ PWA and performance
 3) Sequence
 - In the sequencer, click a track’s picker button to open the Rhythm Picker and assign a rhythm. Adjust track parameters, BPM, and loop bars; hit Play.
 
-4) Export or integrate
+4) Generate a rhythm matrix
+- In the settings panel scroll down to **Rhythm Matrix Generator**. Set Rows, Columns, Max attempts, and Max cell retries. The current mode/numerator/denominator and predicate expression are shared with the main generator. Click **Generate matrix**. Accepted matrices appear in the textarea below as labelled text blocks.
+
+5) Export or integrate
 - Export WAV/MIDI from the transport bar. Export a project to JSON, or import a saved JSON to restore everything (BPM, loop bars, tracks, patterns, params).
 
 ## Getting started (development)
@@ -269,12 +279,14 @@ The exact numeric values will vary between runs because the sequence generator i
 	- `src/workers/generate.ts` enumerates digits odometer-style and filters batches
 	- `src/workers/stochastic.ts` stochastic random sampling with the same batch/progress/done protocol
 	- `src/workers/agglutinate.ts` builds concatenations subject to the same constraints
+	- `src/workers/matrix.ts` constructive stochastic matrix generator (row-pair union + column union constraints)
 - Utilities:
 	- Contours: `src/utils/contour.ts`
 	- Predicates: `src/utils/predicates.ts`
 	- Syncopation: `src/utils/syncopation.ts`
 	- Relations (subsets/supersets/overlaps): `src/utils/relations.ts`
 	- Stochastic sampler: `src/utils/stochasticSampler.ts`
+	- Matrix sampler: `src/utils/matrixSampler.ts`
 - CLI:
 	- `src/cli/index.ts` — CLI entry point (arg parsing, JSON output)
 	- `src/cli/engine.ts` — shared sync versions of enumerate/sample for Node.js

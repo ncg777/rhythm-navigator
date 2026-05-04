@@ -33,6 +33,11 @@ export {
   type SegmentationResult,
   type SymmetryPhrase,
 } from '../utils/rhythmSequence'
+export {
+  sampleRhythmMatrices,
+  type MatrixSamplerParams,
+  type MatrixSamplerResult
+} from '../utils/matrixSampler'
 
 /**
  * Synchronous exhaustive (enumerative) rhythm generation.

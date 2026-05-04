@@ -7,6 +7,7 @@
  * Tools:
  *   - enumerate_rhythms: Exhaustive generate-and-test rhythm enumeration
  *   - sample_rhythms: Fast stochastic rhythm sampling
+ *   - generate_rhythm_matrix: Construct stochastic rhythm matrices
  *   - build_pulsations: Generate rhythms from a Pulsations specification
  *   - convolve_rhythms: XOR circular convolution of two rhythms
  *   - generate_rhythm_sequence: Build an integer sequence from a rhythm pattern
@@ -19,6 +20,7 @@ import { z } from 'zod'
 import {
   enumerateRhythms,
   sampleRhythms,
+  sampleRhythmMatrices,
   buildAllPulsations,
   convolveRhythms,
   generateRhythmDrivenSequence,
@@ -39,12 +41,11 @@ function buildPredicateExpression(predicateIds: string[]): PredicateGroup | null
   }
 }
 
-export async function startMcpServer(): Promise<void> {
-  const server = new McpServer({
-    name: 'rhythm-navigator',
-    version: '0.3.1'
-  })
+type ToolRegistrar = {
+  tool: McpServer['tool']
+}
 
+export function registerMcpTools(server: ToolRegistrar): void {
   // Tool: enumerate_rhythms
   server.tool(
     'enumerate_rhythms',
@@ -146,6 +147,70 @@ export async function startMcpServer(): Promise<void> {
               numerator: item.numerator,
               denominator: item.denominator
             }))
+          }, null, 2)
+        }]
+      }
+    }
+  )
+
+  // Tool: generate_rhythm_matrix
+  server.tool(
+    'generate_rhythm_matrix',
+    'Construct stochastic rhythm matrices row by row. Each cell must satisfy the selected predicate filters, as must adjacent row unions and full column unions. Returns formatted matrix blocks suitable for downstream sequencing.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode: binary (1 bit/digit), octal (3 bits/digit), hex (4 bits/digit)'),
+      numerator: z.number().int().min(1).default(4)
+        .describe('Time signature numerator (number of beats per cell)'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat within each matrix cell'),
+      rowCount: z.number().int().min(1).default(3)
+        .describe('Number of rows in the generated matrix'),
+      columnCount: z.number().int().min(1).default(4)
+        .describe('Number of columns in the generated matrix'),
+      maxResults: z.number().int().min(1).default(10)
+        .describe('Maximum number of matrices to return'),
+      maxAttempts: z.number().int().min(1).default(10000)
+        .describe('Maximum number of full matrix construction attempts'),
+      maxCellRetries: z.number().int().min(1).default(100)
+        .describe('Maximum retries per cell before abandoning the current matrix attempt'),
+      predicates: z.array(z.string()).default([])
+        .describe(`Array of predicate filter IDs to apply as AND conditions. Available: ${ALL_PREDICATE_IDS.join(', ')}`)
+    },
+    async (params) => {
+      const predicateExpression = buildPredicateExpression(params.predicates)
+      const result = sampleRhythmMatrices({
+        mode: params.mode,
+        numerator: params.numerator,
+        denominator: params.denominator,
+        rowCount: params.rowCount,
+        columnCount: params.columnCount,
+        maxResults: params.maxResults,
+        maxAttempts: params.maxAttempts,
+        maxCellRetries: params.maxCellRetries,
+        predicateExpression,
+      })
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            method: 'matrix',
+            attempts: result.attempts,
+            emitted: result.emitted,
+            count: result.matrices.length,
+            controls: {
+              mode: params.mode,
+              numerator: params.numerator,
+              denominator: params.denominator,
+              rowCount: params.rowCount,
+              columnCount: params.columnCount,
+              maxResults: params.maxResults,
+              maxAttempts: params.maxAttempts,
+              maxCellRetries: params.maxCellRetries,
+              predicates: params.predicates,
+            },
+            matrices: result.matrices,
           }, null, 2)
         }]
       }
@@ -374,6 +439,15 @@ export async function startMcpServer(): Promise<void> {
       }
     }
   )
+}
+
+export async function startMcpServer(): Promise<void> {
+  const server = new McpServer({
+    name: 'rhythm-navigator',
+    version: '0.3.1'
+  })
+
+  registerMcpTools(server)
 
   // Start stdio transport
   const transport = new StdioServerTransport()

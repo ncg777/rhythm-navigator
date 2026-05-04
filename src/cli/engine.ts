@@ -24,6 +24,15 @@ export {
   type ConvolutionParams,
   type ConvolutionResult
 } from '../utils/convolution'
+export {
+  buildCompositionFromRhythm,
+  generateRhythmDrivenSequence,
+  type Composition,
+  type GeneratedSequence,
+  type SequenceGeneratorParams,
+  type SegmentationResult,
+  type SymmetryPhrase,
+} from '../utils/rhythmSequence'
 
 /**
  * Synchronous exhaustive (enumerative) rhythm generation.

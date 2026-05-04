@@ -187,7 +187,7 @@ Add to `.vscode/mcp.json` (or your user-level MCP settings):
 }
 ```
 
-After reloading, the three tools below become available to Copilot Chat.
+After reloading, the MCP tools below become available to Copilot Chat.
 
 ### MCP Tools
 
@@ -195,7 +195,70 @@ After reloading, the three tools below become available to Copilot Chat.
 |---|---|
 | `enumerate_rhythms` | Exhaustive generate-and-test enumeration with predicate filtering. Parameters: `mode`, `numerator`, `denominator`, `maxResults`, `predicates`, `retentionProbability`. |
 | `sample_rhythms` | Stochastic random sampling with predicate filtering. Parameters: `mode`, `numerator`, `denominator`, `maxResults`, `maxAttempts`, `predicates`, `retentionProbability`. |
+| `build_pulsations` | Build rhythms from a Pulsations specification. Parameters: `mode`, `numerator`, `denominator`, `composition`, `headTails`, `durations`, `multiples`. |
+| `convolve_rhythms` | XOR circular convolution for a carrier and impulse rhythm. Parameters: `mode`, `carrier`, `impulse`, `denominator`, `carrierScale`, `impulseScale`. |
+| `generate_rhythm_sequence` | Generate an integer-difference sequence and bounced positions from a rhythm pattern. Parameters: `mode`, `pattern`, `onsets`, `contour`, `numerator`, `denominator`, `min`, `max`, `maxAmplitude`, `repeatCount`. |
 | `list_predicates` | Returns all available predicate IDs and their human-readable labels. |
+
+### Example: `generate_rhythm_sequence`
+
+Example MCP tool arguments:
+
+```json
+{
+	"mode": "binary",
+	"pattern": "1010 1000",
+	"denominator": 4,
+	"min": -3,
+	"max": 3,
+	"maxAmplitude": 2,
+	"repeatCount": 3
+}
+```
+
+Example response shape:
+
+```json
+{
+	"method": "rhythm_sequence",
+	"rhythm": {
+		"mode": "binary",
+		"pattern": "1010 1000",
+		"denominator": 4
+	},
+	"controls": {
+		"min": -3,
+		"max": 3,
+		"maxAmplitude": 2,
+		"repeatCount": 3
+	},
+	"composition": {
+		"values": [2, 2, 4, 2, 2, 4, 2, 2, 4],
+		"totalDuration": 24
+	},
+	"segmentation": {
+		"score": 1.23,
+		"blocks": [
+			{ "start": 0, "end": 3, "values": [2, 2, 4], "mad": 0.89 },
+			{ "start": 3, "end": 6, "values": [2, 2, 4], "mad": 0.89 },
+			{ "start": 6, "end": 9, "values": [2, 2, 4], "mad": 0.89 }
+		]
+	},
+	"selectedFactors": [4, 6],
+	"symmetryLayer": [1, 0, -1, 1, 0, -1, 1, 0, -1],
+	"factorLayer": [1, 1, 0, -1, -1, 0, 1, 1, 0],
+	"differences": [2, 1, -1, 0, -1, -1, 2, 1, -1],
+	"positions": [2, 3, 2, 2, 1, 0, 2, 3, 2],
+	"phrases": [
+		{ "key": "2,2,4", "occurrence": 0, "transform": "identity", "values": [1, 0, -1] },
+		{ "key": "2,2,4", "occurrence": 1, "transform": "reverse", "values": [-1, 0, 1] },
+		{ "key": "2,2,4", "occurrence": 2, "transform": "rotate", "values": [-1, 1, 0] }
+	],
+	"start": 0
+}
+```
+
+The exact numeric values will vary between runs because the sequence generator includes stochastic choices, but the response shape and length invariants remain stable: `differences.length === positions.length === onsetCount × repeatCount`.
 
 ## Internals and structure
 

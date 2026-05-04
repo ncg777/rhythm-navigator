@@ -9,6 +9,7 @@
  *   - sample_rhythms: Fast stochastic rhythm sampling
  *   - build_pulsations: Generate rhythms from a Pulsations specification
  *   - convolve_rhythms: XOR circular convolution of two rhythms
+ *   - generate_rhythm_sequence: Build an integer sequence from a rhythm pattern
  *   - list_predicates: List available predicate filters
  */
 
@@ -20,6 +21,7 @@ import {
   sampleRhythms,
   buildAllPulsations,
   convolveRhythms,
+  generateRhythmDrivenSequence,
   ALL_PREDICATE_IDS,
   PREDICATE_LABELS
 } from './engine.js'
@@ -244,6 +246,98 @@ export async function startMcpServer(): Promise<void> {
               impulseLength: result.impulseLength,
               resultLength: result.resultLength,
               onsets: result.onsets
+            }, null, 2)
+          }]
+        }
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }],
+          isError: true
+        }
+      }
+    }
+  )
+
+  // Tool: generate_rhythm_sequence
+  server.tool(
+    'generate_rhythm_sequence',
+    'Generate an integer-difference sequence and bounced cumulative positions from a rhythm pattern. The number of generated items matches the rhythm onset count, optionally scaled by repeatCount.',
+    {
+      mode: z.enum(['binary', 'octal', 'hex']).default('hex')
+        .describe('Digit encoding mode of the input rhythm pattern'),
+      pattern: z.string()
+        .describe('Input rhythm as a grouped digit string (e.g. "8 4" in hex, "1010 1000" in binary)'),
+      onsets: z.number().int().min(0).optional()
+        .describe('Optional onset count metadata for the input rhythm; omitted values are tolerated'),
+      contour: z.string().optional()
+        .describe('Optional contour metadata for the input rhythm'),
+      numerator: z.number().int().min(1).optional()
+        .describe('Optional time-signature numerator metadata for the input rhythm'),
+      denominator: z.number().int().min(1).default(1)
+        .describe('Digits per beat metadata for the input rhythm'),
+      min: z.number().int().default(-7)
+        .describe('Inclusive lower bound for the bounced cumulative positions'),
+      max: z.number().int().default(7)
+        .describe('Inclusive upper bound for the bounced cumulative positions'),
+      maxAmplitude: z.number().int().min(0).default(4)
+        .describe('Maximum absolute value for each generated difference step'),
+      repeatCount: z.number().int().min(1).default(1)
+        .describe('Repeat the rhythm this many times before generating the sequence'),
+    },
+    async (params) => {
+      try {
+        const item: RhythmItem = {
+          id: `${params.mode}:${params.pattern}:mcp`,
+          base: params.mode,
+          groupedDigitsString: params.pattern,
+          onsets: params.onsets ?? 0,
+          canonicalContour: params.contour ?? '',
+          numerator: params.numerator,
+          denominator: params.denominator,
+        }
+
+        const result = generateRhythmDrivenSequence({
+          item,
+          min: params.min,
+          max: params.max,
+          maxAmplitude: params.maxAmplitude,
+          repeatCount: params.repeatCount,
+        })
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              method: 'rhythm_sequence',
+              rhythm: {
+                mode: params.mode,
+                pattern: params.pattern,
+                numerator: params.numerator,
+                denominator: params.denominator,
+              },
+              controls: {
+                min: params.min,
+                max: params.max,
+                maxAmplitude: params.maxAmplitude,
+                repeatCount: params.repeatCount,
+              },
+              composition: result.composition,
+              segmentation: {
+                score: result.segmentation.score,
+                blocks: result.segmentation.blocks,
+              },
+              selectedFactors: result.selectedFactors,
+              symmetryLayer: result.symmetryLayer,
+              factorLayer: result.factorLayer,
+              differences: result.differences,
+              positions: result.positions,
+              phrases: result.phrases,
+              start: result.start,
             }, null, 2)
           }]
         }

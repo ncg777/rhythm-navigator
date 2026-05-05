@@ -135,10 +135,17 @@ describe('segmentation optimizer', () => {
     expect(result.score).toBe(1)
   })
 
-  it('follows the best refinement branch for repeated stable phrases', () => {
+  it('groups contiguous equal values into runs', () => {
     const result = optimizeSegmentation({ values: [1, 1, 4, 4], totalDuration: 10 })
     expect(result.blocks.map((block) => block.values)).toEqual([[1, 1], [4, 4]])
     expect(result.score).toBeCloseTo(Math.log10(7), 8)
+  })
+
+  it('does not merge non-contiguous repeated values', () => {
+    const result = optimizeSegmentation({ values: [1, 1, 4, 1, 1], totalDuration: 8 })
+
+    expect(result.blocks.map((block) => block.values)).toEqual([[1, 1], [4], [1, 1]])
+    expect(result.blocks.map((block) => [block.start, block.end])).toEqual([[0, 2], [2, 3], [3, 5]])
   })
 })
 

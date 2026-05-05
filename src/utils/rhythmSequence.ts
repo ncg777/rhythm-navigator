@@ -166,48 +166,6 @@ export function meanAbsoluteDeviation(values: number[]): number {
   return total / values.length
 }
 
-type SegmentationPartition = number[]
-
-function roundSegmentationScore(value: number): number {
-  return Number.isFinite(value) ? Number(value.toFixed(8)) : value
-}
-
-function partitionToBlocks(composition: Composition, partition: SegmentationPartition): SegmentBlock[] {
-  const blocks: SegmentBlock[] = []
-  let offset = 0
-
-  for (const size of partition) {
-    const values = composition.values.slice(offset, offset + size)
-    blocks.push({
-      start: offset,
-      end: offset + size,
-      values,
-      mad: meanAbsoluteDeviation(values),
-    })
-    offset += size
-  }
-
-  return blocks
-}
-
-function refinePartition(partition: SegmentationPartition): SegmentationPartition[] | null {
-  const refinements: SegmentationPartition[] = []
-
-  for (let blockIndex = 0; blockIndex < partition.length; blockIndex++) {
-    const size = partition[blockIndex]
-    for (let leftSize = 1; leftSize < size; leftSize++) {
-      refinements.push([
-        ...partition.slice(0, blockIndex),
-        leftSize,
-        size - leftSize,
-        ...partition.slice(blockIndex + 1),
-      ])
-    }
-  }
-
-  return refinements.length > 0 ? refinements : null
-}
-
 export function scoreSegmentation(composition: Composition, blocks: SegmentBlock[]): number {
   const n = composition.values.length
   if (n <= 1 || blocks.length === 0) return 0
@@ -225,65 +183,29 @@ export function scoreSegmentation(composition: Composition, blocks: SegmentBlock
 
 export function optimizeSegmentation(composition: Composition): SegmentationResult {
   const values = composition.values
-  if (values.length <= 1) {
-    const block = values.length === 0
-      ? []
-      : [{ start: 0, end: 1, values: [...values], mad: meanAbsoluteDeviation(values) }]
-    return { blocks: block, score: 0 }
+  if (values.length === 0) {
+    return { blocks: [], score: 0 }
   }
 
-  const evaluatePartition = (partition: SegmentationPartition): number => {
-    return roundSegmentationScore(scoreSegmentation(composition, partitionToBlocks(composition, partition)))
+  const blocks: SegmentBlock[] = []
+  let start = 0
+
+  for (let index = 1; index <= values.length; index++) {
+    if (index < values.length && values[index] === values[start]) continue
+
+    const blockValues = values.slice(start, index)
+    blocks.push({
+      start,
+      end: index,
+      values: blockValues,
+      mad: meanAbsoluteDeviation(blockValues),
+    })
+    start = index
   }
-
-  const optimizePartition = (partition: SegmentationPartition, optima: SegmentationPartition[]): number => {
-    const score = evaluatePartition(partition)
-    const next = refinePartition(partition)
-
-    if (!next || next.length === 0) {
-      optima.push([...partition])
-      return score
-    }
-
-    const scores = next.map(candidate => evaluatePartition(candidate))
-    let optimum = score
-
-    for (const candidateScore of scores) {
-      if (candidateScore > optimum) optimum = candidateScore
-    }
-
-    if (optimum === score) {
-      optima.push([...partition])
-      return score
-    }
-
-    const refinedScores: Array<number | undefined> = new Array(next.length).fill(undefined)
-    const refinedOptima: SegmentationPartition[][] = next.map(() => [])
-
-    for (let index = 0; index < next.length; index++) {
-      if (scores[index] !== optimum) continue
-      refinedScores[index] = optimizePartition(next[index], refinedOptima[index])
-      if (typeof refinedScores[index] === 'number' && refinedScores[index]! > optimum) {
-        optimum = refinedScores[index]!
-      }
-    }
-
-    for (let index = 0; index < next.length; index++) {
-      if (refinedScores[index] === optimum) {
-        optima.push(...refinedOptima[index].map(candidate => [...candidate]))
-      }
-    }
-
-    return optimum
-  }
-
-  const optima: SegmentationPartition[] = []
-  const bestScore = optimizePartition([values.length], optima)
-  const bestPartition = optima[0] ?? [values.length]
 
   return {
-    blocks: partitionToBlocks(composition, bestPartition).map((block) => ({ ...block, values: [...block.values] })),
-    score: bestScore,
+    blocks,
+    score: scoreSegmentation(composition, blocks),
   }
 }
 

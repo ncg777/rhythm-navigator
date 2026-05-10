@@ -38,6 +38,13 @@ type OutMsg =
   | { type: 'progress'; attempts: number; emitted: number }
   | { type: 'done' }
 
+type MatrixCellCandidate = {
+  bits: Uint8Array
+  text: string
+}
+
+const MAX_CELL_POOL_SIZE = 100_000
+
 let stopping = false
 
 self.onmessage = (ev: MessageEvent<InMsg>) => {
@@ -101,6 +108,59 @@ function bitsToOnsets(bits: Uint8Array): number[] {
   return out
 }
 
+function buildMatrixCellPool(
+  base: number,
+  digitsCount: number,
+  segmentBits: number,
+  denominator: number,
+  lookup: number[][],
+  encTable: string[],
+  predExpr: PredicateGroup | null,
+  hasPredicates: boolean,
+  canonicalOpts: { circular: boolean; rotationInvariant: boolean; reflectionInvariant: boolean }
+): MatrixCellCandidate[] | null {
+  const totalCandidates = base ** digitsCount
+  if (!Number.isFinite(totalCandidates) || totalCandidates > MAX_CELL_POOL_SIZE) return null
+
+  const digits = new Array<number>(digitsCount).fill(0)
+  const candidateBits = new Uint8Array(segmentBits)
+  const bitsPerDigit = segmentBits / digitsCount
+  const pool: MatrixCellCandidate[] = []
+
+  for (let attempt = 0; attempt < totalCandidates; attempt++) {
+    candidateBits.fill(0)
+    let onsetsCount = 0
+    for (let j = 0; j < digitsCount; j++) {
+      const v = digits[j]
+      if (!v) continue
+
+      const indices = lookup[v]
+      const offset = j * bitsPerDigit
+      for (const idx of indices) {
+        candidateBits[offset + idx] = 1
+        onsetsCount++
+      }
+    }
+
+    if (onsetsCount !== 0 && onsetsCount !== segmentBits) {
+      if (!hasPredicates || evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) {
+        pool.push({
+          bits: candidateBits.slice(),
+          text: groupDigits(digits, encTable, denominator)
+        })
+      }
+    }
+
+    for (let i = digitsCount - 1; i >= 0; i--) {
+      digits[i]++
+      if (digits[i] < base) break
+      digits[i] = 0
+    }
+  }
+
+  return pool
+}
+
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
@@ -123,12 +183,29 @@ async function run(p: StartPayload) {
   const predExpr = p.predicateExpression ?? null
   const hasPredicates = !!(predExpr && predExpr.children && predExpr.children.length > 0)
   const canonicalOpts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
+  const cellPool = buildMatrixCellPool(
+    base,
+    digitsCount,
+    segmentBits,
+    p.denominator,
+    lookup,
+    encTable,
+    predExpr,
+    hasPredicates,
+    canonicalOpts
+  )
 
   const R = Math.max(1, p.rowCount)
   const C = Math.max(1, p.columnCount)
   const maxResults = p.maxResults <= 0 ? Number.POSITIVE_INFINITY : p.maxResults
   const maxAttempts = p.maxAttempts <= 0 ? Number.POSITIVE_INFINITY : p.maxAttempts
   const maxCellRetries = p.maxCellRetries <= 0 ? 100 : p.maxCellRetries
+
+  if (cellPool && cellPool.length === 0) {
+    post.postMessage({ type: 'progress', attempts: 0, emitted: 0 } as OutMsg)
+    post.postMessage({ type: 'done' } as OutMsg)
+    return
+  }
 
   const seen = new Set<string>()
   let emitted = 0
@@ -187,33 +264,45 @@ async function run(p: StartPayload) {
         let placed = false
 
         for (let retry = 0; retry < maxCellRetries; retry++) {
-          // Random digits
-          const digits = new Array<number>(digitsCount)
-          for (let i = 0; i < digitsCount; i++) digits[i] = Math.floor(Math.random() * base)
+          const pooledCandidate = cellPool
+            ? cellPool[Math.floor(Math.random() * cellPool.length)]
+            : null
 
-          // Build bit array
-          candidateBits.fill(0)
-          let onsetsCount = 0
-          for (let j = 0; j < digitsCount; j++) {
-            const v = digits[j]
-            if (v) {
-              const indices = lookup[v]
-              const offset = j * bpd
-              for (const idx of indices) {
-                candidateBits[offset + idx] = 1
-                onsetsCount++
+          let candidateText = ''
+
+          if (pooledCandidate) {
+            candidateBits.set(pooledCandidate.bits)
+            candidateText = pooledCandidate.text
+          } else {
+            // Random digits
+            const digits = new Array<number>(digitsCount)
+            for (let i = 0; i < digitsCount; i++) digits[i] = Math.floor(Math.random() * base)
+
+            // Build bit array
+            candidateBits.fill(0)
+            let onsetsCount = 0
+            for (let j = 0; j < digitsCount; j++) {
+              const v = digits[j]
+              if (v) {
+                const indices = lookup[v]
+                const offset = j * bpd
+                for (const idx of indices) {
+                  candidateBits[offset + idx] = 1
+                  onsetsCount++
+                }
               }
             }
-          }
 
-          // Skip trivial cells
-          if (onsetsCount === 0 || onsetsCount === segmentBits) continue
+            // Skip trivial cells
+            if (onsetsCount === 0 || onsetsCount === segmentBits) continue
+            candidateText = groupDigits(digits, encTable, p.denominator)
+          }
 
           if (hasPredicates) {
             let ok = true
 
-            // Individual cell check
-            if (!evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) ok = false
+            // Individual cell validity is already encoded into the precomputed pool.
+            if (!pooledCandidate && !evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) ok = false
 
             // Row adjacency union: union of cell (r,c-1) and cell (r,c)
             if (ok && c > 0) {
@@ -239,7 +328,7 @@ async function run(p: StartPayload) {
 
           // Accept cell
           cellBits[r][c].set(candidateBits)
-          cellText[r][c] = groupDigits(digits, encTable, p.denominator)
+          cellText[r][c] = candidateText
           for (let i = 0; i < segmentBits; i++) colUnions[c][i] |= candidateBits[i]
           placed = true
           break

@@ -17,6 +17,20 @@ describe('sampleRhythmMatrices', () => {
     expect(result.matrices.length).toBeLessThanOrEqual(1)
   })
 
+  it('short-circuits when no non-trivial cell candidate exists', () => {
+    const result = sampleRhythmMatrices({
+      mode: 'binary',
+      numerator: 1,
+      denominator: 1,
+      rowCount: 2,
+      columnCount: 2,
+      maxResults: 1,
+      maxAttempts: 1_000,
+      maxCellRetries: 100
+    })
+    expect(result).toEqual({ matrices: [], attempts: 0, emitted: 0 })
+  })
+
   it('generates matrices in binary mode without predicates', () => {
     const result = sampleRhythmMatrices({
       mode: 'binary',

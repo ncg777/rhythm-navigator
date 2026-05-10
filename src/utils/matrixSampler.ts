@@ -41,6 +41,13 @@ export type MatrixSamplerResult = {
   emitted: number
 }
 
+type MatrixCellCandidate = {
+  bits: Uint8Array
+  text: string
+}
+
+const MAX_CELL_POOL_SIZE = 100_000
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -88,6 +95,58 @@ function bitsToOnsets(bits: Uint8Array): number[] {
   return out
 }
 
+function buildMatrixCellPool(
+  base: number,
+  digitsCount: number,
+  segmentBits: number,
+  denominator: number,
+  lookup: number[][],
+  encTable: string[],
+  predExpr: PredicateGroup | null,
+  hasPredicates: boolean,
+  canonicalOpts: { circular: boolean; rotationInvariant: boolean; reflectionInvariant: boolean }
+): MatrixCellCandidate[] | null {
+  const totalCandidates = base ** digitsCount
+  if (!Number.isFinite(totalCandidates) || totalCandidates > MAX_CELL_POOL_SIZE) return null
+
+  const digits = new Array<number>(digitsCount).fill(0)
+  const candidateBits = new Uint8Array(segmentBits)
+  const pool: MatrixCellCandidate[] = []
+
+  for (let attempt = 0; attempt < totalCandidates; attempt++) {
+    candidateBits.fill(0)
+    let onsetsCount = 0
+    for (let j = 0; j < digitsCount; j++) {
+      const v = digits[j]
+      if (!v) continue
+
+      const indices = lookup[v]
+      const offset = j * (segmentBits / digitsCount)
+      for (const idx of indices) {
+        candidateBits[offset + idx] = 1
+        onsetsCount++
+      }
+    }
+
+    if (onsetsCount !== 0 && onsetsCount !== segmentBits) {
+      if (!hasPredicates || evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) {
+        pool.push({
+          bits: candidateBits.slice(),
+          text: groupDigits(digits, encTable, denominator)
+        })
+      }
+    }
+
+    for (let i = digitsCount - 1; i >= 0; i--) {
+      digits[i]++
+      if (digits[i] < base) break
+      digits[i] = 0
+    }
+  }
+
+  return pool
+}
+
 // ---------------------------------------------------------------------------
 // Main sampler
 // ---------------------------------------------------------------------------
@@ -104,6 +163,21 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
   const predExpr = params.predicateExpression ?? null
   const hasPredicates = !!(predExpr && predExpr.children && predExpr.children.length > 0)
   const canonicalOpts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
+  const cellPool = buildMatrixCellPool(
+    base,
+    digitsCount,
+    segmentBits,
+    params.denominator,
+    lookup,
+    encTable,
+    predExpr,
+    hasPredicates,
+    canonicalOpts
+  )
+
+  if (cellPool && cellPool.length === 0) {
+    return { matrices: [], attempts: 0, emitted: 0 }
+  }
 
   const R = Math.max(1, params.rowCount)
   const C = Math.max(1, params.columnCount)
@@ -143,33 +217,45 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
         let placed = false
 
         for (let retry = 0; retry < maxCellRetries; retry++) {
-          // Generate random digits for this cell
-          const digits = new Array<number>(digitsCount)
-          for (let i = 0; i < digitsCount; i++) digits[i] = Math.floor(Math.random() * base)
+          const pooledCandidate = cellPool
+            ? cellPool[Math.floor(Math.random() * cellPool.length)]
+            : null
 
-          // Build bit array for this cell
-          candidateBits.fill(0)
-          let onsetsCount = 0
-          for (let j = 0; j < digitsCount; j++) {
-            const v = digits[j]
-            if (v) {
-              const indices = lookup[v]
-              const offset = j * bpd
-              for (const idx of indices) {
-                candidateBits[offset + idx] = 1
-                onsetsCount++
+          let candidateText = ''
+
+          if (pooledCandidate) {
+            candidateBits.set(pooledCandidate.bits)
+            candidateText = pooledCandidate.text
+          } else {
+            // Generate random digits for this cell
+            const digits = new Array<number>(digitsCount)
+            for (let i = 0; i < digitsCount; i++) digits[i] = Math.floor(Math.random() * base)
+
+            // Build bit array for this cell
+            candidateBits.fill(0)
+            let onsetsCount = 0
+            for (let j = 0; j < digitsCount; j++) {
+              const v = digits[j]
+              if (v) {
+                const indices = lookup[v]
+                const offset = j * bpd
+                for (const idx of indices) {
+                  candidateBits[offset + idx] = 1
+                  onsetsCount++
+                }
               }
             }
-          }
 
-          // Skip trivial all-zero or all-one cells
-          if (onsetsCount === 0 || onsetsCount === segmentBits) continue
+            // Skip trivial all-zero or all-one cells
+            if (onsetsCount === 0 || onsetsCount === segmentBits) continue
+            candidateText = groupDigits(digits, encTable, params.denominator)
+          }
 
           if (hasPredicates) {
             let ok = true
 
-            // Individual cell check
-            if (!evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) ok = false
+            // Individual cell validity is already encoded into the precomputed pool.
+            if (!pooledCandidate && !evaluatePredicateTree(predExpr, bitsToOnsets(candidateBits), segmentBits, canonicalOpts)) ok = false
 
             // Row adjacency union: union of (c-1) and c
             if (ok && c > 0) {
@@ -195,7 +281,7 @@ export function sampleRhythmMatrices(params: MatrixSamplerParams): MatrixSampler
 
           // Accept the cell
           cellBits[r][c].set(candidateBits)
-          cellText[r][c] = groupDigits(digits, encTable, params.denominator)
+          cellText[r][c] = candidateText
           for (let i = 0; i < segmentBits; i++) colUnions[c][i] |= candidateBits[i]
           placed = true
           break

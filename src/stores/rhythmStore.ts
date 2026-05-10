@@ -17,6 +17,27 @@ type MatrixWorkerMessage =
   | { type: 'progress'; attempts: number; emitted: number }
   | { type: 'done' }
 
+export type RhythmSessionSnapshot = {
+  mode: Mode
+  numerator: number
+  denominator: number
+  maxReps: number
+  predicateExpression: PredicateGroup
+  retentionProbability: number
+  generationMethod: GenerationMethod
+  maxSampleAttempts: number
+  matrixRows: number
+  matrixColumns: number
+  matrixMaxAttempts: number
+  matrixMaxCellRetries: number
+  items: RhythmItem[]
+  selectedId: string
+}
+
+function clonePredicateExpression(expression: PredicateGroup): PredicateGroup {
+  return JSON.parse(JSON.stringify(expression)) as PredicateGroup
+}
+
 export const useRhythmStore = defineStore('rhythm', {
   state: () => ({
     mode: 'hex' as Mode,
@@ -92,14 +113,8 @@ export const useRhythmStore = defineStore('rhythm', {
         const raw = localStorage.getItem(KEY)
         if (raw) {
           const data = JSON.parse(raw)
-          if (data && Array.isArray(data.items)) {
-            this.items = data.items
-            this.selectedId = typeof data.selectedId === 'string' ? data.selectedId : ''
-            // Rebuild dedupe set
-            this._itemKeySet.clear()
-            for (const it of this.items) {
-              try { this._itemKeySet.add(`${it.base}:${it.groupedDigitsString}`) } catch {}
-            }
+          if (data) {
+            this.applySessionState(data)
           }
         }
       } catch (e) {
@@ -115,13 +130,57 @@ export const useRhythmStore = defineStore('rhythm', {
         saveTimer = setTimeout(() => {
           saveTimer = null
           try {
-            const payload = { items: this.items, selectedId: this.selectedId }
+            const payload = this.captureSessionState()
             localStorage.setItem(KEY, JSON.stringify(payload))
           } catch (e) {
             console.warn('[rhythmStore] failed to save rhythms to storage', e)
           }
         }, 1000)                        // flush at most once per second
       }, { detached: true })
+    },
+    captureSessionState(): RhythmSessionSnapshot {
+      return {
+        mode: this.mode,
+        numerator: this.numerator,
+        denominator: this.denominator,
+        maxReps: this.maxReps,
+        predicateExpression: clonePredicateExpression(this.predicateExpression),
+        retentionProbability: this.retentionProbability,
+        generationMethod: this.generationMethod,
+        maxSampleAttempts: this.maxSampleAttempts,
+        matrixRows: this.matrixRows,
+        matrixColumns: this.matrixColumns,
+        matrixMaxAttempts: this.matrixMaxAttempts,
+        matrixMaxCellRetries: this.matrixMaxCellRetries,
+        items: [...this.items],
+        selectedId: this.selectedId
+      }
+    },
+    applySessionState(snapshot: Partial<RhythmSessionSnapshot> | null | undefined) {
+      const nextItems = Array.isArray(snapshot?.items) ? snapshot.items : []
+      this.mode = snapshot?.mode === 'binary' || snapshot?.mode === 'octal' || snapshot?.mode === 'hex' ? snapshot.mode : 'hex'
+      this.numerator = Math.max(1, Math.floor(Number(snapshot?.numerator) || 4))
+      this.denominator = Math.max(1, Math.floor(Number(snapshot?.denominator) || 1))
+      this.maxReps = Math.max(0, Math.floor(Number(snapshot?.maxReps) || 0))
+      this.predicateExpression = snapshot?.predicateExpression && Array.isArray(snapshot.predicateExpression.children)
+        ? clonePredicateExpression(snapshot.predicateExpression)
+        : defaultPredicateExpression()
+      this.retentionProbability = Math.max(0, Math.min(100, Number(snapshot?.retentionProbability) || 100))
+      this.generationMethod = snapshot?.generationMethod === 'sample' ? 'sample' : 'enumerate'
+      this.maxSampleAttempts = Math.max(1000, Math.floor(Number(snapshot?.maxSampleAttempts) || 1_000_000))
+      this.matrixRows = Math.max(1, Math.floor(Number(snapshot?.matrixRows) || 3))
+      this.matrixColumns = Math.max(1, Math.floor(Number(snapshot?.matrixColumns) || 4))
+      this.matrixMaxAttempts = Math.max(1, Math.floor(Number(snapshot?.matrixMaxAttempts) || 10_000))
+      this.matrixMaxCellRetries = Math.max(1, Math.floor(Number(snapshot?.matrixMaxCellRetries) || 100))
+      this.items = nextItems
+      this.selectedId = typeof snapshot?.selectedId === 'string' ? snapshot.selectedId : ''
+      this._itemKeySet.clear()
+      for (const it of this.items) {
+        try { this._itemKeySet.add(`${it.base}:${it.groupedDigitsString}`) } catch {}
+      }
+      if (this.selectedId && !this.items.some((item) => item.id === this.selectedId)) {
+        this.selectedId = this.items[0]?.id ?? ''
+      }
     },
     clear() {
       this.items = []

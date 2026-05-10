@@ -33,6 +33,7 @@
   <div class="flex flex-wrap items-center gap-2 basis-full sm:basis-auto justify-start">
   <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportWav">WAV</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportMidi">MIDI</button>
+      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="emit('presets')">Presets</button>
       <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportProject">Save</button>
       <label class="px-2 py-1 rounded border border-white/10 hover:bg-white/5 cursor-pointer">
         Load JSON
@@ -46,6 +47,7 @@
 import { storeToRefs } from 'pinia'
 import { useSequencerStore } from '@/stores/sequencerStore'
 
+const emit = defineEmits<{ (e: 'presets'): void }>()
 const seq = useSequencerStore()
 const { bpm, loopBars, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel } = storeToRefs(seq)
 

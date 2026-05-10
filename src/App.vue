@@ -4,7 +4,7 @@
       <div class="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 py-2 flex flex-wrap items-center gap-2 overflow-x-auto">
         <h1 class="text-base sm:text-lg font-semibold tracking-tight shrink-0 pr-2">Rhythm Navigator</h1>
 
-  <div class="glass rounded px-2 sm:px-3 py-2 flex-1 min-w-[260px]"><TransportBar /></div>
+  <div class="glass rounded px-2 sm:px-3 py-2 flex-1 min-w-[260px]"><TransportBar @presets="presetsOpen = true" /></div>
 
         <!-- Generated rhythms compact bar: visible on mobile, compressed -->
         <div class="glass rounded px-2 sm:px-3 py-2 flex items-center gap-2 ml-auto">
@@ -69,6 +69,14 @@
     <!-- Sequence modal -->
     <SequenceGeneratorModal :open="sequenceOpen" @close="sequenceOpen = false" />
 
+    <!-- Preset modal -->
+    <Modal :open="presetsOpen" @close="presetsOpen = false">
+      <template #title>
+        <h3 class="text-lg font-semibold">Session Presets</h3>
+      </template>
+      <PresetManagerPanel />
+    </Modal>
+
     <footer class="border-t border-white/10">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 text-sm text-slate-400">
         Built with Vue 3 + TypeScript · PWA enabled
@@ -88,6 +96,7 @@ import Modal from '@/components/Modal.vue'
 import ToastHost from '@/components/ToastHost.vue'
 import ConvolutionModal from '@/components/ConvolutionModal.vue'
 import SequenceGeneratorModal from '@/components/SequenceGeneratorModal.vue'
+import PresetManagerPanel from '@/components/PresetManagerPanel.vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { ref } from 'vue'
@@ -99,6 +108,7 @@ const settingsOpen = ref(false)
 const pulsationsOpen = ref(false)
 const convolutionOpen = ref(false)
 const sequenceOpen = ref(false)
+const presetsOpen = ref(false)
 </script>
 
 <style scoped></style>

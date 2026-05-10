@@ -11,6 +11,7 @@
           <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 text-sm" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
             <option value="kick">Kick</option>
             <option value="snare">Snare</option>
+            <option value="clap">Clap</option>
             <option value="hat">Hat</option>
             <option value="perc">Perc</option>
           </select>
@@ -119,6 +120,26 @@
                 :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.7" :size="48" color="#fbbf24" />
               <Knob :modelValue="(t.params.mix as number) ?? 0.5" @update:modelValue="v => onParam2(t.id, 'mix', v)"
                 :min="0" :max="1" :step="0.01" label="Mix" :defaultValue="0.5" :size="48" color="#fbbf24" />
+            </template>
+            <template v-else-if="t.type === 'clap'">
+              <Knob :modelValue="(t.params.tune as number) ?? 220" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="100" :max="500" :step="1" label="Tune" :defaultValue="220" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.toneDecay as number) ?? 0.07" @update:modelValue="v => onParam2(t.id, 'toneDecay', v)"
+                :min="0.02" :max="0.3" :step="0.005" label="Tone Dec" :defaultValue="0.07" :size="48" color="#f97316" />
+              <div class="inline-flex flex-col items-center" :style="{ width: '48px' }">
+                <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px] w-full" :value="t.params.noiseType as string" @change="onParamSelect(t.id, 'noiseType', $event)">
+                  <option value="white">white</option>
+                  <option value="pink">pink</option>
+                  <option value="brown">brown</option>
+                </select>
+                <div class="mt-0.5 text-[10px] text-slate-400 leading-tight">Noise</div>
+              </div>
+              <Knob :modelValue="(t.params.noiseDecay as number) ?? 0.18" @update:modelValue="v => onParam2(t.id, 'noiseDecay', v)"
+                :min="0.04" :max="0.5" :step="0.005" label="Nse Dec" :defaultValue="0.18" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.snap as number) ?? 0.85" @update:modelValue="v => onParam2(t.id, 'snap', v)"
+                :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.85" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.mix as number) ?? 0.82" @update:modelValue="v => onParam2(t.id, 'mix', v)"
+                :min="0" :max="1" :step="0.01" label="Mix" :defaultValue="0.82" :size="48" color="#f97316" />
             </template>
             <template v-else-if="t.type === 'hat'">
               <Knob :modelValue="(t.params.tune as number) ?? 300" @update:modelValue="v => onParam2(t.id, 'tune', v)"
@@ -320,8 +341,9 @@ function defaultMidiKey(type: string): number {
   switch (type) {
     case 'kick': return 36;
     case 'snare': return 38;
+    case 'clap': return 39;
     case 'hat': return 42;
-    case 'perc': return 39;
+    case 'perc': return 40;
     default: return 36;
   }
 }

@@ -5,7 +5,7 @@ import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 
-export type TrackType = 'kick' | 'snare' | 'hat' | 'perc'
+export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'perc'
 
 type Pattern = {
   mode: Mode
@@ -39,6 +39,94 @@ type Track = {
   patterns: PatternEntry[]
   // synth parameters per type (simple flat bag to avoid complex unions)
   params: Record<string, number | string>
+}
+
+export type SavedPatternEntry = {
+  mode: Mode
+  groupedDigitsString: string
+  digits: number[]
+  numerator: number
+  denominator: number
+  repeats: number
+}
+
+export type SavedTrack = {
+  id: string
+  name: string
+  type: TrackType
+  volume: number
+  pan: number
+  velocity: number
+  velRandom: number
+  timeScale: number
+  noteLength: number
+  params: Record<string, number | string>
+  patterns: SavedPatternEntry[]
+  pattern?: null | {
+    mode: Mode
+    groupedDigitsString: string
+    digits: number[]
+    numerator: number
+    denominator: number
+  }
+}
+
+export type SequencerSessionSnapshot = {
+  bpm: number
+  loopBars: number
+  midiEnabled: boolean
+  midiOutputId: string | null
+  midiChannel: number
+  tracks: SavedTrack[]
+}
+
+function midiNoteForType(type: TrackType): number {
+  switch (type) {
+    case 'kick': return 36
+    case 'snare': return 38
+    case 'clap': return 39
+    case 'hat': return 42
+    case 'perc':
+    default: return 40
+  }
+}
+
+function defaultTrackName(type: TrackType): string {
+  switch (type) {
+    case 'kick': return 'Kick'
+    case 'snare': return 'Snare'
+    case 'clap': return 'Clap'
+    case 'hat': return 'Hat'
+    case 'perc':
+    default: return 'Perc'
+  }
+}
+
+function defaultTrackParams(type: TrackType, current?: Record<string, number | string>) {
+  const shared = {
+    filterType: current?.filterType ?? 'lowpass',
+    filterFrequency: current?.filterFrequency ?? 20000,
+    filterResonance: current?.filterResonance ?? 1,
+    filterRolloff: current?.filterRolloff ?? -12,
+    filterGain: current?.filterGain ?? 0,
+    velToFilter: current?.velToFilter ?? 0,
+    filterEnvTime: current?.filterEnvTime ?? 0.15,
+    distortionInputGain: current?.distortionInputGain ?? 0,
+    midiKey: midiNoteForType(type)
+  }
+  switch (type) {
+    case 'kick':
+      return { ...shared, tune: 55, click: 0.5, sweep: 4, sweepTime: 0.04, decay: 0.4, sub: 0.6 }
+    case 'snare':
+      return { ...shared, tune: 185, toneDecay: 0.12, noiseType: 'white', noiseDecay: 0.2, snap: 0.7, mix: 0.5 }
+    case 'clap':
+      return { ...shared, tune: 220, toneDecay: 0.07, noiseType: 'white', noiseDecay: 0.18, snap: 0.85, mix: 0.82 }
+    case 'hat':
+      return { ...shared, tune: 300, decay: 0.08, brightness: 8000, harmonicity: 5.1, modIndex: 32 }
+    case 'perc':
+    default:
+      return { ...shared, tune: 200, decay: 0.15, sweep: 1, sweepTime: 0.02, snap: 0.3, color: 3000 }
+  }
 }
 
 function digitsToOnsets(digits: number[], mode: Mode): { onsets: number[]; totalBits: number } {
@@ -140,19 +228,21 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }
     }
     // ===================== SNARE (dual-layer: tone + noise) =====================
-    case 'snare': {
-      const tune = Number(params.tune ?? 185)
-      const toneDecay = Number(params.toneDecay ?? 0.12)
+    case 'snare':
+    case 'clap': {
+      const isClap = type === 'clap'
+      const tune = Number(params.tune ?? (isClap ? 220 : 185))
+      const toneDecay = Number(params.toneDecay ?? (isClap ? 0.07 : 0.12))
       const nt = String(params.noiseType ?? 'white')
       const baseNoiseType = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white') as any
-      const noiseDecay = Number(params.noiseDecay ?? 0.2)
-      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.7)))
-      const mix = Math.max(0, Math.min(1, Number(params.mix ?? 0.5)))
+      const noiseDecay = Number(params.noiseDecay ?? (isClap ? 0.18 : 0.2))
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? (isClap ? 0.85 : 0.7))))
+      const mix = Math.max(0, Math.min(1, Number(params.mix ?? (isClap ? 0.82 : 0.5))))
 
       // Tone layer: short pitched body
       const tone = markRaw(new Tone.Synth({
-        oscillator: { type: 'triangle' } as any,
-        envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * 0.3 }
+        oscillator: { type: isClap ? 'square' : 'triangle' } as any,
+        envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * (isClap ? 0.2 : 0.3) }
       }))
       // Noise layer
       const noise = markRaw(new Tone.NoiseSynth({
@@ -187,10 +277,10 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
           const naturalDur = Math.max(toneDecay, noiseDecay) + 0.05
           const dur = Math.max(naturalDur, duration ?? 0.2)
           schedVelEnv(time, vel, naturalDur)
-          tone.triggerAttackRelease(live.tune, toneDecay + toneDecay * 0.3, time, vel)
+          tone.triggerAttackRelease(live.tune, toneDecay + toneDecay * (isClap ? 0.2 : 0.3), time, vel * (isClap ? 0.55 : 1))
           noise.triggerAttackRelease(dur, time, vel)
           if (live.snapLevel > 0.01) {
-            snapSynth.triggerAttackRelease(0.02, time, vel * live.snapLevel)
+            snapSynth.triggerAttackRelease(isClap ? 0.012 : 0.02, time, vel * live.snapLevel)
           }
         }
       }
@@ -375,7 +465,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     const id = `t${Math.random().toString(36).slice(2, 8)}`
     const t: Track = {
       id,
-      name: name || (type === 'kick' ? 'Kick' : type === 'snare' ? 'Snare' : type === 'hat' ? 'Hat' : 'Perc'),
+      name: name || defaultTrackName(type),
       type,
   rev: 0,
       volume: 0.8,
@@ -385,25 +475,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       timeScale: 1,
       noteLength: 0.5,
       patterns: [],
-      params: {
-        filterType: 'lowpass',
-        filterFrequency: 20000,
-        filterResonance: 1,
-        filterRolloff: -12,
-        filterGain: 0,
-        velToFilter: 0,
-        filterEnvTime: 0.15,
-        distortionInputGain: 0,
-        midiKey: (type === 'kick' ? 36 : type === 'snare' ? 38 : type === 'hat' ? 42 : 39),
-
-        ...(type === 'kick'
-          ? { tune: 55, click: 0.5, sweep: 4, sweepTime: 0.04, decay: 0.4, sub: 0.6 }
-          : type === 'snare'
-          ? { tune: 185, toneDecay: 0.12, noiseType: 'white', noiseDecay: 0.2, snap: 0.7, mix: 0.5 }
-          : type === 'hat'
-          ? { tune: 300, decay: 0.08, brightness: 8000, harmonicity: 5.1, modIndex: 32 }
-          : { tune: 200, decay: 0.15, sweep: 1, sweepTime: 0.02, snap: 0.3, color: 3000 })
-      }
+      params: defaultTrackParams(type)
     }
   tracks.value = tracks.value.concat(t)
     // create nodes only when context is running; otherwise defer to syncNodes on start
@@ -519,15 +591,17 @@ export const useSequencerStore = defineStore('sequencer', () => {
               // Update live params used by trigger closure
               try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 55); li.clickLevel = Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))) } } catch {}
               break
-            case 'snare': {
+            case 'snare':
+            case 'clap': {
+              const isClap = t.type === 'clap'
               const nt = String((t.params as any)?.noiseType ?? 'white')
               const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white')
-              const tDec = Number((t.params as any)?.toneDecay ?? 0.12)
-              const nDec = Number((t.params as any)?.noiseDecay ?? 0.2)
-              const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? 0.5)))
+              const tDec = Number((t.params as any)?.toneDecay ?? (isClap ? 0.07 : 0.12))
+              const nDec = Number((t.params as any)?.noiseDecay ?? (isClap ? 0.18 : 0.2))
+              const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? (isClap ? 0.82 : 0.5))))
               voice.set({
-                oscillator: { type: 'triangle' },
-                envelope: { attack: 0.001, decay: tDec, sustain: 0, release: tDec * 0.3 }
+                oscillator: { type: isClap ? 'square' : 'triangle' },
+                envelope: { attack: 0.001, decay: tDec, sustain: 0, release: tDec * (isClap ? 0.2 : 0.3) }
               })
               // Update noise voice
               const v2: any = (nb.inst as any)?.voice2
@@ -538,9 +612,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
               try { const tg: any = (nb.inst as any)?.toneGain?.gain; if (tg) smoothSetParam(tg, 1 - mix) } catch {}
               try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, mix) } catch {}
               // Update snap level
-              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7)))) } catch {}
+              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? (isClap ? 0.85 : 0.7))))) } catch {}
               // Update live params used by trigger closure
-              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 185); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7))) } } catch {}
+              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? (isClap ? 220 : 185)); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? (isClap ? 0.85 : 0.7)))) } } catch {}
               break
             }
             case 'hat':
@@ -828,7 +902,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
       changed = true
-      return { ...t, type, rev: t.rev + 1 }
+      return { ...t, type, params: defaultTrackParams(type, t.params), rev: t.rev + 1 }
     })
     if (!changed) return
   // will be recreated on next syncNodes (signature change)
@@ -1116,16 +1190,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
     return true
   }
 
-  function midiNoteForType(type: TrackType): number {
-    switch (type) {
-      case 'kick': return 36 // C1
-      case 'snare': return 38 // D1
-      case 'hat': return 42 // F#1 (closed hat)
-      case 'perc':
-      default: return 39 // D#1 (hand clap as placeholder)
-    }
-  }
-
   function writeVarLen(n: number): number[] {
     // MIDI variable-length quantity
     let buffer = n & 0x7f
@@ -1348,46 +1412,15 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // --- Project save/load (JSON)
-  type SavedPatternEntry = {
-    mode: Mode
-    groupedDigitsString: string
-    digits: number[]
-    numerator: number
-    denominator: number
-    repeats: number
-  }
-  type SavedTrack = {
-    id: string
-    name: string
-    type: TrackType
-    volume: number
-    pan: number
-    velocity: number
-    velRandom: number
-    timeScale: number
-    noteLength: number
-    params: Record<string, number | string>
-    patterns: SavedPatternEntry[]
-    // Legacy support
-    pattern?: null | {
-      mode: Mode
-      groupedDigitsString: string
-      digits: number[]
-      numerator: number
-      denominator: number
-    }
-  }
-  type Project = {
-    bpm: number
-    loopBars: number
-    tracks: SavedTrack[]
-  }
 
-  function exportProject() {
-    const data: Project = {
+  function captureSessionState(): SequencerSessionSnapshot {
+    return {
       bpm: bpm.value,
       loopBars: loopBars.value,
-      tracks: tracks.value.map(t => ({
+      midiEnabled: midiEnabled.value,
+      midiOutputId: midiOutputId.value,
+      midiChannel: midiChannel.value,
+      tracks: tracks.value.map((t): SavedTrack => ({
         id: t.id,
         name: t.name,
         type: t.type,
@@ -1397,16 +1430,25 @@ export const useSequencerStore = defineStore('sequencer', () => {
         velRandom: t.velRandom,
         timeScale: t.timeScale,
         noteLength: t.noteLength,
-        params: t.params,
-        patterns: t.patterns.map(e => ({
+        params: { ...(t.params || {}) },
+        patterns: t.patterns.map((e): SavedPatternEntry => ({
           mode: e.pattern.mode,
           groupedDigitsString: e.pattern.groupedDigitsString,
-          digits: e.pattern.digits,
+          digits: [...e.pattern.digits],
           numerator: e.pattern.numerator,
           denominator: e.pattern.denominator,
           repeats: e.repeats
         }))
       }))
+    }
+  }
+
+  function exportProject() {
+    const snapshot = captureSessionState()
+    const data = {
+      bpm: snapshot.bpm,
+      loopBars: snapshot.loopBars,
+      tracks: snapshot.tracks
     }
     const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.json`
     downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), name)
@@ -1452,54 +1494,72 @@ export const useSequencerStore = defineStore('sequencer', () => {
     }
   }
 
-  function importProject(json: string) {
-    try {
-      const data = JSON.parse(json) as Project
-      bpm.value = data.bpm
-      loopBars.value = data.loopBars
-      // Rebuild tracks and nodes
-      // Dispose existing
-      Object.values(nodes.value).forEach(nb => {
-        nb.pan.dispose()
-        nb.gain.dispose()
-        ;(nb.inst.node as any).dispose?.()
-      })
-      nodes.value = {}
-      nodeSig.clear()
-      tracks.value = []
-      data.tracks.forEach(st => {
-        const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
-        const patterns: PatternEntry[] = []
-        // Load patterns array (new format)
-        if (Array.isArray(st.patterns) && st.patterns.length > 0) {
-          for (const sp of st.patterns) {
-            const entry = rebuildPatternEntry(sp)
-            if (entry) patterns.push(entry)
-          }
-        }
-        // Legacy: single pattern field
-        else if (st.pattern && st.pattern.digits && st.pattern.mode) {
-          const entry = rebuildPatternEntry({ ...st.pattern, repeats: 1 })
+  function applySessionState(snapshot: Partial<SequencerSessionSnapshot> | null | undefined) {
+    if (!snapshot || !Array.isArray(snapshot.tracks)) return
+    if (typeof snapshot.bpm === 'number') bpm.value = Math.max(30, Math.min(300, Math.round(snapshot.bpm)))
+    if (typeof snapshot.loopBars === 'number') loopBars.value = Math.max(1, Math.round(snapshot.loopBars))
+    if (typeof snapshot.midiEnabled === 'boolean') midiEnabled.value = snapshot.midiEnabled
+    if (snapshot.midiOutputId === null || typeof snapshot.midiOutputId === 'string') midiOutputId.value = snapshot.midiOutputId ?? null
+    if (typeof snapshot.midiChannel === 'number') midiChannel.value = Math.max(1, Math.min(16, Math.floor(snapshot.midiChannel)))
+
+    Object.values(nodes.value).forEach(nb => {
+      try { nb.pan.dispose() } catch {}
+      try { nb.gain.dispose() } catch {}
+      try { (nb.inst as any)?.voice2?.dispose?.() } catch {}
+      try { (nb.inst as any)?.voice3?.dispose?.() } catch {}
+      try { (nb.inst as any)?.clickGain?.dispose?.() } catch {}
+      try { (nb.inst as any)?.toneGain?.dispose?.() } catch {}
+      try { (nb.inst as any)?.noiseGain?.dispose?.() } catch {}
+      try { (nb.inst as any)?.snapGain?.dispose?.() } catch {}
+      try { (nb.inst as any)?.snapFilter?.dispose?.() } catch {}
+      try { (nb.inst.node as any).dispose?.() } catch {}
+    })
+    nodes.value = {}
+    nodeSig.clear()
+
+    const nextTracks: Track[] = []
+    for (const st of snapshot.tracks) {
+      const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
+      const patterns: PatternEntry[] = []
+      if (Array.isArray(st.patterns) && st.patterns.length > 0) {
+        for (const sp of st.patterns) {
+          const entry = rebuildPatternEntry(sp)
           if (entry) patterns.push(entry)
         }
-        const t: Track = {
-          id,
-          name: st.name,
-          type: st.type,
-          rev: 0,
-          volume: st.volume,
-          pan: st.pan,
-          velocity: st.velocity,
-          velRandom: st.velRandom,
-          timeScale: Number(st.timeScale) || 1,
-          noteLength: Number(st.noteLength) || 0.5,
-          params: st.params,
-          patterns
-        }
-        tracks.value = tracks.value.concat(t)
+      } else if (st.pattern && st.pattern.digits && st.pattern.mode) {
+        const entry = rebuildPatternEntry({ ...st.pattern, repeats: 1 })
+        if (entry) patterns.push(entry)
+      }
+      nextTracks.push({
+        id,
+        name: st.name ?? defaultTrackName(st.type ?? 'perc'),
+        type: st.type ?? 'perc',
+        rev: 0,
+        volume: Number(st.volume ?? 0.8),
+        pan: Number(st.pan ?? 0),
+        velocity: Number(st.velocity ?? 0.8),
+        velRandom: Number(st.velRandom ?? 0),
+        timeScale: Number(st.timeScale) || 1,
+        noteLength: Number(st.noteLength) || 0.5,
+        params: { ...defaultTrackParams(st.type ?? 'perc'), ...(st.params ?? {}) },
+        patterns
       })
-      version.value++
-      if (isPlaying.value) rebuildSchedule()
+    }
+    tracks.value = nextTracks
+    version.value++
+    if (midiEnabled.value) initMidi()
+    enqueueAudioSync()
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  function importProject(json: string) {
+    try {
+      const data = JSON.parse(json) as Partial<SequencerSessionSnapshot>
+      applySessionState({
+        bpm: data.bpm,
+        loopBars: data.loopBars,
+        tracks: Array.isArray(data.tracks) ? data.tracks : []
+      })
     } catch (e) {
       console.error('Failed to import project', e)
     }
@@ -1512,49 +1572,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const raw = localStorage.getItem(KEY)
       if (!raw) return
       const data = JSON.parse(raw)
-      if (typeof data?.bpm === 'number') bpm.value = data.bpm
-      if (typeof data?.loopBars === 'number') loopBars.value = data.loopBars
-  if (typeof data?.midiEnabled === 'boolean') midiEnabled.value = data.midiEnabled
-      if (data?.midiOutputId != null) midiOutputId.value = data.midiOutputId
-  if (typeof data?.midiChannel === 'number') midiChannel.value = Math.max(1, Math.min(16, data.midiChannel))
-      if (midiEnabled.value) initMidi()
-      const saved: any[] = Array.isArray(data?.tracks) ? data.tracks : []
-      // rebuild tracks
-      tracks.value = []
-      saved.forEach(st => {
-        const id = st.id || `t${Math.random().toString(36).slice(2, 8)}`
-        const patterns: PatternEntry[] = []
-        // Load patterns array (new format)
-        if (Array.isArray(st.patterns) && st.patterns.length > 0) {
-          for (const sp of st.patterns) {
-            const entry = rebuildPatternEntry(sp)
-            if (entry) patterns.push(entry)
-          }
-        }
-        // Legacy: single pattern field
-        else if (st.pattern && st.pattern.digits && st.pattern.mode) {
-          const entry = rebuildPatternEntry({ ...st.pattern, repeats: 1 })
-          if (entry) patterns.push(entry)
-        }
-        const t: Track = {
-          id,
-          name: st.name ?? '',
-          type: st.type ?? 'perc',
-          rev: 0,
-          volume: Number(st.volume ?? 0.8),
-          pan: Number(st.pan ?? 0),
-          velocity: Number(st.velocity ?? 0.8),
-          velRandom: Number(st.velRandom ?? 0),
-          timeScale: Number(st.timeScale) || 1,
-          noteLength: Number(st.noteLength) || 0.5,
-          params: st.params ?? {},
-          patterns
-        }
-        tracks.value = tracks.value.concat(t)
-      })
-      version.value++
-      enqueueAudioSync()
-      if (isPlaying.value) rebuildSchedule()
+      applySessionState(data)
     } catch (e) {
       console.warn('[sequencer] failed to load from storage', e)
     }
@@ -1563,33 +1581,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function saveToStorage() {
     const KEY = 'rn.sequencer'
     try {
-      const data = {
-        bpm: bpm.value,
-        loopBars: loopBars.value,
-  midiEnabled: midiEnabled.value,
-  midiOutputId: midiOutputId.value,
-  midiChannel: midiChannel.value,
-        tracks: tracks.value.map(t => ({
-          id: t.id,
-          name: t.name,
-          type: t.type,
-          volume: t.volume,
-          pan: t.pan,
-          velocity: t.velocity,
-          velRandom: t.velRandom,
-          timeScale: t.timeScale,
-          noteLength: t.noteLength,
-          params: t.params,
-          patterns: t.patterns.map(e => ({
-            mode: e.pattern.mode,
-            groupedDigitsString: e.pattern.groupedDigitsString,
-            digits: e.pattern.digits,
-            numerator: e.pattern.numerator,
-            denominator: e.pattern.denominator,
-            repeats: e.repeats
-          }))
-        }))
-      }
+      const data = captureSessionState()
       localStorage.setItem(KEY, JSON.stringify(data))
     } catch (e) {
       console.warn('[sequencer] failed to save to storage', e)
@@ -1635,6 +1627,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
   exportMidi,
   exportProject,
   importProject,
+  captureSessionState,
+  applySessionState,
   loadFromStorage,
   saveToStorage
   }

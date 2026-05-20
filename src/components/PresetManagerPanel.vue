@@ -50,7 +50,7 @@
             </div>
             <div class="text-xs text-slate-500 flex flex-wrap gap-3">
               <span>{{ preset.sequencer.tracks?.length ?? 0 }} track(s)</span>
-              <span>{{ preset.rhythm.items?.length ?? 0 }} rhythm(s)</span>
+              <span>{{ patternCountFor(preset) }} pattern(s)</span>
               <span>Updated {{ formatDate(preset.updatedAt) }}</span>
             </div>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -83,7 +83,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { usePresetStore } from '@/stores/presetStore'
+ import { usePresetStore } from '@/stores/presetStore'
+ import type { SessionPreset } from '@/utils/presetLibrary'
 
 const presetStore = usePresetStore()
 const { presets, activePresetId } = storeToRefs(presetStore)
@@ -133,6 +134,10 @@ function onImportLibrary(event: Event) {
   }
   reader.readAsText(file)
   input.value = ''
+}
+
+function patternCountFor(preset: SessionPreset) {
+  return (preset.sequencer.tracks ?? []).reduce((total, track) => total + (track.patterns?.length ?? 0), 0)
 }
 
 function formatDate(value: number) {

@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useRhythmStore } from '@/stores/rhythmStore'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { useUiStore } from '@/stores/uiStore'
 import {
@@ -56,7 +55,6 @@ export const usePresetStore = defineStore('presets', () => {
   }
 
   function saveCurrentAsPreset(name: string) {
-    const rhythm = useRhythmStore()
     const sequencer = useSequencerStore()
     const ui = useUiStore()
     const now = Date.now()
@@ -65,7 +63,6 @@ export const usePresetStore = defineStore('presets', () => {
       name: normalizePresetName(name),
       createdAt: now,
       updatedAt: now,
-      rhythm: rhythm.captureSessionState(),
       sequencer: sequencer.captureSessionState()
     }
     presets.value = [preset, ...presets.value]
@@ -78,7 +75,6 @@ export const usePresetStore = defineStore('presets', () => {
   function loadPreset(id: string) {
     const preset = presets.value.find((entry) => entry.id === id)
     if (!preset) return false
-    useRhythmStore().applySessionState(preset.rhythm)
     useSequencerStore().applySessionState(preset.sequencer)
     activePresetId.value = preset.id
     useUiStore().pushToast(`Loaded preset "${preset.name}".`, 'success')

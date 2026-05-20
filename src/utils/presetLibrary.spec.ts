@@ -11,7 +11,7 @@ describe('presetLibrary', () => {
     expect(normalizePresetName('  Session A  ')).toBe('Session A')
   })
 
-  it('parses a preset library and preserves clap tracks', () => {
+  it('parses a preset library and preserves clap and crash tracks', () => {
     const library = parsePresetLibraryJson(JSON.stringify({
       version: PRESET_LIBRARY_VERSION,
       presets: [
@@ -36,6 +36,19 @@ describe('presetLibrary', () => {
                 noteLength: 0.5,
                 params: { midiKey: 39, snap: 0.85 },
                 patterns: []
+              },
+              {
+                id: 'track-2',
+                name: 'Crash',
+                type: 'crash',
+                volume: 0.7,
+                pan: 0.1,
+                velocity: 0.85,
+                velRandom: 0.05,
+                timeScale: 1,
+                noteLength: 0.5,
+                params: { midiKey: 49, wash: 0.65 },
+                patterns: []
               }
             ]
           }
@@ -45,7 +58,7 @@ describe('presetLibrary', () => {
 
     expect(library.presets).toHaveLength(1)
     expect(library.presets[0].name).toBe('Clap Session')
-    expect(library.presets[0].sequencer.tracks?.[0]?.type).toBe('clap')
+    expect(library.presets[0].sequencer.tracks?.map(track => track.type)).toEqual(['clap', 'crash'])
     expect(library.presets[0].sequencer.bpm).toBe(128)
   })
 

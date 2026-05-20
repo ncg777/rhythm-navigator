@@ -33,7 +33,7 @@ function isMode(value: unknown): value is Mode {
 }
 
 function isTrackType(value: unknown): value is TrackType {
-  return value === 'kick' || value === 'snare' || value === 'clap' || value === 'hat' || value === 'perc'
+  return value === 'kick' || value === 'snare' || value === 'clap' || value === 'hat' || value === 'crash' || value === 'perc'
 }
 
 function normalizeParams(value: unknown): Record<string, number | string> {

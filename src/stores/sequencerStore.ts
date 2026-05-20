@@ -5,7 +5,7 @@ import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 
-export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'perc'
+export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'crash' | 'perc'
 
 type Pattern = {
   mode: Mode
@@ -86,6 +86,7 @@ function midiNoteForType(type: TrackType): number {
     case 'snare': return 38
     case 'clap': return 39
     case 'hat': return 42
+    case 'crash': return 49
     case 'perc':
     default: return 40
   }
@@ -97,6 +98,7 @@ function defaultTrackName(type: TrackType): string {
     case 'snare': return 'Snare'
     case 'clap': return 'Clap'
     case 'hat': return 'Hat'
+    case 'crash': return 'Crash'
     case 'perc':
     default: return 'Perc'
   }
@@ -120,9 +122,11 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
     case 'snare':
       return { ...shared, tune: 185, toneDecay: 0.12, noiseType: 'white', noiseDecay: 0.2, snap: 0.7, mix: 0.5 }
     case 'clap':
-      return { ...shared, tune: 220, toneDecay: 0.07, noiseType: 'white', noiseDecay: 0.18, snap: 0.85, mix: 0.82 }
+      return { ...shared, tune: 1600, toneDecay: 0.03, noiseType: 'pink', noiseDecay: 0.24, snap: 0.85, mix: 0.55 }
     case 'hat':
       return { ...shared, tune: 300, decay: 0.08, brightness: 8000, harmonicity: 5.1, modIndex: 32 }
+    case 'crash':
+      return { ...shared, tune: 220, decay: 1.4, brightness: 12000, harmonicity: 2.2, modIndex: 55, wash: 0.65 }
     case 'perc':
     default:
       return { ...shared, tune: 200, decay: 0.15, sweep: 1, sweepTime: 0.02, snap: 0.3, color: 3000 }
@@ -181,6 +185,17 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
     } catch {}
   }
 
+  function scheduleGainEnvelope(param: any, start: number, peak: number, attack: number, decay: number) {
+    try {
+      const att = Math.max(0.0005, attack)
+      const end = start + att + Math.max(0.004, decay)
+      param.cancelScheduledValues?.(start)
+      param.setValueAtTime?.(0, start)
+      param.linearRampToValueAtTime?.(peak, start + att)
+      param.linearRampToValueAtTime?.(0, end)
+    } catch {}
+  }
+
   switch (type) {
     // ===================== KICK (808/909 hybrid) =====================
     case 'kick': {
@@ -228,21 +243,19 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }
     }
     // ===================== SNARE (dual-layer: tone + noise) =====================
-    case 'snare':
-    case 'clap': {
-      const isClap = type === 'clap'
-      const tune = Number(params.tune ?? (isClap ? 220 : 185))
-      const toneDecay = Number(params.toneDecay ?? (isClap ? 0.07 : 0.12))
+    case 'snare': {
+      const tune = Number(params.tune ?? 185)
+      const toneDecay = Number(params.toneDecay ?? 0.12)
       const nt = String(params.noiseType ?? 'white')
       const baseNoiseType = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white') as any
-      const noiseDecay = Number(params.noiseDecay ?? (isClap ? 0.18 : 0.2))
-      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? (isClap ? 0.85 : 0.7))))
-      const mix = Math.max(0, Math.min(1, Number(params.mix ?? (isClap ? 0.82 : 0.5))))
+      const noiseDecay = Number(params.noiseDecay ?? 0.2)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.7)))
+      const mix = Math.max(0, Math.min(1, Number(params.mix ?? 0.5)))
 
       // Tone layer: short pitched body
       const tone = markRaw(new Tone.Synth({
-        oscillator: { type: isClap ? 'square' : 'triangle' } as any,
-        envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * (isClap ? 0.2 : 0.3) }
+        oscillator: { type: 'triangle' } as any,
+        envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * 0.3 }
       }))
       // Noise layer
       const noise = markRaw(new Tone.NoiseSynth({
@@ -277,11 +290,65 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
           const naturalDur = Math.max(toneDecay, noiseDecay) + 0.05
           const dur = Math.max(naturalDur, duration ?? 0.2)
           schedVelEnv(time, vel, naturalDur)
-          tone.triggerAttackRelease(live.tune, toneDecay + toneDecay * (isClap ? 0.2 : 0.3), time, vel * (isClap ? 0.55 : 1))
+          tone.triggerAttackRelease(live.tune, toneDecay + toneDecay * 0.3, time, vel)
           noise.triggerAttackRelease(dur, time, vel)
           if (live.snapLevel > 0.01) {
-            snapSynth.triggerAttackRelease(isClap ? 0.012 : 0.02, time, vel * live.snapLevel)
+            snapSynth.triggerAttackRelease(0.02, time, vel * live.snapLevel)
           }
+        }
+      }
+    }
+    // ===================== CLAP (multi-burst filtered noise) =====================
+    case 'clap': {
+      const color = Math.max(700, Number(params.tune ?? 1600))
+      const burstDecay = Number(params.toneDecay ?? 0.03)
+      const nt = String(params.noiseType ?? 'pink')
+      const baseNoiseType = (['white', 'pink', 'brown'].includes(nt) ? nt : 'pink') as any
+      const tailDecay = Number(params.noiseDecay ?? 0.24)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.85)))
+      const mix = Math.max(0, Math.min(1, Number(params.mix ?? 0.55)))
+
+      const noise = markRaw(new Tone.Noise({ type: baseNoiseType }))
+      const toneFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: color, Q: 1.35 }))
+      const noiseFilter = markRaw(new Tone.Filter({ type: 'highpass', frequency: Math.max(1400, color * 1.5), Q: 0.8 }))
+      const snapFilter = markRaw(new Tone.Filter({ type: 'highpass', frequency: Math.max(3200, color * 2.3), Q: 0.7 }))
+      const toneGain = markRaw(new Tone.Gain(0))
+      const noiseGain = markRaw(new Tone.Gain(0))
+      const snapGain = markRaw(new Tone.Gain(0))
+
+      noise.connect(toneFilter)
+      noise.connect(noiseFilter)
+      noise.connect(snapFilter)
+      toneFilter.connect(toneGain)
+      noiseFilter.connect(noiseGain)
+      snapFilter.connect(snapGain)
+      toneGain.connect(inputGain)
+      noiseGain.connect(inputGain)
+      snapGain.connect(inputGain)
+      noise.start()
+
+      const live = { color, burstDecay, tailDecay, snapLevel, mix }
+      return {
+        node: postVca, filter,
+        voice: noise,
+        toneFilter, noiseFilter, snapFilter,
+        toneGain, noiseGain, snapGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          const burstOffsets = [0, 0.012, 0.024, 0.041]
+          const naturalDur = burstOffsets[burstOffsets.length - 1] + live.tailDecay + 0.04
+          const bodyLevel = vel * (0.35 + (1 - live.mix) * 0.55)
+          const tailLevel = vel * (0.18 + live.mix * 0.85)
+          const transientLevel = vel * live.snapLevel
+          const dur = Math.max(naturalDur, duration ?? 0.18)
+          schedVelEnv(time, vel, dur)
+          burstOffsets.forEach((offset, index) => {
+            const bodyPeak = bodyLevel * (1 - index * 0.16)
+            const transientPeak = transientLevel * (1 - index * 0.14)
+            scheduleGainEnvelope((toneGain as any).gain, time + offset, bodyPeak, 0.0006, live.burstDecay * (1 + index * 0.22))
+            scheduleGainEnvelope((snapGain as any).gain, time + offset, transientPeak, 0.0002, 0.005 + index * 0.0015)
+          })
+          scheduleGainEnvelope((noiseGain as any).gain, time + 0.016, tailLevel, 0.0025, live.tailDecay)
         }
       }
     }
@@ -311,6 +378,51 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
           const dur = Math.max(decay + decay * 0.3, duration ?? 0.08)
           schedVelEnv(time, vel, decay + 0.02)
           metal.triggerAttackRelease(live.tune, dur, time, vel)
+        }
+      }
+    }
+    // ===================== CRASH (metallic body + noise wash) =====================
+    case 'crash': {
+      const tune = Number(params.tune ?? 220)
+      const decay = Number(params.decay ?? 1.4)
+      const brightness = Number(params.brightness ?? 12000)
+      const harmonicity = Number(params.harmonicity ?? 2.2)
+      const modIndex = Number(params.modIndex ?? 55)
+      const wash = Math.max(0, Math.min(1, Number(params.wash ?? 0.65)))
+
+      const metal = markRaw(new Tone.MetalSynth({
+        frequency: tune,
+        envelope: { attack: 0.001, decay, release: decay * 0.7 },
+        harmonicity,
+        modulationIndex: modIndex,
+        resonance: brightness,
+        octaves: 2
+      }))
+      const washNoise = markRaw(new Tone.NoiseSynth({
+        noise: { type: 'white' as any },
+        envelope: { attack: 0.002, decay: Math.max(0.3, decay * 1.15), sustain: 0, release: Math.max(0.12, decay * 0.45) }
+      }))
+      const noiseFilter = markRaw(new Tone.Filter({ type: 'highpass', frequency: Math.max(2200, brightness * 0.35), Q: 0.8 }))
+      const noiseGain = markRaw(new Tone.Gain(wash))
+
+      metal.connect(inputGain)
+      washNoise.connect(noiseFilter)
+      noiseFilter.connect(noiseGain)
+      noiseGain.connect(inputGain)
+
+      const live = { tune, wash }
+      return {
+        node: postVca, filter, voice: metal, voice2: washNoise,
+        noiseFilter, noiseGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          const naturalDur = decay + decay * 0.7
+          const dur = Math.max(naturalDur, duration ?? decay * 1.15)
+          schedVelEnv(time, vel, naturalDur + 0.05)
+          metal.triggerAttackRelease(live.tune, dur, time, vel)
+          if (live.wash > 0.01) {
+            washNoise.triggerAttackRelease(Math.max(0.4, decay * 1.1), time, vel * live.wash)
+          }
         }
       }
     }
@@ -504,14 +616,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     if (n) {
       n.pan.dispose()
       n.gain.dispose()
-      ;(n.inst as any)?.voice2?.dispose?.()
-      ;(n.inst as any)?.voice3?.dispose?.()
-      ;(n.inst as any)?.clickGain?.dispose?.()
-      ;(n.inst as any)?.toneGain?.dispose?.()
-      ;(n.inst as any)?.noiseGain?.dispose?.()
-      ;(n.inst as any)?.snapGain?.dispose?.()
-      ;(n.inst as any)?.snapFilter?.dispose?.()
-      ;(n.inst.node as any).dispose?.()
+      disposeInstrument(n.inst)
       delete nodes.value[id]
     }
   // clean up signature cache if present
@@ -542,6 +647,20 @@ export const useSequencerStore = defineStore('sequencer', () => {
     return Math.max(0, Math.min(1, v))
   }
 
+  function disposeInstrument(inst: any) {
+    try { inst?.voice?.dispose?.() } catch {}
+    try { inst?.voice2?.dispose?.() } catch {}
+    try { inst?.voice3?.dispose?.() } catch {}
+    try { inst?.clickGain?.dispose?.() } catch {}
+    try { inst?.toneFilter?.dispose?.() } catch {}
+    try { inst?.toneGain?.dispose?.() } catch {}
+    try { inst?.noiseFilter?.dispose?.() } catch {}
+    try { inst?.noiseGain?.dispose?.() } catch {}
+    try { inst?.snapGain?.dispose?.() } catch {}
+    try { inst?.snapFilter?.dispose?.() } catch {}
+    try { inst?.node?.dispose?.() } catch {}
+  }
+
   function rebuildGraph() {
     const running = (Tone.getContext().state === 'running')
     if (!running) return
@@ -569,10 +688,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
       // Live instrument-specific param updates
       const voice: any = (nb.inst as any)?.voice
-      if (voice && typeof voice.set === 'function') {
-        try {
-          switch (t.type) {
-            case 'kick':
+      try {
+        switch (t.type) {
+          case 'kick':
+            if (voice && typeof voice.set === 'function') {
               voice.set({
                 octaves: Number((t.params as any)?.sweep ?? 4),
                 pitchDecay: Number((t.params as any)?.sweepTime ?? 0.04),
@@ -583,41 +702,70 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   release: Math.min(Number((t.params as any)?.decay ?? 0.4) * 0.4, 0.15)
                 }
               })
-              // Update click transient level
-              try {
-                const cg: any = (nb.inst as any)?.clickGain?.gain
-                if (cg) smoothSetParam(cg, Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))))
-              } catch {}
-              // Update live params used by trigger closure
-              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 55); li.clickLevel = Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))) } } catch {}
-              break
-            case 'snare':
-            case 'clap': {
-              const isClap = t.type === 'clap'
-              const nt = String((t.params as any)?.noiseType ?? 'white')
-              const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white')
-              const tDec = Number((t.params as any)?.toneDecay ?? (isClap ? 0.07 : 0.12))
-              const nDec = Number((t.params as any)?.noiseDecay ?? (isClap ? 0.18 : 0.2))
-              const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? (isClap ? 0.82 : 0.5))))
-              voice.set({
-                oscillator: { type: isClap ? 'square' : 'triangle' },
-                envelope: { attack: 0.001, decay: tDec, sustain: 0, release: tDec * (isClap ? 0.2 : 0.3) }
-              })
-              // Update noise voice
-              const v2: any = (nb.inst as any)?.voice2
-              if (v2 && typeof v2.set === 'function') {
-                v2.set({ noise: { type: baseNt }, envelope: { attack: 0.002, decay: nDec, sustain: 0, release: nDec * 0.25 } })
-              }
-              // Update mix gains
-              try { const tg: any = (nb.inst as any)?.toneGain?.gain; if (tg) smoothSetParam(tg, 1 - mix) } catch {}
-              try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, mix) } catch {}
-              // Update snap level
-              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? (isClap ? 0.85 : 0.7))))) } catch {}
-              // Update live params used by trigger closure
-              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? (isClap ? 220 : 185)); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? (isClap ? 0.85 : 0.7)))) } } catch {}
-              break
             }
-            case 'hat':
+            // Update click transient level
+            try {
+              const cg: any = (nb.inst as any)?.clickGain?.gain
+              if (cg) smoothSetParam(cg, Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))))
+            } catch {}
+            // Update live params used by trigger closure
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 55); li.clickLevel = Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))) } } catch {}
+            break
+          case 'snare': {
+            const nt = String((t.params as any)?.noiseType ?? 'white')
+            const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white')
+            const tDec = Number((t.params as any)?.toneDecay ?? 0.12)
+            const nDec = Number((t.params as any)?.noiseDecay ?? 0.2)
+            const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? 0.5)))
+            if (voice && typeof voice.set === 'function') {
+              voice.set({
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.001, decay: tDec, sustain: 0, release: tDec * 0.3 }
+              })
+            }
+            // Update noise voice
+            const v2: any = (nb.inst as any)?.voice2
+            if (v2 && typeof v2.set === 'function') {
+              v2.set({ noise: { type: baseNt }, envelope: { attack: 0.002, decay: nDec, sustain: 0, release: nDec * 0.25 } })
+            }
+            // Update mix gains
+            try { const tg: any = (nb.inst as any)?.toneGain?.gain; if (tg) smoothSetParam(tg, 1 - mix) } catch {}
+            try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, mix) } catch {}
+            // Update snap level
+            try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7)))) } catch {}
+            // Update live params used by trigger closure
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 185); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.7))) } } catch {}
+            break
+          }
+          case 'clap': {
+            const nt = String((t.params as any)?.noiseType ?? 'pink')
+            const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'pink')
+            const color = Math.max(700, Number((t.params as any)?.tune ?? 1600))
+            const burstDecay = Number((t.params as any)?.toneDecay ?? 0.03)
+            const tailDecay = Number((t.params as any)?.noiseDecay ?? 0.24)
+            const snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.85)))
+            const mix = Math.max(0, Math.min(1, Number((t.params as any)?.mix ?? 0.55)))
+            try {
+              if (voice?.set) voice.set({ type: baseNt })
+              else if ('type' in (voice ?? {})) voice.type = baseNt
+            } catch {}
+            try { const tf: any = (nb.inst as any)?.toneFilter?.frequency; if (tf) smoothSetParam(tf, color) } catch {}
+            try { const nf: any = (nb.inst as any)?.noiseFilter?.frequency; if (nf) smoothSetParam(nf, Math.max(1400, color * 1.5)) } catch {}
+            try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Math.max(3200, color * 2.3)) } catch {}
+            try {
+              const li = (nb.inst as any)?.live
+              if (li) {
+                li.color = color
+                li.burstDecay = burstDecay
+                li.tailDecay = tailDecay
+                li.snapLevel = snapLevel
+                li.mix = mix
+              }
+            } catch {}
+            break
+          }
+          case 'hat':
+            if (voice && typeof voice.set === 'function') {
               voice.set({
                 frequency: Number((t.params as any)?.tune ?? 300),
                 harmonicity: Number((t.params as any)?.harmonicity ?? 5.1),
@@ -630,11 +778,47 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   release: Number((t.params as any)?.decay ?? 0.08) * 0.3
                 }
               })
-              // Update live params used by trigger closure
-              try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 300) } catch {}
-              break
-            case 'perc':
-            default:
+            }
+            // Update live params used by trigger closure
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 300) } catch {}
+            break
+          case 'crash': {
+            const decay = Number((t.params as any)?.decay ?? 1.4)
+            if (voice && typeof voice.set === 'function') {
+              voice.set({
+                frequency: Number((t.params as any)?.tune ?? 220),
+                harmonicity: Number((t.params as any)?.harmonicity ?? 2.2),
+                modulationIndex: Number((t.params as any)?.modIndex ?? 55),
+                resonance: Number((t.params as any)?.brightness ?? 12000),
+                octaves: 2,
+                envelope: {
+                  attack: 0.001,
+                  decay,
+                  release: decay * 0.7
+                }
+              })
+            }
+            const v2: any = (nb.inst as any)?.voice2
+            if (v2 && typeof v2.set === 'function') {
+              v2.set({
+                noise: { type: 'white' },
+                envelope: { attack: 0.002, decay: Math.max(0.3, decay * 1.15), sustain: 0, release: Math.max(0.12, decay * 0.45) }
+              })
+            }
+            try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, Math.max(0, Math.min(1, Number((t.params as any)?.wash ?? 0.65)))) } catch {}
+            try { const nf: any = (nb.inst as any)?.noiseFilter?.frequency; if (nf) smoothSetParam(nf, Math.max(2200, Number((t.params as any)?.brightness ?? 12000) * 0.35)) } catch {}
+            try {
+              const li = (nb.inst as any)?.live
+              if (li) {
+                li.tune = Number((t.params as any)?.tune ?? 220)
+                li.wash = Math.max(0, Math.min(1, Number((t.params as any)?.wash ?? 0.65)))
+              }
+            } catch {}
+            break
+          }
+          case 'perc':
+          default:
+            if (voice && typeof voice.set === 'function') {
               voice.set({
                 octaves: Number((t.params as any)?.sweep ?? 1),
                 pitchDecay: Number((t.params as any)?.sweepTime ?? 0.02),
@@ -645,15 +829,15 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   release: Number((t.params as any)?.decay ?? 0.15) * 0.25
                 }
               })
-              // Update snap level and color filter
-              try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
-              try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3000)) } catch {}
-              // Update live params used by trigger closure
-              try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 200); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3))) } } catch {}
-              break
-          }
-        } catch {}
-      }
+            }
+            // Update snap level and color filter
+            try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
+            try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3000)) } catch {}
+            // Update live params used by trigger closure
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 200); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3))) } } catch {}
+            break
+        }
+      } catch {}
     })
   }
 
@@ -706,7 +890,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       if (currentSig !== sig) {
         // replace instrument (keep gain/pan so automation stays stable)
         try { (nodes.value[id].inst.node as any).disconnect?.() } catch {}
-        try { (nodes.value[id].inst.node as any).dispose?.() } catch {}
+        disposeInstrument(nodes.value[id].inst)
         const inst = markRaw(makeInstrument(t.type, t.params))
   ;(inst.node as any).connect(nodes.value[id].gain)
         nodes.value[id].inst = inst as any
@@ -719,7 +903,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const nb = nodes.value[id]
       try { nb.pan.dispose() } catch {}
       try { nb.gain.dispose() } catch {}
-      try { (nb.inst.node as any).dispose?.() } catch {}
+      disposeInstrument(nb.inst)
       delete nodes.value[id]
       nodeSig.delete(id)
     })
@@ -1505,14 +1689,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     Object.values(nodes.value).forEach(nb => {
       try { nb.pan.dispose() } catch {}
       try { nb.gain.dispose() } catch {}
-      try { (nb.inst as any)?.voice2?.dispose?.() } catch {}
-      try { (nb.inst as any)?.voice3?.dispose?.() } catch {}
-      try { (nb.inst as any)?.clickGain?.dispose?.() } catch {}
-      try { (nb.inst as any)?.toneGain?.dispose?.() } catch {}
-      try { (nb.inst as any)?.noiseGain?.dispose?.() } catch {}
-      try { (nb.inst as any)?.snapGain?.dispose?.() } catch {}
-      try { (nb.inst as any)?.snapFilter?.dispose?.() } catch {}
-      try { (nb.inst.node as any).dispose?.() } catch {}
+      disposeInstrument(nb.inst)
     })
     nodes.value = {}
     nodeSig.clear()

@@ -13,6 +13,7 @@
             <option value="snare">Snare</option>
             <option value="clap">Clap</option>
             <option value="hat">Hat</option>
+            <option value="crash">Crash</option>
             <option value="perc">Perc</option>
           </select>
           <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 min-w-0 flex-1 max-w-[200px] text-sm" :value="t.name" @input="onNameInput(t.id, $event)" />
@@ -122,10 +123,10 @@
                 :min="0" :max="1" :step="0.01" label="Mix" :defaultValue="0.5" :size="48" color="#fbbf24" />
             </template>
             <template v-else-if="t.type === 'clap'">
-              <Knob :modelValue="(t.params.tune as number) ?? 220" @update:modelValue="v => onParam2(t.id, 'tune', v)"
-                :min="100" :max="500" :step="1" label="Tune" :defaultValue="220" :size="48" color="#f97316" />
-              <Knob :modelValue="(t.params.toneDecay as number) ?? 0.07" @update:modelValue="v => onParam2(t.id, 'toneDecay', v)"
-                :min="0.02" :max="0.3" :step="0.005" label="Tone Dec" :defaultValue="0.07" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.tune as number) ?? 1600" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="400" :max="4000" :step="10" label="Color" :defaultValue="1600" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.toneDecay as number) ?? 0.03" @update:modelValue="v => onParam2(t.id, 'toneDecay', v)"
+                :min="0.005" :max="0.08" :step="0.001" label="Burst" :defaultValue="0.03" :size="48" color="#f97316" />
               <div class="inline-flex flex-col items-center" :style="{ width: '48px' }">
                 <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px] w-full" :value="t.params.noiseType as string" @change="onParamSelect(t.id, 'noiseType', $event)">
                   <option value="white">white</option>
@@ -134,12 +135,12 @@
                 </select>
                 <div class="mt-0.5 text-[10px] text-slate-400 leading-tight">Noise</div>
               </div>
-              <Knob :modelValue="(t.params.noiseDecay as number) ?? 0.18" @update:modelValue="v => onParam2(t.id, 'noiseDecay', v)"
-                :min="0.04" :max="0.5" :step="0.005" label="Nse Dec" :defaultValue="0.18" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.noiseDecay as number) ?? 0.24" @update:modelValue="v => onParam2(t.id, 'noiseDecay', v)"
+                :min="0.04" :max="0.6" :step="0.005" label="Tail" :defaultValue="0.24" :size="48" color="#f97316" />
               <Knob :modelValue="(t.params.snap as number) ?? 0.85" @update:modelValue="v => onParam2(t.id, 'snap', v)"
                 :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.85" :size="48" color="#f97316" />
-              <Knob :modelValue="(t.params.mix as number) ?? 0.82" @update:modelValue="v => onParam2(t.id, 'mix', v)"
-                :min="0" :max="1" :step="0.01" label="Mix" :defaultValue="0.82" :size="48" color="#f97316" />
+              <Knob :modelValue="(t.params.mix as number) ?? 0.55" @update:modelValue="v => onParam2(t.id, 'mix', v)"
+                :min="0" :max="1" :step="0.01" label="Tail Mix" :defaultValue="0.55" :size="48" color="#f97316" />
             </template>
             <template v-else-if="t.type === 'hat'">
               <Knob :modelValue="(t.params.tune as number) ?? 300" @update:modelValue="v => onParam2(t.id, 'tune', v)"
@@ -152,6 +153,20 @@
                 :min="1" :max="10" :step="0.1" label="Harmonic" :defaultValue="5.1" :size="48" color="#38bdf8" />
               <Knob :modelValue="(t.params.modIndex as number) ?? 32" @update:modelValue="v => onParam2(t.id, 'modIndex', v)"
                 :min="5" :max="80" :step="1" label="Mod Idx" :defaultValue="32" :size="48" color="#38bdf8" />
+            </template>
+            <template v-else-if="t.type === 'crash'">
+              <Knob :modelValue="(t.params.tune as number) ?? 220" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="100" :max="500" :step="1" label="Tune" :defaultValue="220" :size="48" color="#60a5fa" />
+              <Knob :modelValue="(t.params.decay as number) ?? 1.4" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.2" :max="3" :step="0.01" label="Decay" :defaultValue="1.4" :size="48" color="#60a5fa" />
+              <Knob :modelValue="(t.params.brightness as number) ?? 12000" @update:modelValue="v => onParam2(t.id, 'brightness', v)"
+                :min="2000" :max="20000" :step="10" label="Bright" :defaultValue="12000" :size="48" color="#60a5fa" />
+              <Knob :modelValue="(t.params.harmonicity as number) ?? 2.2" @update:modelValue="v => onParam2(t.id, 'harmonicity', v)"
+                :min="0.5" :max="8" :step="0.1" label="Harmonic" :defaultValue="2.2" :size="48" color="#60a5fa" />
+              <Knob :modelValue="(t.params.modIndex as number) ?? 55" @update:modelValue="v => onParam2(t.id, 'modIndex', v)"
+                :min="5" :max="120" :step="1" label="Mod Idx" :defaultValue="55" :size="48" color="#60a5fa" />
+              <Knob :modelValue="(t.params.wash as number) ?? 0.65" @update:modelValue="v => onParam2(t.id, 'wash', v)"
+                :min="0" :max="1" :step="0.01" label="Wash" :defaultValue="0.65" :size="48" color="#60a5fa" />
             </template>
             <template v-else>
               <Knob :modelValue="(t.params.tune as number) ?? 200" @update:modelValue="v => onParam2(t.id, 'tune', v)"
@@ -343,6 +358,7 @@ function defaultMidiKey(type: string): number {
     case 'snare': return 38;
     case 'clap': return 39;
     case 'hat': return 42;
+    case 'crash': return 49;
     case 'perc': return 40;
     default: return 36;
   }

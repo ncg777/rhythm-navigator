@@ -138,7 +138,7 @@
               <Knob :modelValue="(t.params.noiseDecay as number) ?? 0.24" @update:modelValue="v => onParam2(t.id, 'noiseDecay', v)"
                 :min="0.04" :max="0.6" :step="0.005" label="Tail" :defaultValue="0.24" :size="48" color="#f97316" />
               <Knob :modelValue="(t.params.snap as number) ?? 0.85" @update:modelValue="v => onParam2(t.id, 'snap', v)"
-                :min="0" :max="1" :step="0.01" label="Attack" :defaultValue="0.85" :size="48" color="#f97316" />
+                :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.85" :size="48" color="#f97316" />
               <Knob :modelValue="(t.params.mix as number) ?? 0.55" @update:modelValue="v => onParam2(t.id, 'mix', v)"
                 :min="0" :max="1" :step="0.01" label="Tail Mix" :defaultValue="0.55" :size="48" color="#f97316" />
             </template>

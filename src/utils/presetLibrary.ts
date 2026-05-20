@@ -1,8 +1,5 @@
-import type { PredicateGroup } from '@/types/predicateExpression'
-import { defaultPredicateExpression } from '@/types/predicateExpression'
-import type { RhythmSessionSnapshot } from '@/stores/rhythmStore'
 import type { SavedPatternEntry, SavedTrack, SequencerSessionSnapshot, TrackType } from '@/stores/sequencerStore'
-import type { Mode, RhythmItem } from '@/utils/rhythm'
+import type { Mode } from '@/utils/rhythm'
 
 export const PRESET_LIBRARY_VERSION = 1 as const
 
@@ -11,7 +8,6 @@ export type SessionPreset = {
   name: string
   createdAt: number
   updatedAt: number
-  rhythm: Partial<RhythmSessionSnapshot>
   sequencer: Partial<SequencerSessionSnapshot>
 }
 
@@ -38,10 +34,6 @@ function isMode(value: unknown): value is Mode {
 
 function isTrackType(value: unknown): value is TrackType {
   return value === 'kick' || value === 'snare' || value === 'clap' || value === 'hat' || value === 'perc'
-}
-
-function isPredicateGroup(value: unknown): value is PredicateGroup {
-  return isObject(value) && (value.type === 'and' || value.type === 'or') && Array.isArray(value.children)
 }
 
 function normalizeParams(value: unknown): Record<string, number | string> {
@@ -98,33 +90,6 @@ function normalizeSavedTrack(value: unknown, index: number): SavedTrack | null {
   }
 }
 
-function normalizeRhythmItems(value: unknown): RhythmItem[] {
-  return Array.isArray(value) ? value as RhythmItem[] : []
-}
-
-function normalizeRhythmSnapshot(value: unknown): Partial<RhythmSessionSnapshot> {
-  if (!isObject(value)) throw new Error('Preset rhythm snapshot is missing or invalid.')
-  const result: Partial<RhythmSessionSnapshot> = {
-    mode: isMode(value.mode) ? value.mode : 'hex',
-    numerator: Math.max(1, Math.floor(asFiniteNumber(value.numerator, 4))),
-    denominator: Math.max(1, Math.floor(asFiniteNumber(value.denominator, 1))),
-    maxReps: Math.max(0, Math.floor(asFiniteNumber(value.maxReps, 0))),
-    predicateExpression: isPredicateGroup(value.predicateExpression) ? value.predicateExpression : defaultPredicateExpression(),
-    retentionProbability: Math.max(0, Math.min(100, asFiniteNumber(value.retentionProbability, 100))),
-    generationMethod: value.generationMethod === 'sample' ? 'sample' : 'enumerate',
-    maxSampleAttempts: Math.max(1000, Math.floor(asFiniteNumber(value.maxSampleAttempts, 1_000_000))),
-    matrixRows: Math.max(1, Math.floor(asFiniteNumber(value.matrixRows, 3))),
-    matrixColumns: Math.max(1, Math.floor(asFiniteNumber(value.matrixColumns, 4))),
-    matrixMaxAttempts: Math.max(1, Math.floor(asFiniteNumber(value.matrixMaxAttempts, 10_000))),
-    matrixMaxCellRetries: Math.max(1, Math.floor(asFiniteNumber(value.matrixMaxCellRetries, 100)))
-  }
-  if (Array.isArray(value.items)) {
-    result.items = normalizeRhythmItems(value.items)
-    result.selectedId = asString(value.selectedId)
-  }
-  return result
-}
-
 function normalizeSequencerSnapshot(value: unknown): Partial<SequencerSessionSnapshot> {
   if (!isObject(value)) throw new Error('Preset sequencer snapshot is missing or invalid.')
   if (!Array.isArray(value.tracks)) throw new Error('Preset sequencer snapshot must include a tracks array.')
@@ -172,7 +137,6 @@ export function parsePresetLibraryJson(json: string): SessionPresetLibrary {
       name: normalizePresetName(asString(value.name, `Preset ${index + 1}`)),
       createdAt: Math.floor(asFiniteNumber(value.createdAt, now)),
       updatedAt: Math.floor(asFiniteNumber(value.updatedAt, now)),
-      rhythm: normalizeRhythmSnapshot(value.rhythm),
       sequencer: normalizeSequencerSnapshot(value.sequencer)
     } satisfies SessionPreset
   })

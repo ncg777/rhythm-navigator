@@ -20,13 +20,6 @@ describe('presetLibrary', () => {
           name: '  Clap Session  ',
           createdAt: 1,
           updatedAt: 2,
-          rhythm: {
-            mode: 'hex',
-            numerator: 4,
-            denominator: 1,
-            items: [],
-            selectedId: ''
-          },
           sequencer: {
             bpm: 128,
             loopBars: 4,

@@ -157,7 +157,6 @@ export const useRhythmStore = defineStore('rhythm', {
       }
     },
     applySessionState(snapshot: Partial<RhythmSessionSnapshot> | null | undefined) {
-      const nextItems = Array.isArray(snapshot?.items) ? snapshot.items : []
       this.mode = snapshot?.mode === 'binary' || snapshot?.mode === 'octal' || snapshot?.mode === 'hex' ? snapshot.mode : 'hex'
       this.numerator = Math.max(1, Math.floor(Number(snapshot?.numerator) || 4))
       this.denominator = Math.max(1, Math.floor(Number(snapshot?.denominator) || 1))
@@ -172,14 +171,16 @@ export const useRhythmStore = defineStore('rhythm', {
       this.matrixColumns = Math.max(1, Math.floor(Number(snapshot?.matrixColumns) || 4))
       this.matrixMaxAttempts = Math.max(1, Math.floor(Number(snapshot?.matrixMaxAttempts) || 10_000))
       this.matrixMaxCellRetries = Math.max(1, Math.floor(Number(snapshot?.matrixMaxCellRetries) || 100))
-      this.items = nextItems
-      this.selectedId = typeof snapshot?.selectedId === 'string' ? snapshot.selectedId : ''
-      this._itemKeySet.clear()
-      for (const it of this.items) {
-        try { this._itemKeySet.add(`${it.base}:${it.groupedDigitsString}`) } catch {}
-      }
-      if (this.selectedId && !this.items.some((item) => item.id === this.selectedId)) {
-        this.selectedId = this.items[0]?.id ?? ''
+      if (Array.isArray(snapshot?.items)) {
+        this.items = snapshot.items
+        this.selectedId = typeof snapshot?.selectedId === 'string' ? snapshot.selectedId : ''
+        this._itemKeySet.clear()
+        for (const it of this.items) {
+          try { this._itemKeySet.add(`${it.base}:${it.groupedDigitsString}`) } catch {}
+        }
+        if (this.selectedId && !this.items.some((item) => item.id === this.selectedId)) {
+          this.selectedId = this.items[0]?.id ?? ''
+        }
       }
     },
     clear() {

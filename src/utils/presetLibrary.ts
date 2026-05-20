@@ -104,7 +104,7 @@ function normalizeRhythmItems(value: unknown): RhythmItem[] {
 
 function normalizeRhythmSnapshot(value: unknown): Partial<RhythmSessionSnapshot> {
   if (!isObject(value)) throw new Error('Preset rhythm snapshot is missing or invalid.')
-  return {
+  const result: Partial<RhythmSessionSnapshot> = {
     mode: isMode(value.mode) ? value.mode : 'hex',
     numerator: Math.max(1, Math.floor(asFiniteNumber(value.numerator, 4))),
     denominator: Math.max(1, Math.floor(asFiniteNumber(value.denominator, 1))),
@@ -116,10 +116,13 @@ function normalizeRhythmSnapshot(value: unknown): Partial<RhythmSessionSnapshot>
     matrixRows: Math.max(1, Math.floor(asFiniteNumber(value.matrixRows, 3))),
     matrixColumns: Math.max(1, Math.floor(asFiniteNumber(value.matrixColumns, 4))),
     matrixMaxAttempts: Math.max(1, Math.floor(asFiniteNumber(value.matrixMaxAttempts, 10_000))),
-    matrixMaxCellRetries: Math.max(1, Math.floor(asFiniteNumber(value.matrixMaxCellRetries, 100))),
-    items: normalizeRhythmItems(value.items),
-    selectedId: asString(value.selectedId)
+    matrixMaxCellRetries: Math.max(1, Math.floor(asFiniteNumber(value.matrixMaxCellRetries, 100)))
   }
+  if (Array.isArray(value.items)) {
+    result.items = normalizeRhythmItems(value.items)
+    result.selectedId = asString(value.selectedId)
+  }
+  return result
 }
 
 function normalizeSequencerSnapshot(value: unknown): Partial<SequencerSessionSnapshot> {

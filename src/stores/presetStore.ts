@@ -60,12 +60,13 @@ export const usePresetStore = defineStore('presets', () => {
     const sequencer = useSequencerStore()
     const ui = useUiStore()
     const now = Date.now()
+    const { items: _items, selectedId: _selectedId, ...rhythmSettings } = rhythm.captureSessionState()
     const preset: SessionPreset = {
       id: makePresetId(),
       name: normalizePresetName(name),
       createdAt: now,
       updatedAt: now,
-      rhythm: rhythm.captureSessionState(),
+      rhythm: rhythmSettings,
       sequencer: sequencer.captureSessionState()
     }
     presets.value = [preset, ...presets.value]

@@ -31,13 +31,14 @@ import type { PredicateGroup, PredicateId, RhythmItem } from './engine.js'
 
 function buildPredicateExpression(predicateIds: string[]): PredicateGroup | null {
   if (!predicateIds || predicateIds.length === 0) return null
-  const validIds = predicateIds.filter(id =>
-    ALL_PREDICATE_IDS.includes(id as PredicateId)
-  ) as PredicateId[]
-  if (validIds.length === 0) return null
+  for (const id of predicateIds) {
+    if (!ALL_PREDICATE_IDS.includes(id as PredicateId)) {
+      throw new Error(`Unknown predicate ID: ${id}. Available: ${ALL_PREDICATE_IDS.join(', ')}`)
+    }
+  }
   return {
     type: 'and',
-    children: validIds.map(id => ({ type: 'predicate' as const, id }))
+    children: predicateIds.map(id => ({ type: 'predicate' as const, id: id as PredicateId }))
   }
 }
 

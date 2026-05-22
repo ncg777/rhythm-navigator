@@ -2,7 +2,7 @@
   <section>
     <header class="flex items-center justify-between">
       <h2 class="text-lg font-semibold">Rhythm details</h2>
-      <div class="text-sm text-slate-400" v-if="selected">Onsets: {{ selected.onsets }}</div>
+      <div v-if="selected" class="text-sm text-slate-400">Onsets: {{ selected.onsets }}</div>
     </header>
 
     <div v-if="!selected" class="mt-6 text-slate-400 text-sm">
@@ -14,6 +14,7 @@
         <button class="px-3 py-1 rounded bg-brand-600 hover:bg-brand-500" @click="togglePlay">{{ isPlaying ? 'Stop' : 'Play' }}</button>
         <span class="text-slate-500 text-xs">Synthesized clave (uses global BPM)</span>
       </div>
+
       <div class="glass rounded p-3">
         <div class="mb-1 font-medium">Digits (grouped)</div>
         <div class="font-mono break-all">{{ selected.groupedDigitsString }}</div>
@@ -62,6 +63,82 @@
         <div class="font-mono">{{ details.shadowContour }}</div>
       </div>
 
+      <div class="glass rounded p-3 space-y-3">
+        <div class="text-slate-400 text-xs">Rhythm grid</div>
+        <RhythmBitGrid
+          :totalBits="details.totalBits"
+          :selectedOnsets="selectedPattern.onsets"
+          :compareOnsets="comparisonPattern?.onsets ?? []"
+          :columns="Math.max(8, Math.min(16, details.totalBits || 8))"
+        />
+      </div>
+
+      <div class="glass rounded p-3 space-y-3">
+        <div class="text-slate-400 text-xs">Rhythm circle</div>
+        <RhythmCircleView
+          :totalBits="details.totalBits"
+          :selectedOnsets="selectedPattern.onsets"
+          :compareOnsets="comparisonPattern?.onsets ?? []"
+          :beats="details.tsNum"
+        />
+      </div>
+
+      <div v-if="comparisonTarget" class="glass rounded p-3 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-slate-400 text-xs">Compare target</div>
+            <div class="font-mono text-sm text-sky-300 break-all">{{ comparisonTarget.groupedDigitsString }}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-xs" @click="selectComparisonTarget">Select target</button>
+            <button class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-xs" @click="swapComparison">Swap</button>
+            <button class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-xs" @click="clearComparison">Clear</button>
+          </div>
+        </div>
+
+        <div v-if="pairwise" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <div class="text-slate-400 text-xs">Relation</div>
+            <div class="font-mono">{{ comparisonLabels[pairwise.relation] }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Shared onsets</div>
+            <div class="font-mono">{{ pairwise.sharedOnsets }} / {{ pairwise.unionOnsets }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Jaccard similarity</div>
+            <div class="font-mono">{{ pairwise.jaccardSimilarity.toFixed(3) }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Only selected</div>
+            <div class="font-mono">{{ pairwise.onlyLeftOnsets }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Only compare target</div>
+            <div class="font-mono">{{ pairwise.onlyRightOnsets }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Contour distance</div>
+            <div class="font-mono">{{ pairwise.contourDistance }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Syncopation delta</div>
+            <div class="font-mono">{{ pairwise.syncopationDelta }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Offbeat delta</div>
+            <div class="font-mono">{{ pairwise.offbeatDelta }}</div>
+          </div>
+          <div>
+            <div class="text-slate-400 text-xs">Density delta</div>
+            <div class="font-mono">{{ pairwise.densityDelta.toFixed(4) }}</div>
+          </div>
+        </div>
+        <div v-else class="text-xs text-slate-500">
+          Select a different rhythm as the compare target.
+        </div>
+      </div>
+
       <div class="glass rounded p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <div class="text-slate-400 text-xs">Syncopation (LHL approx)</div>
@@ -83,7 +160,7 @@
 
       <div class="glass rounded p-3">
         <div class="text-slate-400 text-xs mb-2">Music Theory Properties</div>
-  <div class="grid grid-cols-2 sm:grid-cols-8 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-8 gap-3">
           <div>
             <div class="text-slate-400 text-[10px] uppercase">Maximally even</div>
             <div class="font-mono text-sm" :class="details.predicates.maximallyEven ? 'text-emerald-300' : 'text-slate-400'">
@@ -139,6 +216,9 @@
       </div>
 
       <div class="text-xs text-slate-400">
+        <button v-if="selected" class="mr-3 rounded border border-white/10 px-2 py-1 text-[11px] hover:bg-white/5" @click="setSelectedAsComparison">
+          Use selected as compare target
+        </button>
         Notes:
         - Metrical weights use binary halving within each beat (beat, half, quarter, …), with a small bonus on the downbeat.
         - LHL-approx: rest on a stronger position preceding an onset on a weaker position contributes to the score.
@@ -150,35 +230,47 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import * as Tone from 'tone'
+import { useComparisonStore } from '@/stores/comparisonStore'
+import RhythmBitGrid from '@/components/RhythmBitGrid.vue'
+import RhythmCircleView from '@/components/RhythmCircleView.vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { useSequencerStore } from '@/stores/sequencerStore'
-import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
-import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasOrdinal, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
+import { onsetPatternFromGroupedDigits } from '@/utils/onsets'
+import { computePairwiseMetrics } from '@/utils/rhythmComparison'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
-import { isMaximallyEven, hasROP23, hasOddIntervalsOddity, noAntipodalPairs, isLowEntropy, hasNoGaps, relativelyFlat, hasOrdinal } from '@/utils/predicates'
-import * as Tone from 'tone'
+
+const comparisonLabels: Record<string, string> = {
+  same: 'Same rhythm',
+  subset: 'Selected is a subset of compare target',
+  superset: 'Selected is a superset of compare target',
+  overlap: 'Selected overlaps compare target',
+  disjoint: 'Selected and compare target are disjoint',
+  incompatible: 'Rhythms have different bit lengths',
+}
 
 const store = useRhythmStore()
 const { selected, numerator, denominator, mode } = storeToRefs(store)
-// Use global BPM from the sequencer store
+const comparisonStore = useComparisonStore()
 const seq = useSequencerStore()
 const { bpm: seqBpm } = storeToRefs(seq)
 
-function buildOnsetsFromDigits(digits: number[], bpd: number): { onsets: number[]; totalBits: number } {
-  const totalBits = digits.length * bpd
-  const onsets: number[] = []
-  for (let j = 0; j < digits.length; j++) {
-    const v = digits[j]
-    const offset = j * bpd
-    for (let i = 0; i < bpd; i++) {
-      const bit = (v >> (bpd - 1 - i)) & 1
-      if (bit) onsets.push(offset + i)
-    }
-  }
-  return { onsets, totalBits }
-}
-
+const comparisonTarget = computed(() => store.items.find((item) => item.id === comparisonStore.secondaryId) ?? null)
+const pairwise = computed(() => {
+  if (!selected.value || !comparisonTarget.value) return null
+  if (selected.value.id === comparisonTarget.value.id) return null
+  return computePairwiseMetrics(selected.value, comparisonTarget.value)
+})
+const selectedPattern = computed(() => {
+  if (!selected.value) return { onsets: [] as number[], totalBits: 0 }
+  return onsetPatternFromGroupedDigits(selected.value.groupedDigitsString, selected.value.base)
+})
+const comparisonPattern = computed(() => {
+  if (!comparisonTarget.value) return null
+  return onsetPatternFromGroupedDigits(comparisonTarget.value.groupedDigitsString, comparisonTarget.value.base)
+})
 
 const details = computed(() => {
   const sel = selected.value
@@ -196,66 +288,49 @@ const details = computed(() => {
         maximallyEven: false,
         rop23: false,
         oddIntervalsOddity: false,
-        noAntipodes: true
+        noAntipodes: true,
+        lowEntropy: false,
+        noGaps: false,
+        relativelyFlat: false,
+        ordinal: false,
       }
     }
   }
 
-  const digits = parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
-  const bpd = bitsPerDigitForMode(sel.base)
-  const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
+  const { onsets, totalBits } = onsetPatternFromGroupedDigits(sel.groupedDigitsString, sel.base)
   const rests = totalBits - onsets.length
   const density = totalBits ? (onsets.length / totalBits).toFixed(4) : '0'
-  // Determine display time signature (prefer per-item values when present)
   const tsNum = typeof sel.numerator === 'number' && sel.numerator > 0 ? sel.numerator : numerator.value
   const tsDen = typeof sel.denominator === 'number' && sel.denominator > 0 ? sel.denominator : denominator.value
-
-  // Invariance is fixed to dihedral (circular + rotation + reflection)
-  const opts = { circular: true, rotationInvariant: true, reflectionInvariant: true }
-
-  const contour = canonicalContourFromOnsets(onsets, totalBits, opts)
-  const shadowContour = shadowContourFromOnsets(onsets, totalBits, opts)
+  const contour = canonicalContourFromOnsets(onsets, totalBits, { circular: true, rotationInvariant: true, reflectionInvariant: true })
+  const shadowContour = shadowContourFromOnsets(onsets, totalBits, { circular: true, rotationInvariant: true, reflectionInvariant: true })
   const shadowIsomorphic = contour.length > 0 && contour === shadowContour
-
-  const spb = bitsPerBeat(sel.base, denominator.value)
-  const sync = computeSyncopationMetrics(onsets, totalBits, numerator.value, spb)
-
-  // Calculate music theory predicates
-  const maximallyEven = isMaximallyEven(onsets, totalBits)
-  const rop23 = hasROP23(onsets, totalBits)
-  const oddIntervalsOddity = hasOddIntervalsOddity(onsets, totalBits)
-  const noAntipodes = noAntipodalPairs(onsets, totalBits)
-  const lowEntropy = isLowEntropy(onsets, totalBits)
-  const noGaps = hasNoGaps(onsets, totalBits)
-  const relFlat = relativelyFlat(onsets, totalBits)
-  // Always evaluate ordinal with a range of common block sizes for display
-  const ord = hasOrdinal(onsets, totalBits, 4)
+  const sync = computeSyncopationMetrics(onsets, totalBits, numerator.value, bitsPerBeat(sel.base, denominator.value))
 
   return {
     totalBits,
     onsets: onsets.length,
     rests,
     density,
-  tsNum,
-  tsDen,
+    tsNum,
+    tsDen,
     contour,
     shadowContour,
     shadowIsomorphic,
     sync,
     predicates: {
-      maximallyEven,
-      rop23,
-      oddIntervalsOddity,
-      noAntipodes,
-  lowEntropy,
-  noGaps: noGaps,
-  relativelyFlat: relFlat,
-  ordinal: ord
+      maximallyEven: isMaximallyEven(onsets, totalBits),
+      rop23: hasROP23(onsets, totalBits),
+      oddIntervalsOddity: hasOddIntervalsOddity(onsets, totalBits),
+      noAntipodes: noAntipodalPairs(onsets, totalBits),
+      lowEntropy: isLowEntropy(onsets, totalBits),
+      noGaps: hasNoGaps(onsets, totalBits),
+      relativelyFlat: relativelyFlat(onsets, totalBits),
+      ordinal: hasOrdinal(onsets, totalBits, 4),
     }
   }
 })
 
-// --- Playback (Tone.js)
 const isPlaying = ref(false)
 let part: any | null = null
 let synth: any | null = null
@@ -275,14 +350,12 @@ async function startAudio(onsets: number[], totalBits: number) {
     }).toDestination()
   }
 
-  // Compute timing in seconds based on BPM and bits-per-beat
-  const spb = bitsPerBeat(mode.value, denominator.value) // bits per beat
-  if (spb <= 0) return
-  const beatDur = 60 / seqBpm.value
-  const bitDur = beatDur / spb
-  if (!onsets.length || totalBits <= 0) return
-  const eventsSec = onsets.map((p) => p * bitDur)
-  const loopEnd = totalBits * bitDur
+  const bitsPerStep = bitsPerBeat(mode.value, denominator.value)
+  if (bitsPerStep <= 0 || !onsets.length || totalBits <= 0) return
+  const beatDuration = 60 / seqBpm.value
+  const bitDuration = beatDuration / bitsPerStep
+  const events = onsets.map((position) => ({ time: position * bitDuration }))
+  const loopEnd = totalBits * bitDuration
 
   if (part) {
     part.dispose()
@@ -290,8 +363,8 @@ async function startAudio(onsets: number[], totalBits: number) {
   }
 
   part = new Tone.Part((time: any) => {
-    if (synth) synth.triggerAttackRelease('C5', 0.03, time)
-  }, eventsSec.map((t) => ({ time: t })))
+    synth?.triggerAttackRelease('C5', 0.03, time)
+  }, events)
   part.loop = true
   part.loopEnd = loopEnd
   part.start(0)
@@ -309,12 +382,8 @@ function stopAudio() {
 }
 
 function rebuildIfPlaying() {
-  if (!isPlaying.value) return
-  const sel = selected.value
-  if (!sel) return
-  const digits = parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
-  const bpd = bitsPerDigitForMode(sel.base)
-  const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
+  if (!isPlaying.value || !selected.value) return
+  const { onsets, totalBits } = onsetPatternFromGroupedDigits(selected.value.groupedDigitsString, selected.value.base)
   startAudio(onsets, totalBits)
 }
 
@@ -324,15 +393,36 @@ function togglePlay() {
     isPlaying.value = false
     return
   }
-  const sel = selected.value
-  if (!sel) return
-  const digits = parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
-  const bpd = bitsPerDigitForMode(sel.base)
-  const { onsets, totalBits } = buildOnsetsFromDigits(digits, bpd)
-  startAudio(onsets, totalBits).then(() => (isPlaying.value = true))
+
+  if (!selected.value) return
+  const { onsets, totalBits } = onsetPatternFromGroupedDigits(selected.value.groupedDigitsString, selected.value.base)
+  startAudio(onsets, totalBits).then(() => {
+    isPlaying.value = true
+  })
 }
 
-watch(seqBpm, (v) => {
+function clearComparison() {
+  comparisonStore.clearSecondary()
+}
+
+function setSelectedAsComparison() {
+  if (!selected.value) return
+  comparisonStore.setSecondary(selected.value.id)
+}
+
+function selectComparisonTarget() {
+  if (!comparisonTarget.value) return
+  store.select(comparisonTarget.value.id)
+}
+
+function swapComparison() {
+  if (!selected.value || !comparisonTarget.value) return
+  const nextSelectedId = comparisonTarget.value.id
+  comparisonStore.setSecondary(selected.value.id)
+  store.select(nextSelectedId)
+}
+
+watch(seqBpm, () => {
   if (isPlaying.value) rebuildIfPlaying()
 })
 

@@ -54,6 +54,15 @@
       <template #cell-canonicalContour="{ value }">
         <span class="font-mono text-xs text-slate-400">{{ value }}</span>
       </template>
+      <template #cell-compare="{ row }">
+        <button
+          class="dt-compare-btn"
+          :class="{ 'dt-compare-btn--active': comparisonStore.secondaryId === row.id }"
+          @click.stop="markForComparison(row.id)"
+        >
+          {{ comparisonStore.secondaryId === row.id ? 'Target' : 'Compare' }}
+        </button>
+      </template>
     </DataTable>
   </section>
 </template>
@@ -61,6 +70,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
+import { useComparisonStore } from '@/stores/comparisonStore'
+import { useUiStore } from '@/stores/uiStore'
 import DataTable from './DataTable.vue'
 import type { ColumnDef } from './DataTable.vue'
 import { storeToRefs } from 'pinia'
@@ -68,6 +79,8 @@ import type { Mode } from '@/utils/rhythm'
 
 const store = useRhythmStore()
 const { items, selectedId } = storeToRefs(store)
+const comparisonStore = useComparisonStore()
+const uiStore = useUiStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
 
@@ -117,15 +130,27 @@ const columns: ColumnDef[] = [
     sortable: true,
     filterable: true,
   },
+  {
+    key: 'compare',
+    label: 'Compare',
+    width: '90px',
+    sortable: false,
+    filterable: false,
+    getValue: () => '',
+  },
 ]
 
 function select(id: string) {
   store.select(id)
 }
 
+function markForComparison(id: string) {
+  comparisonStore.setSecondary(id)
+  uiStore.pushToast('Comparison target updated.', 'success')
+}
+
 function exportCsv() {
   const header = ['mode', 'numerator', 'denominator', 'onsets', 'groupedDigitsString', 'canonicalContour']
-  // Export the currently sorted/filtered view from the DataTable
   const source = dataTableRef.value?.processedRows ?? items.value
   const rows = source.map((r: any) => [
     modeShort(r.base),
@@ -230,5 +255,28 @@ function parseCsvLine(line: string): string[] {
 .dt-action-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #e2e8f0;
+}
+
+.dt-compare-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.dt-compare-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dt-compare-btn--active {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #7dd3fc;
 }
 </style>

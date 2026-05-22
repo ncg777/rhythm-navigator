@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useComparisonStore } from '@/stores/comparisonStore'
 import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import type { PredicateGroup } from '@/types/predicateExpression'
@@ -157,6 +158,7 @@ export const useRhythmStore = defineStore('rhythm', {
       }
     },
     applySessionState(snapshot: Partial<RhythmSessionSnapshot> | null | undefined) {
+      const comparison = useComparisonStore()
       this.mode = snapshot?.mode === 'binary' || snapshot?.mode === 'octal' || snapshot?.mode === 'hex' ? snapshot.mode : 'hex'
       this.numerator = Math.max(1, Math.floor(Number(snapshot?.numerator) || 4))
       this.denominator = Math.max(1, Math.floor(Number(snapshot?.denominator) || 1))
@@ -181,9 +183,11 @@ export const useRhythmStore = defineStore('rhythm', {
         if (this.selectedId && !this.items.some((item) => item.id === this.selectedId)) {
           this.selectedId = this.items[0]?.id ?? ''
         }
+        comparison.reconcile(this.items.map((item) => item.id))
       }
     },
     clear() {
+      const comparison = useComparisonStore()
       this.items = []
       this.selectedId = ''
       this.processed = 0
@@ -192,6 +196,7 @@ export const useRhythmStore = defineStore('rhythm', {
       this.agglProcessed = 0
       this.agglEmitted = 0
       this._itemKeySet.clear()
+      comparison.clearSecondary()
     },
     select(id: string) {
       this.selectedId = id

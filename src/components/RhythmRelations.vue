@@ -63,6 +63,11 @@
         <div class="font-mono">{{ details.shadowContour }}</div>
       </div>
 
+      <div class="glass rounded p-3">
+        <div class="text-slate-400 text-xs mb-1">IOI sequence (circular)</div>
+        <div class="font-mono">{{ details.iois.length ? details.iois.join(' ') : 'None' }}</div>
+      </div>
+
       <div class="glass rounded p-3 space-y-3">
         <div class="text-slate-400 text-xs">Rhythm grid</div>
         <RhythmBitGrid
@@ -237,7 +242,7 @@ import RhythmCircleView from '@/components/RhythmCircleView.vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
-import { isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasOrdinal, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
+import { circularIntervals, isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasOrdinal, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
 import { onsetPatternFromGroupedDigits } from '@/utils/onsets'
 import { computePairwiseMetrics } from '@/utils/rhythmComparison'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
@@ -282,6 +287,7 @@ const details = computed(() => {
       density: '0',
       contour: '',
       shadowContour: '',
+      iois: [] as number[],
       shadowIsomorphic: false,
       sync: { lhlApprox: 0, offbeatWeighted: 0, onBeatCount: 0, offBeatCount: 0, meanOnsetWeight: 0, maxWeight: 0 },
       predicates: {
@@ -304,6 +310,7 @@ const details = computed(() => {
   const tsDen = typeof sel.denominator === 'number' && sel.denominator > 0 ? sel.denominator : denominator.value
   const contour = canonicalContourFromOnsets(onsets, totalBits, { circular: true, rotationInvariant: true, reflectionInvariant: true })
   const shadowContour = shadowContourFromOnsets(onsets, totalBits, { circular: true, rotationInvariant: true, reflectionInvariant: true })
+  const iois = circularIntervals(onsets, totalBits)
   const shadowIsomorphic = contour.length > 0 && contour === shadowContour
   const sync = computeSyncopationMetrics(onsets, totalBits, numerator.value, bitsPerBeat(sel.base, denominator.value))
 
@@ -316,6 +323,7 @@ const details = computed(() => {
     tsDen,
     contour,
     shadowContour,
+    iois,
     shadowIsomorphic,
     sync,
     predicates: {

@@ -147,6 +147,19 @@ describe('segmentation optimizer', () => {
     expect(result.blocks.map((block) => block.values)).toEqual([[1, 1], [4], [1, 1]])
     expect(result.blocks.map((block) => [block.start, block.end])).toEqual([[0, 2], [2, 3], [3, 5]])
   })
+
+  it('tolerates small variation within blocks instead of splitting at every change', () => {
+    const values = [3, 4, 3, 3, 1, 1, 2, 1, 8, 7, 8, 3, 4, 3]
+    const result = optimizeSegmentation({ values, totalDuration: values.reduce((sum, value) => sum + value, 0) })
+
+    expect(result.blocks.map((block) => block.values)).toEqual([
+      [3, 4, 3, 3],
+      [1, 1, 2, 1],
+      [8, 7, 8],
+      [3, 4, 3],
+    ])
+    expect(result.blocks.every((block) => block.values.length > 1)).toBe(true)
+  })
 })
 
 describe('layer builders', () => {

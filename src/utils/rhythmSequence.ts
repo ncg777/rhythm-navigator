@@ -183,25 +183,76 @@ export function scoreSegmentation(composition: Composition, blocks: SegmentBlock
 
 export function optimizeSegmentation(composition: Composition): SegmentationResult {
   const values = composition.values
-  if (values.length === 0) {
+  const n = values.length
+  if (n === 0) {
     return { blocks: [], score: 0 }
   }
 
-  const blocks: SegmentBlock[] = []
-  let start = 0
-
-  for (let index = 1; index <= values.length; index++) {
-    if (index < values.length && values[index] === values[start]) continue
-
-    const blockValues = values.slice(start, index)
-    blocks.push({
-      start,
-      end: index,
-      values: blockValues,
-      mad: meanAbsoluteDeviation(blockValues),
-    })
-    start = index
+  const makeBlock = (start: number, end: number): SegmentBlock => {
+    const blockValues = values.slice(start, end)
+    return { start, end, values: blockValues, mad: meanAbsoluteDeviation(blockValues) }
   }
+
+  // Constant compositions (including length 1) are trivially one block.
+  if (values.every((value) => value === values[0])) {
+    const block = makeBlock(0, n)
+    return { blocks: [block], score: scoreSegmentation(composition, [block]) }
+  }
+
+  // Search contiguous partitions with dynamic programming, minimizing the
+  // total within-block absolute deviation plus a per-block penalty. The
+  // penalty is scaled to the composition's overall variability, so blocks
+  // absorb small internal variation (no more splitting at every value
+  // change) while genuine outliers still get their own block.
+  const totalMad = meanAbsoluteDeviation(values)
+  const blockPenalty = totalMad
+  const maxBlockLength = Math.min(n, 48)
+
+  // blockCost[start][length - 1] = penalized cost of values.slice(start, start + length)
+  const blockCost: number[][] = []
+  for (let start = 0; start < n; start++) {
+    const row: number[] = []
+    let sum = 0
+    const limit = Math.min(n, start + maxBlockLength)
+    for (let end = start + 1; end <= limit; end++) {
+      sum += values[end - 1]
+      const mean = sum / (end - start)
+      let deviation = 0
+      for (let index = start; index < end; index++) {
+        deviation += Math.abs(values[index] - mean)
+      }
+      row.push(deviation + blockPenalty)
+    }
+    blockCost.push(row)
+  }
+
+  const INFINITY = Number.POSITIVE_INFINITY
+  const best = new Float64Array(n + 1).fill(INFINITY)
+  best[0] = 0
+  const cut = new Int32Array(n + 1).fill(-1)
+
+  for (let end = 1; end <= n; end++) {
+    const minStart = Math.max(0, end - maxBlockLength)
+    // Scan longer blocks first and replace only on strict improvement, so
+    // ties resolve toward fewer, longer blocks.
+    for (let start = minStart; start < end; start++) {
+      if (best[start] === INFINITY) continue
+      const candidate = best[start] + blockCost[start][end - start - 1]
+      if (candidate < best[end]) {
+        best[end] = candidate
+        cut[end] = start
+      }
+    }
+  }
+
+  const blocks: SegmentBlock[] = []
+  let end = n
+  while (end > 0) {
+    const start = cut[end]
+    blocks.push(makeBlock(start, end))
+    end = start
+  }
+  blocks.reverse()
 
   return {
     blocks,

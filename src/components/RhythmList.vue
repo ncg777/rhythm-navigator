@@ -51,6 +51,11 @@
       <template #cell-groupedDigitsString="{ value }">
         <span class="font-mono text-brand-300">{{ value }}</span>
       </template>
+      <template #cell-copy="{ row }">
+        <button class="dt-copy-btn" @click.stop="copyPattern(row.groupedDigitsString)">
+          ⧉ Copy
+        </button>
+      </template>
       <template #cell-canonicalContour="{ value }">
         <span class="font-mono text-xs text-slate-400">{{ value }}</span>
       </template>
@@ -90,6 +95,20 @@ function modeShort(b: Mode): string {
 
 const columns: ColumnDef[] = [
   {
+    key: 'groupedDigitsString',
+    label: 'Pattern',
+    sortable: true,
+    filterable: true,
+  },
+  {
+    key: 'copy',
+    label: 'Copy',
+    width: '88px',
+    sortable: false,
+    filterable: false,
+    getValue: () => '',
+  },
+  {
     key: 'base',
     label: 'Mode',
     width: '70px',
@@ -118,12 +137,6 @@ const columns: ColumnDef[] = [
     numeric: true,
   },
   {
-    key: 'groupedDigitsString',
-    label: 'Pattern',
-    sortable: true,
-    filterable: true,
-  },
-  {
     key: 'canonicalContour',
     label: 'Contour',
     width: '120px',
@@ -147,6 +160,17 @@ function select(id: string) {
 function markForComparison(id: string) {
   comparisonStore.setSecondary(id)
   uiStore.pushToast('Comparison target updated.', 'success')
+}
+
+async function copyPattern(value: string) {
+  const text = String(value ?? '').trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    uiStore.pushToast('Pattern copied to clipboard.', 'success')
+  } catch {
+    uiStore.pushToast('Clipboard unavailable.', 'error')
+  }
 }
 
 function exportCsv() {
@@ -278,5 +302,19 @@ function parseCsvLine(line: string): string[] {
 .dt-compare-btn--active {
   border-color: rgba(56, 189, 248, 0.55);
   color: #7dd3fc;
+}
+
+.dt-copy-btn {
+  width: 100%;
+  border: 1px solid rgba(125, 211, 252, 0.4);
+  border-radius: 0.375rem;
+  background: rgba(14, 116, 144, 0.2);
+  color: #67e8f9;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.dt-copy-btn:hover {
+  background: rgba(14, 116, 144, 0.34);
 }
 </style>

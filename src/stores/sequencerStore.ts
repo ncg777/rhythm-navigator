@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch, markRaw, shallowRef } from 'vue'
+import { computed, ref, watch, markRaw, shallowRef } from 'vue'
 import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
@@ -493,6 +493,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   const midiAccess = shallowRef<any | null>(null)
   const midiOutputs = shallowRef<{ id: string; name: string }[]>([])
   const midiChannel = ref(10) // 1..16 (default to 10 for drums)
+  const effectiveLoopBars = computed(() => resolveLoopBars())
 
   type NodeBundle = { inst: ReturnType<typeof makeInstrument>; gain: any; pan: any }
   // Keep audio nodes out of deep reactivity to avoid glitches
@@ -636,6 +637,51 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function qnToSeconds(qn: number): number {
     return (60 / bpm.value) * qn
+  }
+
+  function gcdInt(a: number, b: number): number {
+    let x = Math.abs(Math.round(a))
+    let y = Math.abs(Math.round(b))
+    while (y) {
+      const t = y
+      y = x % y
+      x = t
+    }
+    return x || 1
+  }
+
+  function lcmInt(a: number, b: number): number {
+    if (!a || !b) return 0
+    return Math.abs(Math.round(a / gcdInt(a, b) * b))
+  }
+
+  function trackChainQN(track: Track): number {
+    const ts = track.timeScale || 1
+    return track.patterns.reduce((sum, e) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
+  }
+
+  function resolveLoopQN() {
+    const TICKS_PER_QN = 960
+    const MAX_BARS = 256
+    const maxLoopTicks = MAX_BARS * 4 * TICKS_PER_QN
+    const chainTicks = tracks.value
+      .map((track) => Math.round(trackChainQN(track) * TICKS_PER_QN))
+      .filter((ticks) => ticks > 0)
+    if (!chainTicks.length) return Math.max(1, Math.floor(loopBars.value) * 4)
+    let lcmTicks = chainTicks[0]
+    for (let i = 1; i < chainTicks.length; i++) {
+      const next = lcmInt(lcmTicks, chainTicks[i])
+      if (!Number.isFinite(next) || next <= 0 || next > maxLoopTicks) {
+        lcmTicks = Math.max(...chainTicks)
+        break
+      }
+      lcmTicks = next
+    }
+    return Math.max(1, lcmTicks / TICKS_PER_QN)
+  }
+
+  function resolveLoopBars() {
+    return Math.max(1, Math.ceil(resolveLoopQN() / 4))
   }
 
   function computeVelocity(t: Track, absoluteSeconds: number): number {
@@ -924,7 +970,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     }
     // Context running and playing: set BPM and schedule
     Tone.Transport.bpm.value = bpm.value
-    const loopQN = Math.max(1, Math.floor(loopBars.value) * 4)
+    const loopQN = resolveLoopQN()
     Tone.Transport.loop = true
     Tone.Transport.loopStart = 0
     Tone.Transport.loopEnd = qnToSeconds(loopQN)
@@ -1391,7 +1437,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function buildMidiBlob(): Blob {
-    const loopQN = Math.max(1, Math.floor(loopBars.value) * 4)
+    const loopQN = resolveLoopQN()
     const PPQ = 960
     const tempoUsPerQN = Math.round(60000000 / bpm.value)
 
@@ -1496,7 +1542,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   async function exportWav() {
-    const loopQN = Math.max(1, Math.floor(loopBars.value) * 4)
+    const loopQN = resolveLoopQN()
     const durationSec = qnToSeconds(loopQN)
   const eventsPre = snapshotEvents(loopQN)
   try { console.info('[exportWav] events', eventsPre.length, 'durationSec', durationSec) } catch {}
@@ -1549,12 +1595,12 @@ export const useSequencerStore = defineStore('sequencer', () => {
       }
     }
     const wav = encodeWavFromBuffer(audioBuffer)
-    const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.wav`
+    const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.wav`
     downloadBlob(wav, name)
   }
 
   async function exportWavLiveOnly() {
-    const loopQN = Math.max(1, Math.floor(loopBars.value) * 4)
+    const loopQN = resolveLoopQN()
     const durationSec = qnToSeconds(loopQN)
     await exportWavLiveFallback(durationSec)
   }
@@ -1585,13 +1631,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
   const decoded = await tempCtx.decodeAudioData(arr.slice(0))
   tempCtx.close?.()
   const wav = encodeWavFromBuffer(decoded)
-  const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.wav`
+  const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.wav`
   downloadBlob(wav, name)
   }
 
   function exportMidi() {
     const blob = buildMidiBlob()
-  const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.mid`
+  const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.mid`
   downloadBlob(blob, name)
   }
 
@@ -1634,7 +1680,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       loopBars: snapshot.loopBars,
       tracks: snapshot.tracks
     }
-    const name = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.json`
+    const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.json`
     downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), name)
   }
 
@@ -1773,6 +1819,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   return {
     bpm,
     loopBars,
+    effectiveLoopBars,
     isPlaying,
     tracks,
   midiEnabled,

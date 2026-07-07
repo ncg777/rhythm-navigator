@@ -72,6 +72,25 @@ export const usePresetStore = defineStore('presets', () => {
     return preset
   }
 
+  function overwritePreset(id: string, name?: string) {
+    const index = presets.value.findIndex((entry) => entry.id === id)
+    if (index < 0) return false
+    const sequencer = useSequencerStore()
+    const now = Date.now()
+    const previous = presets.value[index]
+    const updated: SessionPreset = {
+      ...previous,
+      name: normalizePresetName(name ?? previous.name),
+      updatedAt: now,
+      sequencer: sequencer.captureSessionState()
+    }
+    presets.value = presets.value.map((entry, entryIndex) => (entryIndex === index ? updated : entry))
+    activePresetId.value = updated.id
+    persist()
+    useUiStore().pushToast(`Overwrote preset "${updated.name}".`, 'success')
+    return true
+  }
+
   function loadPreset(id: string) {
     const preset = presets.value.find((entry) => entry.id === id)
     if (!preset) return false
@@ -130,6 +149,7 @@ export const usePresetStore = defineStore('presets', () => {
     activePresetId,
     initPersistence,
     saveCurrentAsPreset,
+    overwritePreset,
     loadPreset,
     renamePreset,
     deletePreset,

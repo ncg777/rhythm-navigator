@@ -85,10 +85,7 @@
           <span class="text-xs text-slate-400">Count: {{ items.length }}</span>
         </div>
       </template>
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <RhythmList class="glass rounded-xl p-4" />
-        <RhythmRelations class="glass rounded-xl p-4 max-h-[60vh] overflow-auto" />
-      </div>
+      <RhythmList class="glass rounded-xl p-4" />
     </Modal>
 
     <ConvolutionModal :open="convolutionOpen" @close="convolutionOpen = false" />
@@ -106,7 +103,6 @@
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import PulsationsPanel from '@/components/PulsationsPanel.vue'
 import RhythmList from '@/components/RhythmList.vue'
-import RhythmRelations from '@/components/RhythmRelations.vue'
 import TransportBar from '@/components/TransportBar.vue'
 import DrumTracks from '@/components/DrumTracks.vue'
 import Modal from '@/components/Modal.vue'

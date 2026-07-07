@@ -68,7 +68,17 @@
           {{ comparisonStore.secondaryId === row.id ? 'Target' : 'Compare' }}
         </button>
       </template>
+      <template #cell-details="{ row }">
+        <button class="dt-details-btn" title="View details" aria-label="View details" @click.stop="openDetails(row.id)">
+          🔍
+        </button>
+      </template>
     </DataTable>
+
+    <Modal :open="detailsOpen" @close="detailsOpen = false">
+      <template #title><h3 class="text-lg font-semibold">Rhythm details</h3></template>
+      <RhythmRelations />
+    </Modal>
   </section>
 </template>
 
@@ -79,6 +89,8 @@ import { useComparisonStore } from '@/stores/comparisonStore'
 import { useUiStore } from '@/stores/uiStore'
 import DataTable from './DataTable.vue'
 import type { ColumnDef } from './DataTable.vue'
+import Modal from './Modal.vue'
+import RhythmRelations from './RhythmRelations.vue'
 import { storeToRefs } from 'pinia'
 import type { Mode } from '@/utils/rhythm'
 
@@ -88,12 +100,21 @@ const comparisonStore = useComparisonStore()
 const uiStore = useUiStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
+const detailsOpen = ref(false)
 
 function modeShort(b: Mode): string {
   return b === 'binary' ? 'bin' : b === 'octal' ? 'oct' : 'hex'
 }
 
 const columns: ColumnDef[] = [
+  {
+    key: 'details',
+    label: '',
+    width: '44px',
+    sortable: false,
+    filterable: false,
+    getValue: () => '',
+  },
   {
     key: 'groupedDigitsString',
     label: 'Pattern',
@@ -155,6 +176,11 @@ const columns: ColumnDef[] = [
 
 function select(id: string) {
   store.select(id)
+}
+
+function openDetails(id: string) {
+  store.select(id)
+  detailsOpen.value = true
 }
 
 function markForComparison(id: string) {
@@ -316,5 +342,23 @@ function parseCsvLine(line: string): string[] {
 
 .dt-copy-btn:hover {
   background: rgba(14, 116, 144, 0.34);
+}
+
+.dt-details-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+}
+
+.dt-details-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 </style>

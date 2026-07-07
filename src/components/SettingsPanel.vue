@@ -28,23 +28,7 @@
         @update="predicateExpression = $event"
       />
 
-      <div class="mt-3 grid gap-3 xl:grid-cols-2">
-        <div class="rounded-lg border border-white/10 bg-slate-900/40 p-3">
-          <div class="text-xs uppercase tracking-wide text-slate-400">Predicate Explain</div>
-          <div v-if="!selected" class="mt-2 text-xs text-slate-500">
-            Select a rhythm to see how the current predicate tree evaluates it.
-          </div>
-          <div v-else-if="!selectedPredicateExplanation" class="mt-2 text-xs text-slate-500">
-            No explanation available.
-          </div>
-          <div v-else class="mt-2 space-y-2">
-            <div class="text-xs" :class="selectedPredicateExplanation.result ? 'text-emerald-300' : 'text-rose-300'">
-              {{ selectedPredicateExplanation.result ? 'Selected rhythm passes the current predicate tree.' : 'Selected rhythm fails the current predicate tree.' }}
-            </div>
-            <PredicateExplainTree :trace="selectedPredicateExplanation.trace" />
-          </div>
-        </div>
-
+      <div class="mt-3">
         <div class="rounded-lg border border-white/10 bg-slate-900/40 p-3">
           <div class="text-xs uppercase tracking-wide text-slate-400">Generator Guidance</div>
           <div class="mt-2 text-xs text-slate-400">Estimated search space: <b>{{ formatBigInt(searchSpaceSize) }}</b></div>
@@ -110,9 +94,9 @@
         class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition"
         @click="clear"
         :disabled="isGenerating"
-        title="Clear generated results"
+        title="Empty the generated rhythms storage"
       >
-        Clear
+        Clear (empties storage)
       </button>
       <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
         <span>Total digits: <b>{{ totalDigits }}</b> (base {{ base }})</span>
@@ -166,8 +150,8 @@
         <button class="px-4 py-2 rounded-md bg-violet-600 hover:bg-violet-500 transition" @click="isGeneratingMatrix ? stopMatrix() : generateMatrix()">
           {{ isGeneratingMatrix ? 'Stop matrix' : 'Generate matrix' }}
         </button>
-        <button class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition" @click="clearMatrixOutput()" :disabled="isGeneratingMatrix">
-          Clear
+        <button class="px-4 py-2 rounded-md border border-white/10 hover:bg-white/5 transition" @click="clearMatrixOutput()" :disabled="isGeneratingMatrix" title="Empty the generated matrix output">
+          Clear (empties output)
         </button>
         <div class="text-xs text-slate-400 flex items-center gap-3 pl-3">
           <span>Attempts: <b>{{ matrixAttempts }}</b></span>
@@ -206,12 +190,8 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import PredicateExplainTree from '@/components/PredicateExplainTree.vue'
 import PredicateTreeEditor from '@/components/PredicateTreeEditor.vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
-import { bitsPerDigitForMode } from '@/utils/rhythm'
-import { explainPredicateTree } from '@/utils/predicateEval'
-import { parseDigitsFromGroupedString } from '@/utils/relations'
 
 const store = useRhythmStore()
 const {
@@ -237,7 +217,6 @@ const {
   matrixAttempts,
   matrixEmitted,
   matrixOutput,
-  selected,
 } = storeToRefs(store)
 
 const totalDigits = computed(() => numerator.value * denominator.value)
@@ -266,28 +245,6 @@ const searchSpaceSize = computed(() => {
 })
 
 const predicateLeafCount = computed(() => countPredicateLeaves(predicateExpression.value))
-const selectedPredicateExplanation = computed(() => {
-  if (!selected.value) return null
-
-  const digits = parseDigitsFromGroupedString(selected.value.groupedDigitsString, selected.value.base)
-  const bitsPerDigit = bitsPerDigitForMode(selected.value.base)
-  const onsets: number[] = []
-
-  for (let digitIndex = 0; digitIndex < digits.length; digitIndex++) {
-    const value = digits[digitIndex]
-    const offset = digitIndex * bitsPerDigit
-    for (let bitIndex = 0; bitIndex < bitsPerDigit; bitIndex++) {
-      const bit = (value >> (bitsPerDigit - 1 - bitIndex)) & 1
-      if (bit) onsets.push(offset + bitIndex)
-    }
-  }
-
-  const trace = explainPredicateTree(predicateExpression.value, onsets, digits.length * bitsPerDigit)
-  return {
-    result: trace.result,
-    trace,
-  }
-})
 
 const guidanceHints = computed(() => {
   const hints: string[] = []

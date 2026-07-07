@@ -1,182 +1,155 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2 text-xs min-w-[240px]">
-    <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="onToggle">
-      {{ isPlaying ? 'Stop' : 'Play' }}
+  <div class="flex flex-wrap items-center gap-2 min-w-[240px]">
+    <button class="transport-play-btn" :class="{ 'transport-play-btn--active': isPlaying }" @click="onToggle" :title="isPlaying ? 'Stop playback' : 'Start playback'">
+      <span class="text-base" aria-hidden="true">{{ isPlaying ? '⏹' : '▶' }}</span>
+      <span>{{ isPlaying ? 'Stop' : 'Play' }}</span>
     </button>
+
     <label class="flex items-center gap-2 text-sm">
-      <span class="text-slate-400">BPM</span>
-      <input type="number" class="w-16 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="bpm" @input="onBpm" min="30" max="300" />
+      <span class="text-cyan-200/80 uppercase text-[10px] tracking-wider">BPM</span>
+      <input type="number" class="transport-input w-16" :value="bpm" @input="onBpm" min="30" max="300" />
     </label>
-    <label class="flex items-center gap-2 text-sm">
-      <span class="text-slate-400">Loop bars</span>
-      <input type="number" class="w-16 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="loopBars" @input="onBars" min="1" max="128" />
-    </label>
-    <!-- MIDI out controls -->
-    <label class="flex items-center gap-2 text-sm">
-      <span class="text-slate-400">MIDI out</span>
-      <input type="checkbox" :checked="midiEnabled" @change="onMidiToggle" />
-    </label>
-    <template v-if="midiEnabled">
-      <label class="flex items-center gap-2 text-sm">
-        <span class="text-slate-400">Device</span>
-        <select class="bg-slate-800 border border-white/10 rounded px-2 py-1 max-w-[220px]" :value="midiOutputId || ''" @change="onMidiDevice">
-          <option value="">Select…</option>
-          <option v-for="o in midiOutputs" :key="o.id" :value="o.id">{{ o.name }}</option>
-        </select>
-      </label>
-      <label class="flex items-center gap-2 text-sm">
-        <span class="text-slate-400">Ch</span>
-        <input type="number" min="1" max="16" class="w-14 bg-slate-800 border border-white/10 rounded px-2 py-1" :value="midiChannel" @input="onMidiChannel" />
-      </label>
-      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onMidiRescan" title="Rescan MIDI devices">Rescan</button>
-    </template>
-  <div class="flex flex-wrap items-center gap-2 basis-full sm:basis-auto justify-start">
-  <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportWav">WAV</button>
-      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportMidi">MIDI</button>
-      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="emit('presets')">Presets</button>
-      <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5" @click="onExportProject">Save</button>
-      <label class="px-2 py-1 rounded border border-white/10 hover:bg-white/5 cursor-pointer">
-        Load JSON
-        <input type="file" accept="application/json" class="hidden" @change="onImportProject" />
-      </label>
+
+    <div class="transport-pill" title="Automatically computed loop length">
+      <span aria-hidden="true">🔁</span>
+      <span>{{ effectiveLoopBars }} bar<span v-if="effectiveLoopBars !== 1">s</span></span>
     </div>
+
+    <ActionMenu label="Media" icon="💾" title="Media and MIDI actions" align="right">
+      <template #default="{ close }">
+        <div class="menu-stack">
+          <button class="menu-btn" @click="onExportWav(); close()">🎧 Export WAV</button>
+          <button class="menu-btn" @click="onExportMidi(); close()">🎼 Export MIDI</button>
+          <label class="menu-row">
+            <span class="text-[11px] text-slate-300">MIDI out</span>
+            <input type="checkbox" :checked="midiEnabled" @change="onMidiToggle" />
+          </label>
+          <div v-if="midiEnabled" class="menu-group">
+            <label class="menu-label">
+              Device
+              <select class="transport-input mt-1 w-full" :value="midiOutputId || ''" @change="onMidiDevice">
+                <option value="">Select…</option>
+                <option v-for="o in midiOutputs" :key="o.id" :value="o.id">{{ o.name }}</option>
+              </select>
+            </label>
+            <label class="menu-label">
+              Channel
+              <input type="number" min="1" max="16" class="transport-input mt-1 w-full" :value="midiChannel" @input="onMidiChannel" />
+            </label>
+            <button class="menu-btn" @click="onMidiRescan">🔄 Rescan devices</button>
+          </div>
+        </div>
+      </template>
+    </ActionMenu>
   </div>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useSequencerStore } from '@/stores/sequencerStore'
+import ActionMenu from '@/components/ActionMenu.vue'
 
-const emit = defineEmits<{ (e: 'presets'): void }>()
 const seq = useSequencerStore()
-const { bpm, loopBars, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel } = storeToRefs(seq)
+const { bpm, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel, effectiveLoopBars } = storeToRefs(seq)
 
 function onToggle() {
   if (isPlaying.value) seq.stop()
   else seq.start()
 }
+
 function onBpm(e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   if (!Number.isFinite(v)) return
   seq.setBpm(v)
 }
-function onBars(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value)
-  if (!Number.isFinite(v)) return
-  seq.setLoopBars(v)
-}
 
-function onExportWav() { (seq as any).exportWav() }
+function onExportWav() { seq.exportWav() }
 function onExportMidi() { seq.exportMidi() }
-function onExportProject() {
-  const anySeq: any = seq as any
-  if (typeof anySeq.exportProject === 'function') return anySeq.exportProject()
-  // Fallback: build JSON here
-  const tracks = anySeq.tracks?.value || []
-  const data = {
-    bpm: bpm.value,
-    loopBars: loopBars.value,
-    tracks: tracks.map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      type: t.type,
-      volume: t.volume,
-      pan: t.pan,
-      velocity: t.velocity,
-      velRandom: t.velRandom,
-      timeScale: t.timeScale,
-    }))
-  }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `rhythm-navigator_bpm${bpm.value}_bars${loopBars.value}_${formatTimestamp()}.json`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-}
-function onImportProject(e: Event) {
-  const files = (e.target as HTMLInputElement).files
-  if (!files || !files[0]) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    const text = String(reader.result || '')
-    const anySeq: any = seq as any
-    if (typeof anySeq.importProject === 'function') return anySeq.importProject(text)
-    // Fallback importer
-    try {
-      const data = JSON.parse(text)
-      if (typeof data.bpm === 'number') seq.setBpm(data.bpm)
-      if (typeof data.loopBars === 'number') seq.setLoopBars(data.loopBars)
-      // remove current tracks
-      const ids = (anySeq.tracks?.value || []).map((t: any) => t.id)
-      ids.forEach((id: string) => anySeq.removeTrack(id))
-      // rebuild tracks
-      for (const st of (data.tracks || [])) {
-        anySeq.addTrack(st.type, st.name)
-        const list = anySeq.tracks.value
-        const t = list[list.length - 1]
-        if (typeof anySeq.updateTrackFields === 'function') {
-          anySeq.updateTrackFields(t.id, {
-            volume: st.volume,
-            pan: st.pan,
-            velocity: st.velocity,
-            velRandom: st.velRandom,
-            timeScale: st.timeScale ?? 1,
-            name: st.name
-          })
-        } else {
-          t.volume = st.volume
-          t.pan = st.pan
-          t.velocity = st.velocity
-          t.velRandom = st.velRandom
-          t.name = st.name
-        }
-        if (st.params) {
-          if (typeof anySeq.updateTrackParam === 'function') {
-            for (const k of Object.keys(st.params)) anySeq.updateTrackParam(t.id, k, st.params[k])
-          } else {
-            t.params = st.params || {}
-          }
-        }
-        if (st.pattern) {
-          anySeq.assignRhythmToTrack(t.id, { base: st.pattern.mode, groupedDigitsString: st.pattern.groupedDigitsString, digits: st.pattern.digits } as any, st.pattern.numerator, st.pattern.denominator)
-        }
-      }
-    } catch (err) {
-      console.error('Import failed', err)
-    }
-  }
-  reader.readAsText(files[0])
-  ;(e.target as HTMLInputElement).value = ''
-}
-
-function formatTimestamp(d = new Date()) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  const MM = pad(d.getMonth() + 1)
-  const dd = pad(d.getDate())
-  const hh = pad(d.getHours())
-  const mm = pad(d.getMinutes())
-  const ss = pad(d.getSeconds())
-  return `${yyyy}${MM}${dd}-${hh}${mm}${ss}`
-}
-
-function onMidiToggle(e: Event) {
-  const on = (e.target as HTMLInputElement).checked
-  ;(seq as any).enableMidiOutput?.(on)
-}
-function onMidiDevice(e: Event) {
-  const id = (e.target as HTMLSelectElement).value || null
-  ;(seq as any).selectMidiOutput?.(id)
-}
-function onMidiChannel(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value)
-  ;(seq as any).setMidiChannel?.(v)
-}
-function onMidiRescan() {
-  ;(seq as any).updateMidiOutputs?.()
-}
+function onMidiToggle(e: Event) { ;(seq as any).enableMidiOutput?.((e.target as HTMLInputElement).checked) }
+function onMidiDevice(e: Event) { ;(seq as any).selectMidiOutput?.((e.target as HTMLSelectElement).value || null) }
+function onMidiChannel(e: Event) { ;(seq as any).setMidiChannel?.(Number((e.target as HTMLInputElement).value)) }
+function onMidiRescan() { ;(seq as any).updateMidiOutputs?.() }
 </script>
 
-<style scoped></style>
+<style scoped>
+.transport-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  background: linear-gradient(120deg, rgba(4, 120, 87, 0.85), rgba(6, 78, 59, 0.95));
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ecfeff;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.28);
+}
+
+.transport-play-btn--active {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: linear-gradient(120deg, rgba(127, 29, 29, 0.9), rgba(69, 10, 10, 0.95));
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.32);
+}
+
+.transport-input {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.45rem;
+  padding: 0.22rem 0.45rem;
+  color: #e2e8f0;
+}
+
+.transport-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  font-size: 0.7rem;
+  color: #bae6fd;
+}
+
+.menu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.menu-group {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  padding-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.menu-btn {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  font-size: 0.74rem;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.menu-btn:hover {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.menu-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.menu-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+</style>

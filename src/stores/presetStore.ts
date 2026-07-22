@@ -125,6 +125,10 @@ export const usePresetStore = defineStore('presets', () => {
     activePresetBaseline.value = activePreset.value ? snapshotFingerprint(activePreset.value.sequencer) : ''
   }
 
+  function setBaselineFromCurrentSession() {
+    activePresetBaseline.value = activePreset.value ? snapshotFingerprint(sequencer.captureSessionState()) : ''
+  }
+
   function persistUiState() {
     localStorage.setItem(ACTIVE_PRESET_KEY, activePresetId.value)
     localStorage.setItem(
@@ -249,7 +253,7 @@ export const usePresetStore = defineStore('presets', () => {
   function restoreActivePreset() {
     if (!activePreset.value) return false
     sequencer.applySessionState(activePreset.value.sequencer)
-    setBaselineFromActivePreset()
+    setBaselineFromCurrentSession()
     ui.pushToast(`Restored preset "${activePreset.value.name}".`, 'info')
     return true
   }
@@ -259,7 +263,7 @@ export const usePresetStore = defineStore('presets', () => {
     if (!preset) return false
     sequencer.applySessionState(preset.sequencer)
     activePresetId.value = preset.id
-    activePresetBaseline.value = snapshotFingerprint(preset.sequencer)
+    setBaselineFromCurrentSession()
     ui.pushToast(`Loaded preset "${preset.name}".`, 'success')
     return true
   }

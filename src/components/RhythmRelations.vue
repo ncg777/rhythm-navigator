@@ -19,6 +19,10 @@
         <div class="mb-1 font-medium">Digits (grouped)</div>
         <div class="font-mono break-all">{{ selected.groupedDigitsString }}</div>
       </div>
+      <div class="glass rounded p-3">
+        <div class="text-slate-400 text-xs mb-1">Binary sequence</div>
+        <div class="font-mono break-all">{{ details.binarySequence }}</div>
+      </div>
 
       <div class="glass rounded p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
@@ -282,6 +286,7 @@ const details = computed(() => {
   if (!sel) {
     return {
       totalBits: 0,
+      binarySequence: '',
       onsets: 0,
       rests: 0,
       density: '0',
@@ -305,6 +310,7 @@ const details = computed(() => {
 
   const { onsets, totalBits } = onsetPatternFromGroupedDigits(sel.groupedDigitsString, sel.base)
   const rests = totalBits - onsets.length
+  const binarySequence = Array.from({ length: totalBits }, (_, i) => onsets.includes(i) ? '1' : '0').join(' ')
   const density = totalBits ? (onsets.length / totalBits).toFixed(4) : '0'
   const tsNum = typeof sel.numerator === 'number' && sel.numerator > 0 ? sel.numerator : numerator.value
   const tsDen = typeof sel.denominator === 'number' && sel.denominator > 0 ? sel.denominator : denominator.value
@@ -316,6 +322,7 @@ const details = computed(() => {
 
   return {
     totalBits,
+    binarySequence,
     onsets: onsets.length,
     rests,
     density,

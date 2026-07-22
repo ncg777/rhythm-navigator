@@ -73,6 +73,7 @@ export type SavedTrack = {
 
 export type SequencerSessionSnapshot = {
   bpm: number
+  swing: number
   loopBars: number
   midiEnabled: boolean
   midiOutputId: string | null
@@ -114,7 +115,14 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
     velToFilter: current?.velToFilter ?? 0,
     filterEnvTime: current?.filterEnvTime ?? 0.15,
     distortionInputGain: current?.distortionInputGain ?? 0,
-    midiKey: midiNoteForType(type)
+    midiKey: midiNoteForType(type),
+    waveform: current?.waveform ?? (type === 'kick' ? 'sine' : 'triangle'),
+    pulseWidth: current?.pulseWidth ?? 0.5,
+    phase: current?.phase ?? 0,
+    flamCount: current?.flamCount ?? 0,
+    flamSpacing: current?.flamSpacing ?? 0.03,
+    rollCount: current?.rollCount ?? 0,
+    rollSpacing: current?.rollSpacing ?? 0.04
   }
   switch (type) {
     case 'kick':
@@ -219,7 +227,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }))
       // Click transient: short sine burst at higher pitch
       const click = markRaw(new Tone.Synth({
-        oscillator: { type: 'sine' } as any,
+        oscillator: { type: String(params.waveform ?? 'sine'), phase: Number(params.phase ?? 0), width: Number(params.pulseWidth ?? 0.5) } as any,
         envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
       }))
       const clickGain = markRaw(new Tone.Gain(clickLevel))
@@ -254,7 +262,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
 
       // Tone layer: short pitched body
       const tone = markRaw(new Tone.Synth({
-        oscillator: { type: 'triangle' } as any,
+        oscillator: { type: String(params.waveform ?? 'triangle'), phase: Number(params.phase ?? 0), width: Number(params.pulseWidth ?? 0.5) } as any,
         envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * 0.3 }
       }))
       // Noise layer
@@ -480,6 +488,7 @@ masterLimiter.connect(Tone.getDestination());
 
 export const useSequencerStore = defineStore('sequencer', () => {
   const bpm = ref(120)
+  const swing = ref(50)
   const loopBars = ref(8)
   const isPlaying = ref(false)
   // bump this whenever track structure/pattern associations change
@@ -637,6 +646,22 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function qnToSeconds(qn: number): number {
     return (60 / bpm.value) * qn
+  }
+
+  function swingOffsetQN(atQN: number) {
+    const eighth = Math.floor(atQN / 0.5 + 1e-6)
+    return eighth % 2 === 1 ? ((Math.max(0, Math.min(100, swing.value)) - 50) / 50) * 0.25 : 0
+  }
+
+  function ornamentTimes(atQN: number, params: Record<string, number | string>) {
+    const times = [atQN]
+    const flamCount = Math.max(0, Math.min(3, Math.floor(Number(params.flamCount ?? 0))))
+    const flamSpacing = Math.max(0.001, Number(params.flamSpacing ?? 0.03)) / (60 / bpm.value)
+    for (let i = flamCount; i > 0; i--) times.unshift(atQN - flamSpacing * i)
+    const rollCount = Math.max(0, Math.min(8, Math.floor(Number(params.rollCount ?? 0))))
+    const rollSpacing = Math.max(0.001, Number(params.rollSpacing ?? 0.04)) / (60 / bpm.value)
+    for (let i = 1; i <= rollCount; i++) times.push(atQN + rollSpacing * i)
+    return times
   }
 
   function gcdInt(a: number, b: number): number {
@@ -993,7 +1018,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
             for (let onsetIdx = 0; onsetIdx < pat.onsets.length; onsetIdx++) {
               const onset = pat.onsets[onsetIdx]
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
               const atSec = qnToSeconds(atQN)
               
@@ -1013,6 +1038,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
               const noteDurSec = qnToSeconds(ioiQN * nl)
               const trackId = t.id
               const capturedNoteDur = noteDurSec
+              const ornamented = ornamentTimes(atQN, t.params)
+              for (const ornamentQN of ornamented) {
               const id = Tone.Transport.schedule((time: number) => {
                 // Resolve latest track state at callback time so velocity/velRandom changes are live
                 const tLatest = tracks.value.find(x => x.id === trackId) || t
@@ -1048,8 +1075,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   const amount = amtCtl * Math.max(0, Math.min(1, vel))
                   scheduleFilterEnv(filterNode, baseHz, amount, envTime, time)
                 } catch {}
-              }, atSec)
+              }, qnToSeconds(ornamentQN))
               scheduledIds.push(id)
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1119,6 +1147,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
     if (isPlaying.value) {
       // seconds-based schedule needs rebuild when BPM changes
       rebuildSchedule()
+    }
+
+    function setSwing(v: number) {
+      swing.value = Math.max(0, Math.min(100, Math.round(Number(v) || 50)))
+      if (isPlaying.value) rebuildSchedule()
     }
   }
 
@@ -1321,11 +1354,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
             const noteDurSec = qnToSeconds(stepQN * nl)
             for (const onset of pat.onsets) {
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
               const atSec = qnToSeconds(atQN)
               const vel = computeVelocity(t, atSec)
-              events.push({ timeQN: atQN, timeSec: atSec, trackIndex: i, velocity: vel, noteDurSec })
+              for (const ornamentQN of ornamentTimes(atQN, t.params)) {
+                events.push({ timeQN: ornamentQN, timeSec: qnToSeconds(ornamentQN), trackIndex: i, velocity: vel, noteDurSec })
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1461,14 +1496,17 @@ export const useSequencerStore = defineStore('sequencer', () => {
             const noteLenTicks = Math.max(10, Math.round(stepQN * nl * PPQ))
             for (const onset of pat.onsets) {
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
-              const tick = Math.round(atQN * PPQ)
+              const ornamented = ornamentTimes(atQN, t.params)
               const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
               const vel = Math.max(1, Math.min(127, Math.round(t.velocity * 127)))
               const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
-              perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
-              perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+              for (const ornamentQN of ornamented) {
+                const tick = Math.round(ornamentQN * PPQ)
+                perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
+                perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1646,6 +1684,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function captureSessionState(): SequencerSessionSnapshot {
     return {
       bpm: bpm.value,
+      swing: swing.value,
       loopBars: loopBars.value,
       midiEnabled: midiEnabled.value,
       midiOutputId: midiOutputId.value,
@@ -1727,6 +1766,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function applySessionState(snapshot: Partial<SequencerSessionSnapshot> | null | undefined) {
     if (!snapshot || !Array.isArray(snapshot.tracks)) return
     if (typeof snapshot.bpm === 'number') bpm.value = Math.max(30, Math.min(300, Math.round(snapshot.bpm)))
+    if (typeof snapshot.swing === 'number') swing.value = Math.max(0, Math.min(100, Math.round(snapshot.swing)))
     if (typeof snapshot.loopBars === 'number') loopBars.value = Math.max(1, Math.round(snapshot.loopBars))
     if (typeof snapshot.midiEnabled === 'boolean') midiEnabled.value = snapshot.midiEnabled
     if (snapshot.midiOutputId === null || typeof snapshot.midiOutputId === 'string') midiOutputId.value = snapshot.midiOutputId ?? null
@@ -1818,6 +1858,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   return {
     bpm,
+    swing,
     loopBars,
     effectiveLoopBars,
     isPlaying,
@@ -1832,6 +1873,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     start,
     stop,
     setBpm,
+    setSwing,
     setLoopBars,
     setTrackType,
   updateTrackFields,

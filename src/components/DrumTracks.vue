@@ -27,6 +27,24 @@
             <span class="text-[10px] text-slate-500">({{ t.patterns.length }} pattern{{ t.patterns.length !== 1 ? 's' : '' }})</span>
           </div>
 
+          <div class="mt-3 border-t border-white/5 pt-3">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Voice / ornaments</div>
+            <div class="flex flex-wrap gap-3 items-end">
+              <label class="inline-flex flex-col text-[10px] text-slate-400">
+                Waveform
+                <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px]" :value="t.params.waveform as string" @change="onParamSelect(t.id, 'waveform', $event)">
+                  <option value="sine">Sine</option><option value="triangle">Triangle</option><option value="sawtooth">Saw</option><option value="square">Square</option><option value="pulse">Pulse</option>
+                </select>
+              </label>
+              <Knob :modelValue="Number(t.params.pulseWidth ?? 0.5)" @update:modelValue="v => onParam2(t.id, 'pulseWidth', v)" :min="0.05" :max="0.95" :step="0.01" label="Pulse" :defaultValue="0.5" :size="48" />
+              <Knob :modelValue="Number(t.params.phase ?? 0)" @update:modelValue="v => onParam2(t.id, 'phase', v)" :min="0" :max="360" :step="1" label="Phase" :defaultValue="0" :size="48" />
+              <Knob :modelValue="Number(t.params.flamCount ?? 0)" @update:modelValue="v => onParam2(t.id, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="48" />
+              <Knob :modelValue="Number(t.params.flamSpacing ?? 0.03)" @update:modelValue="v => onParam2(t.id, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="48" />
+              <Knob :modelValue="Number(t.params.rollCount ?? 0)" @update:modelValue="v => onParam2(t.id, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="48" />
+              <Knob :modelValue="Number(t.params.rollSpacing ?? 0.04)" @update:modelValue="v => onParam2(t.id, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="48" />
+            </div>
+          </div>
+
           <div v-if="!t.patterns.length" class="text-sm text-slate-500 italic mb-2">No patterns — pick one to start</div>
 
           <div v-else class="space-y-1.5 mb-2">

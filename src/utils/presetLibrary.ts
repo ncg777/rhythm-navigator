@@ -6,6 +6,7 @@ export const PRESET_LIBRARY_VERSION = 1 as const
 export type SessionPreset = {
   id: string
   name: string
+  folder?: string
   createdAt: number
   updatedAt: number
   sequencer: Partial<SequencerSessionSnapshot>
@@ -95,6 +96,7 @@ function normalizeSequencerSnapshot(value: unknown): Partial<SequencerSessionSna
   if (!Array.isArray(value.tracks)) throw new Error('Preset sequencer snapshot must include a tracks array.')
   return {
     bpm: Math.max(30, Math.min(300, Math.round(asFiniteNumber(value.bpm, 120)))),
+    swing: Math.max(0, Math.min(100, Math.round(asFiniteNumber(value.swing, 50)))),
     loopBars: Math.max(1, Math.round(asFiniteNumber(value.loopBars, 8))),
     midiEnabled: Boolean(value.midiEnabled),
     midiOutputId: value.midiOutputId == null ? null : asString(value.midiOutputId, null as any),
@@ -135,6 +137,7 @@ export function parsePresetLibraryJson(json: string): SessionPresetLibrary {
     return {
       id: asString(value.id, `preset-${index + 1}`),
       name: normalizePresetName(asString(value.name, `Preset ${index + 1}`)),
+      folder: asString(value.folder, ''),
       createdAt: Math.floor(asFiniteNumber(value.createdAt, now)),
       updatedAt: Math.floor(asFiniteNumber(value.updatedAt, now)),
       sequencer: normalizeSequencerSnapshot(value.sequencer)

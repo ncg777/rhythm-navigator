@@ -663,6 +663,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function ornamentTimes(atQN: number, params: Pick<PatternEntry, 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing'>) {
+    // Pattern ornament values are validated when assigned or restored.
     const times = [atQN]
     const flamCount = params.flamCount
     const flamSpacing = params.flamSpacing / (60 / bpm.value)
@@ -1289,7 +1290,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       ? Math.max(0, Math.min(3, Math.floor(value)))
       : key === 'rollCount'
         ? Math.max(0, Math.min(8, Math.floor(value)))
-        : Math.max(0.001, value)
+        : Math.max(0.001, Math.min(0.15, value))
     tracks.value = tracks.value.map(t => {
       if (t.id !== trackId) return t
       const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, [key]: nextValue } : e)
@@ -1786,9 +1787,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
       },
       repeats: Math.max(1, Math.floor(sp.repeats ?? 1)),
       flamCount: Math.max(0, Math.min(3, Math.floor(sp.flamCount ?? 0))),
-      flamSpacing: Math.max(0.001, Number(sp.flamSpacing ?? 0.03)),
+      flamSpacing: Math.max(0.001, Math.min(0.15, Number(sp.flamSpacing ?? 0.03))),
       rollCount: Math.max(0, Math.min(8, Math.floor(sp.rollCount ?? 0))),
-      rollSpacing: Math.max(0.001, Number(sp.rollSpacing ?? 0.04))
+      rollSpacing: Math.max(0.001, Math.min(0.15, Number(sp.rollSpacing ?? 0.04)))
     }
   }
 

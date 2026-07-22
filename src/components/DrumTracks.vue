@@ -6,6 +6,15 @@
     <div class="track-workspace">
       <nav class="track-master" aria-label="Drum tracks">
         <button
+          type="button"
+          class="track-add-button"
+          title="Add a new percussion sound"
+          @click="addTrack()"
+        >
+          <span aria-hidden="true">+</span>
+          <span>Add sound</span>
+        </button>
+        <button
           v-for="track in orderedTracks"
           :key="track.id"
           type="button"
@@ -298,10 +307,6 @@
         </div>
       </div>
     </div>
-    <div class="pt-4 mt-4 border-t border-white/10">
-      <button type="button" class="px-4 h-10 rounded border border-white/10 hover:bg-white/5" @click="addTrack()" title="Add a new percussion track">Add track</button>
-    </div>
-
   <!-- Rhythm picker modal -->
   <RhythmPickerModal :open="pickerOpen" @close="pickerOpen = false" @pick="onPick" />
   </section>
@@ -499,6 +504,23 @@ function defaultMidiKey(type: string): number {
   color: #ecfeff;
 }
 
+.track-add-button {
+  display: inline-flex;
+  min-width: 8.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px dashed rgba(103, 232, 249, 0.55);
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  color: #a5f3fc;
+  font-size: 0.875rem;
+}
+
+.track-add-button:hover {
+  background: rgba(8, 145, 178, 0.14);
+}
+
 .track-detail {
   min-width: 0;
 }
@@ -544,6 +566,10 @@ details[open] > summary::after {
   }
 
   .track-master-row {
+    min-width: 0;
+  }
+
+  .track-add-button {
     min-width: 0;
   }
 

@@ -22,17 +22,25 @@
           </template>
         </ActionMenu>
 
-        <ActionMenu :label="`Preset: ${activePresetName}`" icon="💽" title="Preset actions" align="right">
+        <ActionMenu :label="`Preset: ${activePresetName}${isDirty ? ' •' : ''}`" icon="💽" title="Preset actions" align="right">
           <template #default="{ close }">
             <div class="menu-stack">
               <label class="menu-label">
                 Preset name
                 <input v-model="newPresetName" type="text" class="menu-input mt-1" placeholder="Named preset" />
               </label>
+              <label class="menu-label">
+                Folder
+                <input v-model="newPresetFolder" type="text" class="menu-input mt-1" placeholder="Optional folder" />
+              </label>
+              <div v-if="activePresetId" class="text-xs" :class="isDirty ? 'text-amber-300' : 'text-emerald-300'">
+                {{ isDirty ? '● Unsaved changes' : '✓ Saved' }}
+              </div>
               <div class="grid grid-cols-2 gap-2">
                 <button class="menu-btn menu-btn--center" @click="onCreatePreset">➕ New</button>
                 <button class="menu-btn menu-btn--center" :disabled="!activePresetId" @click="onOverwriteActive">♻️ Overwrite</button>
               </div>
+              <button class="menu-btn" :disabled="!activePresetId || !isDirty" @click="presetStore.restoreActivePreset(); close()">↩ Restore saved state</button>
               <div class="menu-divider"></div>
               <button class="menu-btn" @click="seq.exportProject(); close()">💾 Save session JSON</button>
               <button class="menu-btn" @click="sessionInput?.click()">📂 Load session JSON</button>
@@ -43,7 +51,7 @@
               <div v-else class="menu-scroll">
                 <div v-for="preset in presets" :key="preset.id" class="menu-item-row">
                   <button class="menu-link" @click="presetStore.loadPreset(preset.id); close()">
-                    {{ preset.id === activePresetId ? '✅ ' : '' }}{{ preset.name }}
+                    {{ preset.id === activePresetId ? '✅ ' : '' }}{{ preset.folder ? `${preset.folder}/` : '' }}{{ preset.name }}
                   </button>
                   <div class="flex items-center gap-1">
                     <button class="menu-icon-btn" title="Overwrite this preset" @click="presetStore.overwritePreset(preset.id, newPresetName || preset.name)">♻️</button>
@@ -124,9 +132,10 @@ const presetStore = usePresetStore()
 const seq = useSequencerStore()
 const ui = useUiStore()
 const { items } = storeToRefs(r)
-const { presets, activePresetId } = storeToRefs(presetStore)
+const { presets, activePresetId, isDirty } = storeToRefs(presetStore)
 const activePresetName = computed(() => presets.value.find((entry) => entry.id === activePresetId.value)?.name ?? 'Unsaved session')
 const newPresetName = ref('')
+const newPresetFolder = ref('')
 
 const rhythmsOpen = ref(false)
 const settingsOpen = ref(false)
@@ -139,11 +148,14 @@ const sessionInput = ref<HTMLInputElement | null>(null)
 function onCreatePreset() {
   const preset = presetStore.saveCurrentAsPreset(newPresetName.value)
   newPresetName.value = preset.name
+  newPresetFolder.value = preset.folder ?? ''
+  presetStore.setPresetFolder(preset.id, newPresetFolder.value)
 }
 
 function onOverwriteActive() {
   if (!activePresetId.value) return
   presetStore.overwritePreset(activePresetId.value, newPresetName.value || activePresetName.value)
+  presetStore.setPresetFolder(activePresetId.value, newPresetFolder.value)
 }
 
 function onImportLibrary(event: Event) {

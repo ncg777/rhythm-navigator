@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { useUiStore } from '@/stores/uiStore'
 import {
@@ -35,6 +35,11 @@ function downloadJson(text: string, filename: string) {
 export const usePresetStore = defineStore('presets', () => {
   const presets = ref<SessionPreset[]>([])
   const activePresetId = ref('')
+  const activePreset = computed(() => presets.value.find((preset) => preset.id === activePresetId.value))
+  const isDirty = computed(() => {
+    if (!activePreset.value) return false
+    return JSON.stringify(activePreset.value.sequencer) !== JSON.stringify(useSequencerStore().captureSessionState())
+  })
 
   function persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPresetLibrary(presets.value)))
@@ -61,6 +66,7 @@ export const usePresetStore = defineStore('presets', () => {
     const preset: SessionPreset = {
       id: makePresetId(),
       name: normalizePresetName(name),
+      folder: '',
       createdAt: now,
       updatedAt: now,
       sequencer: sequencer.captureSessionState()
@@ -115,6 +121,23 @@ export const usePresetStore = defineStore('presets', () => {
     return true
   }
 
+  function setPresetFolder(id: string, folder: string) {
+    const index = presets.value.findIndex((entry) => entry.id === id)
+    if (index < 0) return false
+    presets.value = presets.value.map((entry, entryIndex) => entryIndex === index
+      ? { ...entry, folder: folder.trim() }
+      : entry)
+    persist()
+    return true
+  }
+
+  function restoreActivePreset() {
+    if (!activePreset.value) return false
+    useSequencerStore().applySessionState(activePreset.value.sequencer)
+    useUiStore().pushToast(`Restored preset "${activePreset.value.name}".`, 'success')
+    return true
+  }
+
   function deletePreset(id: string) {
     const preset = presets.value.find((entry) => entry.id === id)
     if (!preset) return false
@@ -147,11 +170,15 @@ export const usePresetStore = defineStore('presets', () => {
   return {
     presets,
     activePresetId,
+    activePreset,
+    isDirty,
     initPersistence,
     saveCurrentAsPreset,
     overwritePreset,
     loadPreset,
     renamePreset,
+    setPresetFolder,
+    restoreActivePreset,
     deletePreset,
     exportLibrary,
     importLibrary

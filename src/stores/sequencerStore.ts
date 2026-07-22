@@ -4,6 +4,8 @@ import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING, normalizePatternOrnamentValue } from '@/utils/sequencerDefaults'
+import type { PatternOrnamentKey } from '@/utils/sequencerDefaults'
 
 export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'crash' | 'perc'
 
@@ -23,9 +25,13 @@ type Pattern = {
 export type PatternEntry = {
   pattern: Pattern
   repeats: number // >= 1
+  flamCount: number
+  flamSpacing: number
+  rollCount: number
+  rollSpacing: number
 }
 
-type Track = {
+export type Track = {
   id: string
   name: string
   type: TrackType
@@ -48,6 +54,10 @@ export type SavedPatternEntry = {
   numerator: number
   denominator: number
   repeats: number
+  flamCount?: number
+  flamSpacing?: number
+  rollCount?: number
+  rollSpacing?: number
 }
 
 export type SavedTrack = {
@@ -73,6 +83,7 @@ export type SavedTrack = {
 
 export type SequencerSessionSnapshot = {
   bpm: number
+  swing: number
   loopBars: number
   midiEnabled: boolean
   midiOutputId: string | null
@@ -114,7 +125,14 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
     velToFilter: current?.velToFilter ?? 0,
     filterEnvTime: current?.filterEnvTime ?? 0.15,
     distortionInputGain: current?.distortionInputGain ?? 0,
-    midiKey: midiNoteForType(type)
+    midiKey: midiNoteForType(type),
+    waveform: current?.waveform ?? (type === 'kick' ? 'sine' : 'triangle'),
+    pulseWidth: current?.pulseWidth ?? 0.5,
+    phase: current?.phase ?? 0,
+    flamCount: current?.flamCount ?? 0,
+    flamSpacing: current?.flamSpacing ?? DEFAULT_FLAM_SPACING,
+    rollCount: current?.rollCount ?? 0,
+    rollSpacing: current?.rollSpacing ?? DEFAULT_ROLL_SPACING
   }
   switch (type) {
     case 'kick':
@@ -219,7 +237,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }))
       // Click transient: short sine burst at higher pitch
       const click = markRaw(new Tone.Synth({
-        oscillator: { type: 'sine' } as any,
+        oscillator: { type: String(params.waveform ?? 'sine'), phase: Number(params.phase ?? 0), width: Number(params.pulseWidth ?? 0.5) } as any,
         envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
       }))
       const clickGain = markRaw(new Tone.Gain(clickLevel))
@@ -254,7 +272,7 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
 
       // Tone layer: short pitched body
       const tone = markRaw(new Tone.Synth({
-        oscillator: { type: 'triangle' } as any,
+        oscillator: { type: String(params.waveform ?? 'triangle'), phase: Number(params.phase ?? 0), width: Number(params.pulseWidth ?? 0.5) } as any,
         envelope: { attack: 0.001, decay: toneDecay, sustain: 0, release: toneDecay * 0.3 }
       }))
       // Noise layer
@@ -480,6 +498,7 @@ masterLimiter.connect(Tone.getDestination());
 
 export const useSequencerStore = defineStore('sequencer', () => {
   const bpm = ref(120)
+  const swing = ref(50)
   const loopBars = ref(8)
   const isPlaying = ref(false)
   // bump this whenever track structure/pattern associations change
@@ -637,6 +656,24 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function qnToSeconds(qn: number): number {
     return (60 / bpm.value) * qn
+  }
+
+  function swingOffsetQN(atQN: number) {
+    const SWING_GRID_EPSILON = 1e-6
+    const eighth = Math.floor(atQN / 0.5 + SWING_GRID_EPSILON)
+    return eighth % 2 === 1 ? ((Math.max(0, Math.min(100, swing.value)) - 50) / 50) * 0.25 : 0
+  }
+
+  function ornamentTimes(atQN: number, params: Pick<PatternEntry, 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing'>) {
+    // Pattern ornament values are validated in updatePatternOrnaments and during deserialization.
+    const times = [atQN]
+    const flamCount = params.flamCount
+    const flamSpacing = params.flamSpacing / (60 / bpm.value)
+    for (let i = flamCount; i > 0; i--) times.unshift(atQN - flamSpacing * i)
+    const rollCount = params.rollCount
+    const rollSpacing = params.rollSpacing / (60 / bpm.value)
+    for (let i = 1; i <= rollCount; i++) times.push(atQN + rollSpacing * i)
+    return times
   }
 
   function gcdInt(a: number, b: number): number {
@@ -993,7 +1030,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
             for (let onsetIdx = 0; onsetIdx < pat.onsets.length; onsetIdx++) {
               const onset = pat.onsets[onsetIdx]
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
               const atSec = qnToSeconds(atQN)
               
@@ -1013,6 +1050,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
               const noteDurSec = qnToSeconds(ioiQN * nl)
               const trackId = t.id
               const capturedNoteDur = noteDurSec
+              const ornamented = ornamentTimes(atQN, entry)
+              for (const ornamentQN of ornamented) {
               const id = Tone.Transport.schedule((time: number) => {
                 // Resolve latest track state at callback time so velocity/velRandom changes are live
                 const tLatest = tracks.value.find(x => x.id === trackId) || t
@@ -1048,8 +1087,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
                   const amount = amtCtl * Math.max(0, Math.min(1, vel))
                   scheduleFilterEnv(filterNode, baseHz, amount, envTime, time)
                 } catch {}
-              }, atSec)
+              }, qnToSeconds(ornamentQN))
               scheduledIds.push(id)
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1120,6 +1160,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
       // seconds-based schedule needs rebuild when BPM changes
       rebuildSchedule()
     }
+  }
+
+  function setSwing(v: number) {
+    swing.value = Math.max(0, Math.min(100, Math.round(Number(v) || 50)))
+    if (isPlaying.value) rebuildSchedule()
   }
 
   function setLoopBars(v: number) {
@@ -1212,7 +1257,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       cycleQN
     }
   // Append pattern to the patterns list
-  const entry: PatternEntry = { pattern, repeats: 1 }
+  const entry: PatternEntry = { pattern, repeats: 1, flamCount: 0, flamSpacing: DEFAULT_FLAM_SPACING, rollCount: 0, rollSpacing: DEFAULT_ROLL_SPACING }
   tracks.value = tracks.value.map((t, i) => i === idx ? { ...t, patterns: [...t.patterns, entry], rev: t.rev + 1 } : t)
   version.value++
     if (isPlaying.value) rebuildSchedule()
@@ -1235,6 +1280,21 @@ export const useSequencerStore = defineStore('sequencer', () => {
     tracks.value = tracks.value.map(t => {
       if (t.id !== trackId) return t
       const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, repeats: r } : e)
+      return { ...t, patterns, rev: t.rev + 1 }
+    })
+    version.value++
+    if (isPlaying.value) rebuildSchedule()
+  }
+
+  function updatePatternOrnaments(trackId: string, patternIndex: number, key: PatternOrnamentKey, value: number) {
+    if (!Number.isFinite(value)) {
+      console.warn('[sequencer] Ignoring non-finite pattern ornament value', { trackId, patternIndex, key, value })
+      return
+    }
+    const nextValue = normalizePatternOrnamentValue(key, value)
+    tracks.value = tracks.value.map(t => {
+      if (t.id !== trackId) return t
+      const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, [key]: nextValue } : e)
       return { ...t, patterns, rev: t.rev + 1 }
     })
     version.value++
@@ -1321,11 +1381,13 @@ export const useSequencerStore = defineStore('sequencer', () => {
             const noteDurSec = qnToSeconds(stepQN * nl)
             for (const onset of pat.onsets) {
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
               const atSec = qnToSeconds(atQN)
               const vel = computeVelocity(t, atSec)
-              events.push({ timeQN: atQN, timeSec: atSec, trackIndex: i, velocity: vel, noteDurSec })
+              for (const ornamentQN of ornamentTimes(atQN, entry)) {
+                events.push({ timeQN: ornamentQN, timeSec: qnToSeconds(ornamentQN), trackIndex: i, velocity: vel, noteDurSec })
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1461,14 +1523,17 @@ export const useSequencerStore = defineStore('sequencer', () => {
             const noteLenTicks = Math.max(10, Math.round(stepQN * nl * PPQ))
             for (const onset of pat.onsets) {
               const onsetQN = (onset / pat.spb) * ts
-              const atQN = offsetQN + onsetQN
+              const atQN = offsetQN + onsetQN + swingOffsetQN(offsetQN + onsetQN)
               if (atQN > loopQN + 1e-9) break
-              const tick = Math.round(atQN * PPQ)
+              const ornamented = ornamentTimes(atQN, entry)
               const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
               const vel = Math.max(1, Math.min(127, Math.round(t.velocity * 127)))
               const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
-              perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
-              perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+              for (const ornamentQN of ornamented) {
+                const tick = Math.round(ornamentQN * PPQ)
+                perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
+                perTrack[i].push({ tick: tick + noteLenTicks, bytes: [0x80 | ch, note, 0] })
+              }
             }
             offsetQN += patCycleQN
             if (offsetQN > loopQN + 1e-9) break
@@ -1646,6 +1711,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   function captureSessionState(): SequencerSessionSnapshot {
     return {
       bpm: bpm.value,
+      swing: swing.value,
       loopBars: loopBars.value,
       midiEnabled: midiEnabled.value,
       midiOutputId: midiOutputId.value,
@@ -1667,7 +1733,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
           digits: [...e.pattern.digits],
           numerator: e.pattern.numerator,
           denominator: e.pattern.denominator,
-          repeats: e.repeats
+          repeats: e.repeats,
+          flamCount: e.flamCount,
+          flamSpacing: e.flamSpacing,
+          rollCount: e.rollCount,
+          rollSpacing: e.rollSpacing
         }))
       }))
     }
@@ -1675,11 +1745,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function exportProject() {
     const snapshot = captureSessionState()
-    const data = {
-      bpm: snapshot.bpm,
-      loopBars: snapshot.loopBars,
-      tracks: snapshot.tracks
-    }
+    const data = snapshot
     const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.json`
     downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), name)
   }
@@ -1720,13 +1786,18 @@ export const useSequencerStore = defineStore('sequencer', () => {
         onsets,
         cycleQN
       },
-      repeats: Math.max(1, Math.floor(sp.repeats ?? 1))
+      repeats: Math.max(1, Math.floor(sp.repeats ?? 1)),
+      flamCount: normalizePatternOrnamentValue('flamCount', Number(sp.flamCount ?? 0)),
+      flamSpacing: normalizePatternOrnamentValue('flamSpacing', Number(sp.flamSpacing ?? DEFAULT_FLAM_SPACING)),
+      rollCount: normalizePatternOrnamentValue('rollCount', Number(sp.rollCount ?? 0)),
+      rollSpacing: normalizePatternOrnamentValue('rollSpacing', Number(sp.rollSpacing ?? DEFAULT_ROLL_SPACING))
     }
   }
 
   function applySessionState(snapshot: Partial<SequencerSessionSnapshot> | null | undefined) {
     if (!snapshot || !Array.isArray(snapshot.tracks)) return
     if (typeof snapshot.bpm === 'number') bpm.value = Math.max(30, Math.min(300, Math.round(snapshot.bpm)))
+    if (typeof snapshot.swing === 'number') swing.value = Math.max(0, Math.min(100, Math.round(snapshot.swing)))
     if (typeof snapshot.loopBars === 'number') loopBars.value = Math.max(1, Math.round(snapshot.loopBars))
     if (typeof snapshot.midiEnabled === 'boolean') midiEnabled.value = snapshot.midiEnabled
     if (snapshot.midiOutputId === null || typeof snapshot.midiOutputId === 'string') midiOutputId.value = snapshot.midiOutputId ?? null
@@ -1818,6 +1889,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   return {
     bpm,
+    swing,
     loopBars,
     effectiveLoopBars,
     isPlaying,
@@ -1832,6 +1904,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     start,
     stop,
     setBpm,
+    setSwing,
     setLoopBars,
     setTrackType,
   updateTrackFields,
@@ -1839,6 +1912,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   assignRhythmToTrack,
   removePatternFromTrack,
   setPatternRepeats,
+  updatePatternOrnaments,
   movePatternInTrack,
   updateTrackPatternMeter,
     enableMidiOutput,

@@ -27,20 +27,6 @@
             <span class="text-[10px] text-slate-500">({{ t.patterns.length }} pattern{{ t.patterns.length !== 1 ? 's' : '' }})</span>
           </div>
 
-          <div class="mt-3 border-t border-white/5 pt-3">
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Voice / ornaments</div>
-            <div class="flex flex-wrap gap-3 items-end">
-              <label class="inline-flex flex-col text-[10px] text-slate-400">
-                Waveform
-                <select class="bg-slate-800 border border-white/10 rounded px-1 h-7 text-[10px]" :value="t.params.waveform as string" @change="onParamSelect(t.id, 'waveform', $event)">
-                  <option value="sine">Sine</option><option value="triangle">Triangle</option><option value="sawtooth">Saw</option><option value="square">Square</option><option value="pulse">Pulse</option>
-                </select>
-              </label>
-              <Knob :modelValue="Number(t.params.pulseWidth ?? 0.5)" @update:modelValue="v => onParam2(t.id, 'pulseWidth', v)" :min="0.05" :max="0.95" :step="0.01" label="Pulse" :defaultValue="0.5" :size="48" />
-              <Knob :modelValue="Number(t.params.phase ?? 0)" @update:modelValue="v => onParam2(t.id, 'phase', v)" :min="0" :max="360" :step="1" label="Phase" :defaultValue="0" :size="48" />
-            </div>
-          </div>
-
           <div v-if="!t.patterns.length" class="text-sm text-slate-500 italic mb-2">No patterns — pick one to start</div>
 
           <div v-else class="space-y-1.5 mb-2">
@@ -51,12 +37,6 @@
                 <span class="text-slate-400 mr-1">{{ entry.pattern.numerator }}/{{ entry.pattern.denominator }}</span>
                 <span class="text-slate-300 font-mono">{{ entry.pattern.groupedDigitsString }}</span>
               </span>
-              <div class="flex flex-wrap gap-2 items-end">
-                <Knob :modelValue="entry.flamCount" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="42" />
-                <Knob :modelValue="entry.flamSpacing" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="42" />
-                <Knob :modelValue="entry.rollCount" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="42" />
-                <Knob :modelValue="entry.rollSpacing" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="42" />
-              </div>
               <!-- Repeat controls -->
               <div class="flex items-center gap-1 shrink-0">
                 <span class="text-slate-500 text-[10px]">×</span>
@@ -272,14 +252,14 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { useSequencerStore, type Track } from '@/stores/sequencerStore'
+import { useSequencerStore } from '@/stores/sequencerStore'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 import Knob from '@/components/Knob.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
-const renderTracks = computed(() => tracks.value.map((t: Track) => t))
+const renderTracks = computed(() => tracks.value.map(t => t))
 
 const rstore = useRhythmStore()
 
@@ -341,19 +321,15 @@ function onRepeatInput(trackId: string, index: number, e: Event) {
 }
 
 function onRepeatInc(trackId: string, index: number) {
-  const t = tracks.value.find((x: Track) => x.id === trackId)
+  const t = tracks.value.find(x => x.id === trackId)
   if (!t || !t.patterns[index]) return
   seq.setPatternRepeats(trackId, index, t.patterns[index].repeats + 1)
 }
 
 function onRepeatDec(trackId: string, index: number) {
-  const t = tracks.value.find((x: Track) => x.id === trackId)
+  const t = tracks.value.find(x => x.id === trackId)
   if (!t || !t.patterns[index]) return
   seq.setPatternRepeats(trackId, index, Math.max(1, t.patterns[index].repeats - 1))
-}
-
-function onPatternOrnamentChange(trackId: string, index: number, key: 'flamCount'|'flamSpacing'|'rollCount'|'rollSpacing', v: number) {
-  seq.updatePatternOrnaments(trackId, index, key, v)
 }
 
 function onMovePattern(trackId: string, from: number, to: number) {

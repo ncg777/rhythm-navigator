@@ -9,11 +9,6 @@
       <span class="text-cyan-200/80 uppercase text-[10px] tracking-wider">BPM</span>
       <input type="number" class="transport-input w-16" :value="bpm" @input="onBpm" min="30" max="300" />
     </label>
-    <label class="flex items-center gap-2 text-sm">
-      <span class="text-cyan-200/80 uppercase text-[10px] tracking-wider">Swing</span>
-      <input type="number" class="transport-input w-16" :value="swing" @input="onSwing" min="0" max="100" />
-      <span class="text-[10px] text-slate-500">%</span>
-    </label>
 
     <div class="transport-pill" title="Automatically computed loop length">
       <span aria-hidden="true">🔁</span>
@@ -55,7 +50,7 @@ import { useSequencerStore } from '@/stores/sequencerStore'
 import ActionMenu from '@/components/ActionMenu.vue'
 
 const seq = useSequencerStore()
-const { bpm, swing, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel, effectiveLoopBars } = storeToRefs(seq)
+const { bpm, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel, effectiveLoopBars } = storeToRefs(seq)
 
 function onToggle() {
   if (isPlaying.value) seq.stop()
@@ -66,9 +61,6 @@ function onBpm(e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   if (!Number.isFinite(v)) return
   seq.setBpm(v)
-}
-function onSwing(e: Event) {
-  seq.setSwing(Number((e.target as HTMLInputElement).value))
 }
 
 function onExportWav() { seq.exportWav() }

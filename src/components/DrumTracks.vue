@@ -9,12 +9,9 @@
         <!-- Track header: type selector, name, remove grouped together -->
         <div class="flex flex-wrap items-center gap-2">
           <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 text-sm" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
-            <option value="kick">Kick</option>
-            <option value="snare">Snare</option>
-            <option value="clap">Clap</option>
-            <option value="hat">Hat</option>
-            <option value="crash">Crash</option>
-            <option value="perc">Perc</option>
+            <option v-for="type in TRACK_TYPES" :key="type" :value="type">
+              {{ trackTypeLabel(type) }} · GM {{ defaultMidiKeyForTrackType(type) }}
+            </option>
           </select>
           <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 min-w-0 flex-1 max-w-[200px] text-sm" :value="t.name" @input="onNameInput(t.id, $event)" />
           <button type="button" class="ml-auto px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10 shrink-0" @click.stop="removeTrack(t.id)">Remove</button>
@@ -142,7 +139,7 @@
               <Knob :modelValue="(t.params.mix as number) ?? 0.55" @update:modelValue="v => onParam2(t.id, 'mix', v)"
                 :min="0" :max="1" :step="0.01" label="Tail Mix" :defaultValue="0.55" :size="48" color="#f97316" />
             </template>
-            <template v-else-if="t.type === 'hat'">
+            <template v-else-if="isHatType(t.type)">
               <Knob :modelValue="(t.params.tune as number) ?? 300" @update:modelValue="v => onParam2(t.id, 'tune', v)"
                 :min="100" :max="1000" :step="1" label="Tune" :defaultValue="300" :size="48" color="#38bdf8" />
               <Knob :modelValue="(t.params.decay as number) ?? 0.08" @update:modelValue="v => onParam2(t.id, 'decay', v)"
@@ -154,7 +151,7 @@
               <Knob :modelValue="(t.params.modIndex as number) ?? 32" @update:modelValue="v => onParam2(t.id, 'modIndex', v)"
                 :min="5" :max="80" :step="1" label="Mod Idx" :defaultValue="32" :size="48" color="#38bdf8" />
             </template>
-            <template v-else-if="t.type === 'crash'">
+            <template v-else-if="isCrashType(t.type)">
               <Knob :modelValue="(t.params.tune as number) ?? 220" @update:modelValue="v => onParam2(t.id, 'tune', v)"
                 :min="100" :max="500" :step="1" label="Tune" :defaultValue="220" :size="48" color="#60a5fa" />
               <Knob :modelValue="(t.params.decay as number) ?? 1.4" @update:modelValue="v => onParam2(t.id, 'decay', v)"
@@ -168,19 +165,61 @@
               <Knob :modelValue="(t.params.wash as number) ?? 0.65" @update:modelValue="v => onParam2(t.id, 'wash', v)"
                 :min="0" :max="1" :step="0.01" label="Wash" :defaultValue="0.65" :size="48" color="#60a5fa" />
             </template>
+            <template v-else-if="t.type === 'cowbell'">
+              <Knob :modelValue="(t.params.tune as number) ?? 560" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="220" :max="1200" :step="1" label="Tune" :defaultValue="560" :size="48" color="#f59e0b" />
+              <Knob :modelValue="(t.params.decay as number) ?? 0.22" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.04" :max="1.2" :step="0.005" label="Decay" :defaultValue="0.22" :size="48" color="#f59e0b" />
+              <Knob :modelValue="(t.params.brightness as number) ?? 7000" @update:modelValue="v => onParam2(t.id, 'brightness', v)"
+                :min="2500" :max="12000" :step="10" label="Color" :defaultValue="7000" :size="48" color="#f59e0b" />
+            </template>
+            <template v-else-if="t.type === 'chimes'">
+              <Knob :modelValue="(t.params.tune as number) ?? 1047" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="220" :max="2400" :step="1" label="Fund." :defaultValue="1047" :size="48" color="#facc15" />
+              <Knob :modelValue="(t.params.decay as number) ?? 2.6" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.3" :max="6" :step="0.02" label="Ring" :defaultValue="2.6" :size="48" color="#facc15" />
+            </template>
+            <template v-else-if="isTriangleType(t.type)">
+              <Knob :modelValue="(t.params.tune as number) ?? 880" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="330" :max="2400" :step="1" label="Tune" :defaultValue="880" :size="48" color="#fde047" />
+              <Knob :modelValue="(t.params.decay as number) ?? 1.1" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.15" :max="5" :step="0.01" label="Ring" :defaultValue="1.1" :size="48" color="#fde047" />
+            </template>
+            <template v-else-if="isRideType(t.type)">
+              <Knob :modelValue="(t.params.tune as number) ?? 320" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="120" :max="700" :step="1" label="Bow" :defaultValue="320" :size="48" color="#93c5fd" />
+              <Knob :modelValue="(t.params.decay as number) ?? 1.8" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.3" :max="5" :step="0.02" label="Decay" :defaultValue="1.8" :size="48" color="#93c5fd" />
+              <Knob :modelValue="(t.params.brightness as number) ?? 11000" @update:modelValue="v => onParam2(t.id, 'brightness', v)"
+                :min="3000" :max="18000" :step="10" label="Bright" :defaultValue="11000" :size="48" color="#93c5fd" />
+              <Knob :modelValue="(t.params.harmonicity as number) ?? 2.8" @update:modelValue="v => onParam2(t.id, 'harmonicity', v)"
+                :min="0.5" :max="8" :step="0.1" label="Metal" :defaultValue="2.8" :size="48" color="#93c5fd" />
+              <Knob :modelValue="(t.params.modIndex as number) ?? 42" @update:modelValue="v => onParam2(t.id, 'modIndex', v)"
+                :min="5" :max="100" :step="1" label="Complex" :defaultValue="42" :size="48" color="#93c5fd" />
+              <Knob :modelValue="(t.params.wash as number) ?? 0.38" @update:modelValue="v => onParam2(t.id, 'wash', v)"
+                :min="0.12" :max="0.75" :step="0.01" label="Wash" :defaultValue="0.38" :size="48" color="#93c5fd" />
+            </template>
+            <template v-else-if="t.type === 'shaker'">
+              <Knob :modelValue="(t.params.decay as number) ?? 0.12" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.04" :max="0.5" :step="0.005" label="Grain" :defaultValue="0.12" :size="48" color="#2dd4bf" />
+              <Knob :modelValue="(t.params.snap as number) ?? 0.85" @update:modelValue="v => onParam2(t.id, 'snap', v)"
+                :min="0" :max="1" :step="0.01" label="Seeds" :defaultValue="0.85" :size="48" color="#2dd4bf" />
+              <Knob :modelValue="(t.params.color as number) ?? 7500" @update:modelValue="v => onParam2(t.id, 'color', v)"
+                :min="2500" :max="14000" :step="10" label="Color" :defaultValue="7500" :size="48" color="#2dd4bf" />
+            </template>
             <template v-else>
-              <Knob :modelValue="(t.params.tune as number) ?? 200" @update:modelValue="v => onParam2(t.id, 'tune', v)"
-                :min="60" :max="800" :step="1" label="Tune" :defaultValue="200" :size="48" color="#4ade80" />
-              <Knob :modelValue="(t.params.decay as number) ?? 0.15" @update:modelValue="v => onParam2(t.id, 'decay', v)"
-                :min="0.02" :max="1" :step="0.005" label="Decay" :defaultValue="0.15" :size="48" color="#4ade80" />
-              <Knob :modelValue="(t.params.sweep as number) ?? 1" @update:modelValue="v => onParam2(t.id, 'sweep', v)"
-                :min="0" :max="4" :step="0.1" label="Sweep" :defaultValue="1" :size="48" color="#4ade80" />
-              <Knob :modelValue="(t.params.sweepTime as number) ?? 0.02" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
-                :min="0.005" :max="0.1" :step="0.001" label="Swp Time" :defaultValue="0.02" :size="48" color="#4ade80" />
-              <Knob :modelValue="(t.params.snap as number) ?? 0.3" @update:modelValue="v => onParam2(t.id, 'snap', v)"
-                :min="0" :max="1" :step="0.01" label="Snap" :defaultValue="0.3" :size="48" color="#4ade80" />
-              <Knob :modelValue="(t.params.color as number) ?? 3000" @update:modelValue="v => onParam2(t.id, 'color', v)"
-                :min="200" :max="8000" :step="10" label="Color" :defaultValue="3000" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.tune as number) ?? drumDefault(t.type, 'tune')" @update:modelValue="v => onParam2(t.id, 'tune', v)"
+                :min="60" :max="800" :step="1" label="Tune" :defaultValue="drumDefault(t.type, 'tune')" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.decay as number) ?? drumDefault(t.type, 'decay')" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.02" :max="1" :step="0.005" label="Decay" :defaultValue="drumDefault(t.type, 'decay')" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.sweep as number) ?? drumDefault(t.type, 'sweep')" @update:modelValue="v => onParam2(t.id, 'sweep', v)"
+                :min="0" :max="4" :step="0.05" label="Sweep" :defaultValue="drumDefault(t.type, 'sweep')" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.sweepTime as number) ?? drumDefault(t.type, 'sweepTime')" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
+                :min="0.005" :max="0.1" :step="0.001" label="Swp Time" :defaultValue="drumDefault(t.type, 'sweepTime')" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.snap as number) ?? drumDefault(t.type, 'snap')" @update:modelValue="v => onParam2(t.id, 'snap', v)"
+                :min="0" :max="1" :step="0.01" label="Attack" :defaultValue="drumDefault(t.type, 'snap')" :size="48" color="#4ade80" />
+              <Knob :modelValue="(t.params.color as number) ?? drumDefault(t.type, 'color')" @update:modelValue="v => onParam2(t.id, 'color', v)"
+                :min="200" :max="8000" :step="10" label="Shell" :defaultValue="drumDefault(t.type, 'color')" :size="48" color="#4ade80" />
             </template>
           </div>
         </div>
@@ -253,12 +292,54 @@
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { useSequencerStore } from '@/stores/sequencerStore'
+import {
+  TRACK_TYPES,
+  defaultMidiKeyForTrackType,
+  isTrackType,
+  trackTypeLabel,
+  type TrackType
+} from '@/utils/drumSounds'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 import Knob from '@/components/Knob.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
+
+const drumDefaults: Record<string, Record<string, number>> = {
+  rimshot: { tune: 260, decay: 0.09, sweep: 0.2, sweepTime: 0.008, snap: 0.9, color: 4800 },
+  tomLowFloor: { tune: 73, decay: 0.52, sweep: 1.55, sweepTime: 0.052, snap: 0.05, color: 1500 },
+  tomHighFloor: { tune: 87, decay: 0.45, sweep: 1.48, sweepTime: 0.046, snap: 0.06, color: 1800 },
+  tom: { tune: 110, decay: 0.34, sweep: 1.3, sweepTime: 0.035, snap: 0.08, color: 2300 },
+  tomLowMid: { tune: 131, decay: 0.3, sweep: 1.18, sweepTime: 0.03, snap: 0.09, color: 2700 },
+  tomHighMid: { tune: 147, decay: 0.27, sweep: 1.08, sweepTime: 0.026, snap: 0.1, color: 3100 },
+  tomHigh: { tune: 165, decay: 0.24, sweep: 0.96, sweepTime: 0.022, snap: 0.12, color: 3500 },
+  congaMuted: { tune: 262, decay: 0.105, sweep: 0.18, sweepTime: 0.01, snap: 0.72, color: 4600 },
+  congaOpen: { tune: 233, decay: 0.31, sweep: 0.28, sweepTime: 0.016, snap: 0.24, color: 3700 },
+  conga: { tune: 196, decay: 0.26, sweep: 0.35, sweepTime: 0.018, snap: 0.16, color: 3200 },
+  timbale: { tune: 260, decay: 0.22, sweep: 0.15, sweepTime: 0.01, snap: 0.3, color: 4400 },
+  timbaleLow: { tune: 196, decay: 0.28, sweep: 0.19, sweepTime: 0.014, snap: 0.26, color: 3600 }
+}
+
+function drumDefault(type: string, param: string): number {
+  return drumDefaults[type]?.[param] ?? 0
+}
+
+function isHatType(type: TrackType): boolean {
+  return type === 'hat' || type === 'hatPedal' || type === 'hatOpen'
+}
+
+function isCrashType(type: TrackType): boolean {
+  return type === 'crash' || type === 'chineseCymbal' || type === 'splash' || type === 'crash2'
+}
+
+function isTriangleType(type: TrackType): boolean {
+  return type === 'triangle' || type === 'triangleMuted'
+}
+
+function isRideType(type: TrackType): boolean {
+  return type === 'ride' || type === 'rideBell' || type === 'ride2'
+}
 const renderTracks = computed(() => tracks.value.map(t => t))
 
 const rstore = useRhythmStore()
@@ -268,8 +349,8 @@ function chainCycleQN(t: any): number {
   return t.patterns.reduce((sum: number, e: any) => sum + e.pattern.cycleQN * e.repeats * ts, 0)
 }
 
-function onTypeChange(id: string, type: any) {
-  seq.setTrackType(id, type)
+function onTypeChange(id: string, type: string) {
+  if (isTrackType(type)) seq.setTrackType(id, type)
 }
 
 function onNameInput(id: string, e: Event) {
@@ -336,7 +417,7 @@ function onMovePattern(trackId: string, from: number, to: number) {
   seq.movePatternInTrack(trackId, from, to)
 }
 
-function addTrack() { seq.addTrack('perc') }
+function addTrack() { seq.addTrack('cowbell') }
 function removeTrack(id: string) { seq.removeTrack(id) }
 
 // Rhythm picker modal logic
@@ -353,15 +434,7 @@ function onPick(id: string) {
 }
 
 function defaultMidiKey(type: string): number {
-  switch (type) {
-    case 'kick': return 36;
-    case 'snare': return 38;
-    case 'clap': return 39;
-    case 'hat': return 42;
-    case 'crash': return 49;
-    case 'perc': return 40;
-    default: return 36;
-  }
+  return defaultMidiKeyForTrackType(type as Parameters<typeof defaultMidiKeyForTrackType>[0])
 }
 </script>
 

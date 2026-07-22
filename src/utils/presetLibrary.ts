@@ -1,5 +1,6 @@
-import type { SavedPatternEntry, SavedTrack, SequencerSessionSnapshot, TrackType } from '@/stores/sequencerStore'
+import type { SavedPatternEntry, SavedTrack, SequencerSessionSnapshot } from '@/stores/sequencerStore'
 import type { Mode } from '@/utils/rhythm'
+import { isTrackType } from '@/utils/drumSounds'
 
 export const PRESET_LIBRARY_VERSION = 2 as const
 
@@ -44,10 +45,6 @@ function asString(value: unknown, fallback = '') {
 
 function isMode(value: unknown): value is Mode {
   return value === 'binary' || value === 'octal' || value === 'hex'
-}
-
-function isTrackType(value: unknown): value is TrackType {
-  return value === 'kick' || value === 'snare' || value === 'clap' || value === 'hat' || value === 'crash' || value === 'perc'
 }
 
 function isSwingGrid(value: unknown): value is SequencerSessionSnapshot['swingGrid'] {
@@ -101,7 +98,7 @@ function normalizeLegacyPattern(value: unknown): SavedTrack['pattern'] {
 
 function normalizeSavedTrack(value: unknown, index: number): SavedTrack | null {
   if (!isObject(value)) return null
-  const type = isTrackType(value.type) ? value.type : 'perc'
+  const type = isTrackType(value.type) ? value.type : 'tom'
   const patterns = Array.isArray(value.patterns)
     ? value.patterns.map(normalizeSavedPatternEntry).filter((entry): entry is SavedPatternEntry => !!entry)
     : []

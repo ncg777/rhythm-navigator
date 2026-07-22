@@ -4,8 +4,10 @@ import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { defaultMidiKeyForTrackType, trackTypeLabel, type TrackType } from '@/utils/drumSounds'
 
-export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'crash' | 'perc'
+export type { TrackType } from '@/utils/drumSounds'
+export { defaultMidiKeyForTrackType } from '@/utils/drumSounds'
 export type SwingGrid = 'eighth' | 'sixteenth'
 
 type Pattern = {
@@ -83,28 +85,8 @@ export type SequencerSessionSnapshot = {
   tracks: SavedTrack[]
 }
 
-function midiNoteForType(type: TrackType): number {
-  switch (type) {
-    case 'kick': return 36
-    case 'snare': return 38
-    case 'clap': return 39
-    case 'hat': return 42
-    case 'crash': return 49
-    case 'perc':
-    default: return 40
-  }
-}
-
 function defaultTrackName(type: TrackType): string {
-  switch (type) {
-    case 'kick': return 'Kick'
-    case 'snare': return 'Snare'
-    case 'clap': return 'Clap'
-    case 'hat': return 'Hat'
-    case 'crash': return 'Crash'
-    case 'perc':
-    default: return 'Perc'
-  }
+  return trackTypeLabel(type)
 }
 
 function defaultTrackParams(type: TrackType, current?: Record<string, number | string>) {
@@ -117,7 +99,7 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
     velToFilter: current?.velToFilter ?? 0,
     filterEnvTime: current?.filterEnvTime ?? 0.15,
     distortionInputGain: current?.distortionInputGain ?? 0,
-    midiKey: midiNoteForType(type)
+    midiKey: defaultMidiKeyForTrackType(type)
   }
   switch (type) {
     case 'kick':
@@ -128,11 +110,58 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
       return { ...shared, tune: 1600, toneDecay: 0.03, noiseType: 'pink', noiseDecay: 0.24, snap: 0.85, mix: 0.55 }
     case 'hat':
       return { ...shared, tune: 300, decay: 0.08, brightness: 8000, harmonicity: 5.1, modIndex: 32 }
+    case 'hatPedal':
+      return { ...shared, tune: 285, decay: 0.055, brightness: 7200, harmonicity: 5.4, modIndex: 28 }
+    case 'hatOpen':
+      return { ...shared, tune: 275, decay: 0.48, brightness: 9200, harmonicity: 4.9, modIndex: 38 }
     case 'crash':
       return { ...shared, tune: 220, decay: 1.4, brightness: 12000, harmonicity: 2.2, modIndex: 55, wash: 0.65 }
-    case 'perc':
-    default:
-      return { ...shared, tune: 200, decay: 0.15, sweep: 1, sweepTime: 0.02, snap: 0.3, color: 3000 }
+    case 'chineseCymbal':
+      return { ...shared, tune: 175, decay: 1.75, brightness: 8800, harmonicity: 1.45, modIndex: 72, wash: 0.52 }
+    case 'splash':
+      return { ...shared, tune: 410, decay: 0.62, brightness: 14500, harmonicity: 3.1, modIndex: 48, wash: 0.58 }
+    case 'crash2':
+      return { ...shared, tune: 245, decay: 1.7, brightness: 13200, harmonicity: 2.55, modIndex: 62, wash: 0.7 }
+    case 'rimshot':
+      return { ...shared, tune: 260, decay: 0.09, sweep: 0.2, sweepTime: 0.008, snap: 0.9, color: 4800 }
+    case 'cowbell':
+      return { ...shared, tune: 560, decay: 0.22, brightness: 7000, harmonicity: 5.1, modIndex: 18 }
+    case 'chimes':
+      return { ...shared, tune: 1047, decay: 2.6, brightness: 9000, harmonicity: 2.1, modIndex: 10 }
+    case 'shaker':
+      return { ...shared, tune: 4200, decay: 0.12, snap: 0.85, color: 7500 }
+    case 'tom':
+      return { ...shared, tune: 110, decay: 0.34, sweep: 1.3, sweepTime: 0.035, snap: 0.08, color: 2300 }
+    case 'tomLowFloor':
+      return { ...shared, tune: 73, decay: 0.52, sweep: 1.55, sweepTime: 0.052, snap: 0.05, color: 1500 }
+    case 'tomHighFloor':
+      return { ...shared, tune: 87, decay: 0.45, sweep: 1.48, sweepTime: 0.046, snap: 0.06, color: 1800 }
+    case 'tomLowMid':
+      return { ...shared, tune: 131, decay: 0.3, sweep: 1.18, sweepTime: 0.03, snap: 0.09, color: 2700 }
+    case 'tomHighMid':
+      return { ...shared, tune: 147, decay: 0.27, sweep: 1.08, sweepTime: 0.026, snap: 0.1, color: 3100 }
+    case 'tomHigh':
+      return { ...shared, tune: 165, decay: 0.24, sweep: 0.96, sweepTime: 0.022, snap: 0.12, color: 3500 }
+    case 'congaMuted':
+      return { ...shared, tune: 262, decay: 0.105, sweep: 0.18, sweepTime: 0.01, snap: 0.72, color: 4600 }
+    case 'congaOpen':
+      return { ...shared, tune: 233, decay: 0.31, sweep: 0.28, sweepTime: 0.016, snap: 0.24, color: 3700 }
+    case 'conga':
+      return { ...shared, tune: 196, decay: 0.26, sweep: 0.35, sweepTime: 0.018, snap: 0.16, color: 3200 }
+    case 'timbale':
+      return { ...shared, tune: 260, decay: 0.22, sweep: 0.15, sweepTime: 0.01, snap: 0.3, color: 4400 }
+    case 'timbaleLow':
+      return { ...shared, tune: 196, decay: 0.28, sweep: 0.19, sweepTime: 0.014, snap: 0.26, color: 3600 }
+    case 'triangleMuted':
+      return { ...shared, tune: 990, decay: 0.14, brightness: 9800, harmonicity: 3.8, modIndex: 8 }
+    case 'triangle':
+      return { ...shared, tune: 880, decay: 1.1, brightness: 10500, harmonicity: 3.8, modIndex: 8 }
+    case 'ride':
+      return { ...shared, tune: 320, decay: 1.8, brightness: 11000, harmonicity: 2.8, modIndex: 42, wash: 0.38 }
+    case 'rideBell':
+      return { ...shared, tune: 720, decay: 0.72, brightness: 13800, harmonicity: 4.2, modIndex: 34, wash: 0.12 }
+    case 'ride2':
+      return { ...shared, tune: 350, decay: 2.15, brightness: 10200, harmonicity: 2.35, modIndex: 49, wash: 0.46 }
   }
 }
 
@@ -169,7 +198,7 @@ function createDefaultSequencerSessionSnapshot(): SequencerSessionSnapshot {
       createDefaultSavedTrack('kick', 'Kick'),
       createDefaultSavedTrack('snare', 'Snare'),
       createDefaultSavedTrack('hat', 'Hat'),
-      createDefaultSavedTrack('perc', 'Perc')
+      createDefaultSavedTrack('cowbell', 'Cowbell')
     ]
   }
 }
@@ -394,7 +423,9 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }
     }
     // ===================== HAT (metallic FM) =====================
-    case 'hat': {
+    case 'hat':
+    case 'hatPedal':
+    case 'hatOpen': {
       const tune = Number(params.tune ?? 300)
       const decay = Number(params.decay ?? 0.08)
       const brightness = Number(params.brightness ?? 8000)
@@ -423,7 +454,10 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
       }
     }
     // ===================== CRASH (metallic body + noise wash) =====================
-    case 'crash': {
+    case 'crash':
+    case 'chineseCymbal':
+    case 'splash':
+    case 'crash2': {
       const tune = Number(params.tune ?? 220)
       const decay = Number(params.decay ?? 1.4)
       const brightness = Number(params.brightness ?? 12000)
@@ -467,48 +501,257 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
         }
       }
     }
-    // ===================== PERC (FM percussion: body + snap) =====================
-    case 'perc':
-    default: {
-      const tune = Number(params.tune ?? 200)
-      const decay = Number(params.decay ?? 0.15)
-      const sweepOct = Number(params.sweep ?? 1)
-      const sweepTime = Number(params.sweepTime ?? 0.02)
-      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.3)))
-      const colorHz = Number(params.color ?? 3000)
-
-      // Pitched body via MembraneSynth
-      const body = markRaw(new Tone.MembraneSynth({
-        octaves: sweepOct,
-        pitchDecay: sweepTime,
-        envelope: { attack: 0.001, decay: decay, sustain: 0, release: decay * 0.25 }
-      }))
-      // Noise snap with color filter
-      const snapNoise = markRaw(new Tone.NoiseSynth({
-        noise: { type: 'white' as any },
-        envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 }
-      }))
-      const snapFilter = markRaw(new Tone.Filter({ type: 'lowpass', frequency: colorHz, Q: 1 }))
-      const snapGain = markRaw(new Tone.Gain(snapLevel))
-
-      body.connect(inputGain)
-      snapNoise.connect(snapFilter)
-      snapFilter.connect(snapGain)
-      snapGain.connect(inputGain)
-
+    // ===================== RIMSHOT (stick click + two shell resonances) =====================
+    case 'rimshot': {
+      const tune = Number(params.tune ?? 260)
+      const decay = Number(params.decay ?? 0.09)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.9)))
+      const color = Number(params.color ?? 4800)
+      const low = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.0005, decay, sustain: 0, release: 0.015 } }))
+      const high = markRaw(new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.0005, decay: decay * 0.52, sustain: 0, release: 0.008 } }))
+      const stick = markRaw(new Tone.NoiseSynth({ noise: { type: 'white' as any }, envelope: { attack: 0.0002, decay: 0.008, sustain: 0, release: 0.003 } }))
+      const toneGain = markRaw(new Tone.Gain(0.68))
+      const noiseGain = markRaw(new Tone.Gain(snapLevel))
+      const snapFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: color, Q: 2.8 }))
+      low.connect(toneGain)
+      high.connect(toneGain)
+      toneGain.connect(inputGain)
+      stick.connect(snapFilter)
+      snapFilter.connect(noiseGain)
+      noiseGain.connect(inputGain)
       const live = { tune, snapLevel }
       return {
-        node: postVca, filter, voice: body, voice2: snapNoise,
-        snapFilter, snapGain,
+        node: postVca, filter, voice: low, voice2: high, voice3: stick,
+        toneGain, noiseGain, snapFilter, preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number) => {
+          schedVelEnv(time, vel, decay + 0.03)
+          low.triggerAttackRelease(live.tune, decay + 0.02, time, vel * 0.78)
+          high.triggerAttackRelease(live.tune * 2.72, decay * 0.62, time, vel * 0.55)
+          stick.triggerAttackRelease(0.012, time, vel * live.snapLevel)
+        }
+      }
+    }
+    // ===================== TOM (deep membrane + woody shell resonance) =====================
+    case 'tomLowFloor':
+    case 'tomHighFloor':
+    case 'tom':
+    case 'tomLowMid':
+    case 'tomHighMid':
+    case 'tomHigh': {
+      const tune = Number(params.tune ?? 110)
+      const decay = Number(params.decay ?? 0.34)
+      const sweep = Number(params.sweep ?? 1.3)
+      const sweepTime = Number(params.sweepTime ?? 0.035)
+      const body = markRaw(new Tone.MembraneSynth({
+        octaves: sweep,
+        pitchDecay: sweepTime,
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.001, decay, sustain: 0.025, release: decay * 0.45 }
+      }))
+      const shell = markRaw(new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.001, decay: decay * 0.48, sustain: 0, release: 0.035 } }))
+      const toneGain = markRaw(new Tone.Gain(0.22))
+      body.connect(inputGain)
+      shell.connect(toneGain)
+      toneGain.connect(inputGain)
+      const live = { tune }
+      return {
+        node: postVca, filter, voice: body, voice2: shell, toneGain,
         preGain: inputGain, hitVca: postVca, live,
         trigger: (time: number, vel: number, duration?: number) => {
-          const naturalDur = sweepTime + decay + decay * 0.25
-          const dur = Math.max(naturalDur, duration ?? 0.15)
-          schedVelEnv(time, vel, naturalDur + 0.02)
-          body.triggerAttackRelease(live.tune, dur, time, vel)
-          if (live.snapLevel > 0.01) {
-            snapNoise.triggerAttackRelease(0.04, time, vel * live.snapLevel)
-          }
+          const naturalDur = decay * 1.45 + sweepTime
+          schedVelEnv(time, vel, naturalDur)
+          body.triggerAttackRelease(live.tune, Math.max(naturalDur, duration ?? decay), time, vel)
+          shell.triggerAttackRelease(live.tune * 2.08, decay * 0.58, time, vel * 0.42)
+        }
+      }
+    }
+    // ===================== CONGA (tight hand drum + skin slap) =====================
+    case 'congaMuted':
+    case 'congaOpen':
+    case 'conga': {
+      const tune = Number(params.tune ?? 196)
+      const decay = Number(params.decay ?? 0.26)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.16)))
+      const body = markRaw(new Tone.MembraneSynth({
+        octaves: Number(params.sweep ?? 0.35),
+        pitchDecay: Number(params.sweepTime ?? 0.018),
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.0008, decay, sustain: 0, release: decay * 0.18 }
+      }))
+      const slap = markRaw(new Tone.NoiseSynth({ noise: { type: 'pink' as any }, envelope: { attack: 0.0005, decay: 0.018, sustain: 0, release: 0.006 } }))
+      const snapFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: Number(params.color ?? 3200), Q: 1.6 }))
+      const snapGain = markRaw(new Tone.Gain(snapLevel))
+      body.connect(inputGain)
+      slap.connect(snapFilter)
+      snapFilter.connect(snapGain)
+      snapGain.connect(inputGain)
+      const live = { tune, snapLevel }
+      return {
+        node: postVca, filter, voice: body, voice2: slap, snapFilter, snapGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          schedVelEnv(time, vel, decay + 0.08)
+          body.triggerAttackRelease(live.tune, Math.max(decay * 1.2, duration ?? decay), time, vel)
+          slap.triggerAttackRelease(0.025, time, vel * live.snapLevel)
+        }
+      }
+    }
+    // ===================== TIMBALE (shallow head + bright metal shell) =====================
+    case 'timbale':
+    case 'timbaleLow': {
+      const tune = Number(params.tune ?? 260)
+      const decay = Number(params.decay ?? 0.22)
+      const body = markRaw(new Tone.MembraneSynth({
+        octaves: Number(params.sweep ?? 0.15),
+        pitchDecay: Number(params.sweepTime ?? 0.01),
+        envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.16 }
+      }))
+      const shell = markRaw(new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.0004, decay: decay * 0.32, sustain: 0, release: 0.012 } }))
+      const toneFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: Number(params.color ?? 4400), Q: 1.2 }))
+      const toneGain = markRaw(new Tone.Gain(Math.max(0, Math.min(0.55, Number(params.snap ?? 0.3)))))
+      body.connect(inputGain)
+      shell.connect(toneFilter)
+      toneFilter.connect(toneGain)
+      toneGain.connect(inputGain)
+      const live = { tune }
+      return {
+        node: postVca, filter, voice: body, voice2: shell, toneFilter, toneGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          schedVelEnv(time, vel, decay + 0.05)
+          body.triggerAttackRelease(live.tune, Math.max(decay, duration ?? decay), time, vel)
+          shell.triggerAttackRelease(live.tune * 4.13, decay * 0.4, time, vel * 0.46)
+        }
+      }
+    }
+    // ===================== COWBELL (two detuned square resonators) =====================
+    case 'cowbell': {
+      const tune = Number(params.tune ?? 560)
+      const decay = Number(params.decay ?? 0.22)
+      const low = markRaw(new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.22 } }))
+      const high = markRaw(new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.0005, decay: decay * 0.72, sustain: 0, release: decay * 0.16 } }))
+      const toneFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: Number(params.brightness ?? 7000) * 0.24, Q: 0.65 }))
+      const toneGain = markRaw(new Tone.Gain(0.48))
+      low.connect(toneFilter)
+      high.connect(toneFilter)
+      toneFilter.connect(toneGain)
+      toneGain.connect(inputGain)
+      const live = { tune }
+      return {
+        node: postVca, filter, voice: low, voice2: high, toneFilter, toneGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number) => {
+          schedVelEnv(time, vel, decay + 0.05)
+          low.triggerAttackRelease(live.tune, decay * 1.2, time, vel)
+          high.triggerAttackRelease(live.tune * 1.481, decay, time, vel * 0.82)
+        }
+      }
+    }
+    // ===================== CHIMES (inharmonic struck bars) =====================
+    case 'chimes': {
+      const tune = Number(params.tune ?? 1047)
+      const decay = Number(params.decay ?? 2.6)
+      const fundamental = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay, sustain: 0, release: decay * 0.55 } }))
+      const partialA = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay: decay * 0.72, sustain: 0, release: decay * 0.38 } }))
+      const partialB = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay: decay * 0.48, sustain: 0, release: decay * 0.25 } }))
+      const toneGain = markRaw(new Tone.Gain(0.62))
+      fundamental.connect(toneGain)
+      partialA.connect(toneGain)
+      partialB.connect(toneGain)
+      toneGain.connect(inputGain)
+      const live = { tune }
+      return {
+        node: postVca, filter, voice: fundamental, voice2: partialA, voice3: partialB, toneGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          const dur = Math.max(decay * 1.55, duration ?? decay)
+          schedVelEnv(time, vel, dur)
+          fundamental.triggerAttackRelease(live.tune, dur, time, vel * 0.76)
+          partialA.triggerAttackRelease(live.tune * 2.756, decay * 1.1, time, vel * 0.34)
+          partialB.triggerAttackRelease(live.tune * 5.404, decay * 0.72, time, vel * 0.18)
+        }
+      }
+    }
+    // ===================== TRIANGLE (pure ring + subtle beater overtone) =====================
+    case 'triangleMuted':
+    case 'triangle': {
+      const tune = Number(params.tune ?? 880)
+      const decay = Number(params.decay ?? 1.1)
+      const ring = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.9 } }))
+      const overtone = markRaw(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.0003, decay: decay * 0.62, sustain: 0, release: decay * 0.42 } }))
+      const toneGain = markRaw(new Tone.Gain(0.56))
+      ring.connect(toneGain)
+      overtone.connect(toneGain)
+      toneGain.connect(inputGain)
+      const live = { tune }
+      return {
+        node: postVca, filter, voice: ring, voice2: overtone, toneGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          const dur = Math.max(decay * 1.9, duration ?? decay)
+          schedVelEnv(time, vel, dur)
+          ring.triggerAttackRelease(live.tune, dur, time, vel * 0.78)
+          overtone.triggerAttackRelease(live.tune * 3.92, decay * 1.05, time, vel * 0.24)
+        }
+      }
+    }
+    // ===================== RIDE (metal bow + noisy cymbal wash) =====================
+    case 'ride':
+    case 'rideBell':
+    case 'ride2': {
+      const tune = Number(params.tune ?? 320)
+      const decay = Number(params.decay ?? 1.8)
+      const wash = Math.max(0.12, Math.min(0.75, Number(params.wash ?? 0.38)))
+      const bow = markRaw(new Tone.MetalSynth({
+        frequency: tune,
+        envelope: { attack: 0.0007, decay, release: decay * 0.72 },
+        harmonicity: Number(params.harmonicity ?? 2.8),
+        modulationIndex: Number(params.modIndex ?? 42),
+        resonance: Number(params.brightness ?? 11000),
+        octaves: 1.35
+      }))
+      const washNoise = markRaw(new Tone.NoiseSynth({ noise: { type: 'white' as any }, envelope: { attack: 0.001, decay: decay * 0.95, sustain: 0, release: decay * 0.5 } }))
+      const noiseFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: 7200, Q: 0.38 }))
+      const noiseGain = markRaw(new Tone.Gain(wash))
+      bow.connect(inputGain)
+      washNoise.connect(noiseFilter)
+      noiseFilter.connect(noiseGain)
+      noiseGain.connect(inputGain)
+      const live = { tune, wash }
+      return {
+        node: postVca, filter, voice: bow, voice2: washNoise, noiseFilter, noiseGain,
+        preGain: inputGain, hitVca: postVca, live,
+        trigger: (time: number, vel: number, duration?: number) => {
+          const dur = Math.max(decay * 1.72, duration ?? decay)
+          schedVelEnv(time, vel, dur)
+          bow.triggerAttackRelease(live.tune, dur, time, vel * 0.82)
+          washNoise.triggerAttackRelease(decay * 1.45, time, vel * live.wash)
+        }
+      }
+    }
+    // ===================== SHAKER (irregular granular seed bursts) =====================
+    case 'shaker': {
+      const decay = Number(params.decay ?? 0.12)
+      const color = Number(params.color ?? 7500)
+      const snapLevel = Math.max(0, Math.min(1, Number(params.snap ?? 0.85)))
+      const noise = markRaw(new Tone.Noise({ type: 'white' }))
+      const noiseFilter = markRaw(new Tone.Filter({ type: 'bandpass', frequency: color, Q: 1.25 }))
+      const noiseGain = markRaw(new Tone.Gain(0))
+      noise.connect(noiseFilter)
+      noiseFilter.connect(noiseGain)
+      noiseGain.connect(inputGain)
+      noise.start()
+
+      return {
+        node: postVca, filter, voice: noise, noiseFilter, noiseGain,
+        preGain: inputGain, hitVca: postVca, live: { snapLevel },
+        trigger: (time: number, vel: number) => {
+          schedVelEnv(time, vel, decay + 0.04)
+          const grains = [0, 0.011, 0.026, 0.044, 0.067]
+          grains.forEach((offset, index) => {
+            const peak = vel * snapLevel * (0.62 + index * 0.07)
+            scheduleGainEnvelope((noiseGain as any).gain, time + offset, peak, 0.0003, Math.max(0.009, decay * (0.14 + index * 0.035)))
+          })
         }
       }
     }
@@ -673,7 +916,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   addTrack('kick', 'Kick')
   addTrack('snare', 'Snare')
   addTrack('hat', 'Hat')
-  addTrack('perc', 'Perc')
+  addTrack('cowbell', 'Cowbell')
 
   // scheduled event IDs for clearing on rebuild
   let scheduledIds: number[] = []
@@ -888,6 +1131,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
             break
           }
           case 'hat':
+          case 'hatPedal':
+          case 'hatOpen':
             if (voice && typeof voice.set === 'function') {
               voice.set({
                 frequency: Number((t.params as any)?.tune ?? 300),
@@ -905,7 +1150,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
             // Update live params used by trigger closure
             try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 300) } catch {}
             break
-          case 'crash': {
+          case 'crash':
+          case 'chineseCymbal':
+          case 'splash':
+          case 'crash2': {
             const decay = Number((t.params as any)?.decay ?? 1.4)
             if (voice && typeof voice.set === 'function') {
               voice.set({
@@ -939,25 +1187,105 @@ export const useSequencerStore = defineStore('sequencer', () => {
             } catch {}
             break
           }
-          case 'perc':
-          default:
+          case 'rimshot': {
+            const decay = Number((t.params as any)?.decay ?? 0.09)
             if (voice && typeof voice.set === 'function') {
-              voice.set({
-                octaves: Number((t.params as any)?.sweep ?? 1),
-                pitchDecay: Number((t.params as any)?.sweepTime ?? 0.02),
-                envelope: {
-                  attack: 0.001,
-                  decay: Number((t.params as any)?.decay ?? 0.15),
-                  sustain: 0,
-                  release: Number((t.params as any)?.decay ?? 0.15) * 0.25
-                }
-              })
+              voice.set({ envelope: { attack: 0.0005, decay, sustain: 0, release: 0.015 } })
             }
-            // Update snap level and color filter
-            try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.0005, decay: decay * 0.52, sustain: 0, release: 0.008 } }) } catch {}
+            try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.9)))) } catch {}
+            try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 4800)) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 260); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.9))) } } catch {}
+            break
+          }
+          case 'tomLowFloor':
+          case 'tomHighFloor':
+          case 'tom':
+          case 'tomLowMid':
+          case 'tomHighMid':
+          case 'tomHigh': {
+            const decay = Number((t.params as any)?.decay ?? 0.34)
+            voice?.set?.({
+              octaves: Number((t.params as any)?.sweep ?? 1.3),
+              pitchDecay: Number((t.params as any)?.sweepTime ?? 0.035),
+              envelope: { attack: 0.001, decay, sustain: 0.025, release: decay * 0.45 }
+            })
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.001, decay: decay * 0.48, sustain: 0, release: 0.035 } }) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 110) } catch {}
+            break
+          }
+          case 'congaMuted':
+          case 'congaOpen':
+          case 'conga': {
+            const decay = Number((t.params as any)?.decay ?? 0.26)
+            voice?.set?.({
+              octaves: Number((t.params as any)?.sweep ?? 0.35),
+              pitchDecay: Number((t.params as any)?.sweepTime ?? 0.018),
+              envelope: { attack: 0.0008, decay, sustain: 0, release: decay * 0.18 }
+            })
+            try { const sg: any = (nb.inst as any)?.snapGain?.gain; if (sg) smoothSetParam(sg, Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.16)))) } catch {}
+            try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3200)) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 196); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.16))) } } catch {}
+            break
+          }
+          case 'timbale':
+          case 'timbaleLow': {
+            const decay = Number((t.params as any)?.decay ?? 0.22)
+            voice?.set?.({
+              octaves: Number((t.params as any)?.sweep ?? 0.15),
+              pitchDecay: Number((t.params as any)?.sweepTime ?? 0.01),
+              envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.16 }
+            })
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.0004, decay: decay * 0.32, sustain: 0, release: 0.012 } }) } catch {}
+            try { const tf: any = (nb.inst as any)?.toneFilter?.frequency; if (tf) smoothSetParam(tf, Number((t.params as any)?.color ?? 4400)) } catch {}
+            try { const tg: any = (nb.inst as any)?.toneGain?.gain; if (tg) smoothSetParam(tg, Math.max(0, Math.min(0.55, Number((t.params as any)?.snap ?? 0.3)))) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 260) } catch {}
+            break
+          }
+          case 'cowbell': {
+            const decay = Number((t.params as any)?.decay ?? 0.22)
+            voice?.set?.({ envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.22 } })
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.0005, decay: decay * 0.72, sustain: 0, release: decay * 0.16 } }) } catch {}
+            try { const tf: any = (nb.inst as any)?.toneFilter?.frequency; if (tf) smoothSetParam(tf, Number((t.params as any)?.brightness ?? 7000) * 0.24) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 560) } catch {}
+            break
+          }
+          case 'chimes': {
+            const decay = Number((t.params as any)?.decay ?? 2.6)
+            voice?.set?.({ envelope: { attack: 0.001, decay, sustain: 0, release: decay * 0.55 } })
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.001, decay: decay * 0.72, sustain: 0, release: decay * 0.38 } }) } catch {}
+            try { const v3: any = (nb.inst as any)?.voice3; v3?.set?.({ envelope: { attack: 0.001, decay: decay * 0.48, sustain: 0, release: decay * 0.25 } }) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 1047) } catch {}
+            break
+          }
+          case 'triangleMuted':
+          case 'triangle': {
+            const decay = Number((t.params as any)?.decay ?? 1.1)
+            voice?.set?.({ envelope: { attack: 0.0005, decay, sustain: 0, release: decay * 0.9 } })
+            try { const v2: any = (nb.inst as any)?.voice2; v2?.set?.({ envelope: { attack: 0.0003, decay: decay * 0.62, sustain: 0, release: decay * 0.42 } }) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.tune = Number((t.params as any)?.tune ?? 880) } catch {}
+            break
+          }
+          case 'ride':
+          case 'rideBell':
+          case 'ride2': {
+            const decay = Number((t.params as any)?.decay ?? 1.8)
+            voice?.set?.({
+              frequency: Number((t.params as any)?.tune ?? 320),
+              harmonicity: Number((t.params as any)?.harmonicity ?? 2.8),
+              modulationIndex: Number((t.params as any)?.modIndex ?? 42),
+              resonance: Number((t.params as any)?.brightness ?? 11000),
+              octaves: 1.35,
+              envelope: { attack: 0.0007, decay, release: decay * 0.72 }
+            })
+            try { const ng: any = (nb.inst as any)?.noiseGain?.gain; if (ng) smoothSetParam(ng, Math.max(0.12, Math.min(0.75, Number((t.params as any)?.wash ?? 0.38)))) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 320); li.wash = Math.max(0.12, Math.min(0.75, Number((t.params as any)?.wash ?? 0.38))) } } catch {}
+            break
+          }
+          case 'shaker':
             try { const sf: any = (nb.inst as any)?.snapFilter?.frequency; if (sf) smoothSetParam(sf, Number((t.params as any)?.color ?? 3000)) } catch {}
-            // Update live params used by trigger closure
-            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 200); li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.3))) } } catch {}
+            try { const nf: any = (nb.inst as any)?.noiseFilter?.frequency; if (nf) smoothSetParam(nf, Number((t.params as any)?.color ?? 7500)) } catch {}
+            try { const li = (nb.inst as any)?.live; if (li) li.snapLevel = Math.max(0, Math.min(1, Number((t.params as any)?.snap ?? 0.85))) } catch {}
             break
         }
       } catch {}
@@ -1100,7 +1428,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
                 const out = midiEnabled.value ? getSelectedMidiOutput() : null
                 if (out) {
                   try {
-                    const note = Number((tLatest.params as any)?.midiKey ?? midiNoteForType(tLatest.type))
+                    const note = Number((tLatest.params as any)?.midiKey ?? defaultMidiKeyForTrackType(tLatest.type))
                     const velocity = Math.max(1, Math.min(127, Math.round(vel * 127)))
                     const nowSec = Tone.now()
                     const tsMs = performance.now() + Math.max(0, (time - nowSec) * 1000)
@@ -1580,7 +1908,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
               const swungOffQN = applySwingToQN(atQN + (ioiQN * nl))
               const tick = Math.max(0, Math.round(swungAtQN * PPQ))
               const offTick = Math.max(tick + 1, Math.round(swungOffQN * PPQ))
-              const note = Number((t.params as any)?.midiKey ?? midiNoteForType(t.type))
+              const note = Number((t.params as any)?.midiKey ?? defaultMidiKeyForTrackType(t.type))
               const vel = Math.max(1, Math.min(127, Math.round(computeVelocity(t, qnToSeconds(swungAtQN)) * 127)))
               const ch = Math.max(0, Math.min(15, (Number(midiChannel.value) || 1) - 1))
               perTrack[i].push({ tick, bytes: [0x90 | ch, note, vel] })
@@ -1886,8 +2214,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
       }
       nextTracks.push({
         id,
-        name: st.name ?? defaultTrackName(st.type ?? 'perc'),
-        type: st.type ?? 'perc',
+        name: st.name ?? defaultTrackName(st.type ?? 'tom'),
+        type: st.type ?? 'tom',
         rev: 0,
         volume: Number(st.volume ?? 0.8),
         pan: Number(st.pan ?? 0),
@@ -1895,7 +2223,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
         velRandom: Number(st.velRandom ?? 0),
         timeScale: Number(st.timeScale) || 1,
         noteLength: Number(st.noteLength) || 0.5,
-        params: { ...defaultTrackParams(st.type ?? 'perc'), ...(st.params ?? {}) },
+        params: { ...defaultTrackParams(st.type ?? 'tom'), ...(st.params ?? {}) },
         patterns
       })
     }

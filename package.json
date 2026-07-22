@@ -1,7 +1,7 @@
 {
   "name": "rhythm-navigator",
   "homepage": "https://github.com/ncg777/rhythm-navigator",
-  "version": "2026.7.6",
+  "version": "2026.7.22",
   "private": true,
   "type": "module",
   "bin": {

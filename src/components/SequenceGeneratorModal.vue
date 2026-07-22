@@ -114,6 +114,12 @@
           </button>
           <button
             class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5 font-medium"
+            @click="copySequence('poweredRhythm')"
+          >
+            Copy powered rhythm
+          </button>
+          <button
+            class="px-3 py-2 text-xs rounded border border-white/10 hover:bg-white/5 font-medium"
             @click="exportSequenceJson"
           >
             Export JSON
@@ -129,6 +135,14 @@
             <div class="text-xs uppercase tracking-wide text-slate-400">Bounced Positions</div>
             <div class="font-mono text-sky-300 text-sm break-all">{{ formatSequence(result.positions) }}</div>
           </div>
+        </div>
+
+        <div class="rounded border border-white/10 bg-slate-800/40 p-3 space-y-2">
+          <div class="text-xs uppercase tracking-wide text-slate-400">Powered Rhythm (from generated positions)</div>
+          <div class="text-xs text-slate-500">
+            Input rhythm bits with each onset replaced by a signed power-of-two derived from the corresponding generated position.
+          </div>
+          <div class="font-mono text-emerald-300 text-sm break-words">{{ formatSequence(result.poweredRhythm) }}</div>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 text-xs text-slate-400">
@@ -203,7 +217,7 @@ const result = ref<GeneratedSequence | null>(null)
 const worker = ref<Worker | null>(null)
 const controls = reactive({ min: -7, max: 7, maxAmplitude: 4, repeatCount: 1 })
 
-type CopyTarget = 'differences' | 'positions'
+type CopyTarget = 'differences' | 'positions' | 'poweredRhythm'
 
 const selectedRhythm = computed(() =>
   selectedId.value ? store.items.find((item) => item.id === selectedId.value) ?? null : null
@@ -344,19 +358,25 @@ function generate() {
 
 async function copySequence(target: CopyTarget) {
   if (!result.value) return
-  const values = target === 'differences' ? result.value.differences : result.value.positions
+  const values =
+    target === 'differences'
+      ? result.value.differences
+      : target === 'positions'
+        ? result.value.positions
+        : result.value.poweredRhythm
   const text = formatSequence(values)
+  const label = target === 'differences' ? 'Differences' : target === 'positions' ? 'Positions' : 'Powered rhythm'
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
     } else {
       copyViaTextarea(text)
     }
-    ui.pushToast(`${target === 'differences' ? 'Differences' : 'Positions'} copied.`, 'success')
+    ui.pushToast(`${label} copied.`, 'success')
   } catch {
     try {
       copyViaTextarea(text)
-      ui.pushToast(`${target === 'differences' ? 'Differences' : 'Positions'} copied.`, 'success')
+      ui.pushToast(`${label} copied.`, 'success')
     } catch {
       ui.pushToast('Copy failed in this browser context.', 'error')
     }

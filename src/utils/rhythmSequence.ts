@@ -59,6 +59,7 @@ export type GeneratedSequence = {
   factorLayer: number[]
   differences: number[]
   positions: number[]
+  poweredRhythm: number[]
   phrases: SymmetryPhrase[]
   selectedFactors: number[]
   start: number
@@ -405,9 +406,63 @@ export function buildFactorLayer(composition: Composition, maxAmplitude: number,
   return { layer, selectedFactors }
 }
 
+function mapSequenceValueToSignedPowerOfTwo(value: number): number {
+  if (!Number.isFinite(value) || !Number.isInteger(value)) {
+    throw new Error('Sequence values must be finite integers.')
+  }
+  const magnitude = 2 ** Math.abs(value)
+  if (!Number.isFinite(magnitude)) {
+    throw new Error('Sequence value is too large for power-of-two embedding.')
+  }
+  return value < 0 ? -magnitude : magnitude
+}
+
+export function buildPoweredRhythmFromPositions(item: RhythmItem, positions: number[], repeatCount = 1): number[] {
+  if (!Number.isInteger(repeatCount) || repeatCount <= 0) {
+    throw new Error('Repeat count must be a positive integer.')
+  }
+
+  const digits = rhythmItemToDigits(item)
+  const baseBits = Array.from(digitsToBits(digits, item.base), (bit) => (bit ? 1 : 0))
+  const baseLength = baseBits.length
+
+  if (baseLength === 0) {
+    if (positions.length) {
+      throw new Error('Sequence positions must be empty when rhythm has no bits.')
+    }
+    return []
+  }
+
+  const totalBits = baseLength * repeatCount
+  const output = new Array<number>(totalBits).fill(0)
+  const onsetIndices: number[] = []
+
+  for (let repeatIndex = 0; repeatIndex < repeatCount; repeatIndex++) {
+    const offset = repeatIndex * baseLength
+    for (let bitIndex = 0; bitIndex < baseLength; bitIndex++) {
+      if (baseBits[bitIndex]) {
+        onsetIndices.push(offset + bitIndex)
+      }
+    }
+  }
+
+  if (onsetIndices.length !== positions.length) {
+    throw new Error(
+      `Expected ${onsetIndices.length} sequence value(s) for rhythm onsets, received ${positions.length}.`
+    )
+  }
+
+  for (let onsetIndex = 0; onsetIndex < onsetIndices.length; onsetIndex++) {
+    output[onsetIndices[onsetIndex]] = mapSequenceValueToSignedPowerOfTwo(positions[onsetIndex])
+  }
+
+  return output
+}
+
 export function generateRhythmDrivenSequence(params: SequenceGeneratorParams): GeneratedSequence {
   const rng = params.rng ?? Math.random
-  const composition = buildCompositionFromRhythm(params.item, params.repeatCount ?? 1)
+  const repeatCount = params.repeatCount ?? 1
+  const composition = buildCompositionFromRhythm(params.item, repeatCount)
   const segmentation = optimizeSegmentation(composition)
   const symmetry = buildSymmetryLayer(segmentation, params.maxAmplitude, rng)
   const factor = buildFactorLayer(composition, params.maxAmplitude, rng)
@@ -416,6 +471,7 @@ export function generateRhythmDrivenSequence(params: SequenceGeneratorParams): G
   )
   const start = Math.round((params.min + params.max) / 2)
   const walk = buildBouncedWalk(rawDifferences, params.min, params.max, start)
+  const poweredRhythm = buildPoweredRhythmFromPositions(params.item, walk.positions, repeatCount)
 
   return {
     composition,
@@ -424,6 +480,7 @@ export function generateRhythmDrivenSequence(params: SequenceGeneratorParams): G
     factorLayer: factor.layer,
     differences: walk.differences,
     positions: walk.positions,
+    poweredRhythm,
     phrases: symmetry.phrases,
     selectedFactors: factor.selectedFactors,
     start,

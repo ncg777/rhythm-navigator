@@ -5,6 +5,7 @@ import {
   buildCompositionFromOnsets,
   buildCompositionFromRhythm,
   buildFactorLayer,
+  buildPoweredRhythmFromPositions,
   buildSymmetryLayer,
   digitsToOnsetPositions,
   generateRhythmDrivenSequence,
@@ -222,6 +223,7 @@ describe('generateRhythmDrivenSequence', () => {
     )
     expect(generated.positions.every((value) => value >= -3 && value <= 3)).toBe(true)
     expect(generated.differences.every((value) => Math.abs(value) <= 2)).toBe(true)
+    expect(generated.poweredRhythm).toEqual(buildPoweredRhythmFromPositions(item, generated.positions, 1))
   })
 
   it('scales the generated sequence length by repeat count', () => {
@@ -245,5 +247,73 @@ describe('generateRhythmDrivenSequence', () => {
     expect(generated.composition.values).toHaveLength(item.onsets * 4)
     expect(generated.differences).toHaveLength(item.onsets * 4)
     expect(generated.positions).toHaveLength(item.onsets * 4)
+    expect(generated.poweredRhythm).toEqual(buildPoweredRhythmFromPositions(item, generated.positions, 4))
+  })
+})
+
+describe('buildPoweredRhythmFromPositions', () => {
+  it('embeds signed powers of two at onset indices using generated position values', () => {
+    const item: RhythmItem = {
+      id: 'hex:8 8 8 0',
+      base: 'hex',
+      groupedDigitsString: '8 8 8 0',
+      onsets: 3,
+      canonicalContour: 'UUD'
+    }
+
+    expect(buildPoweredRhythmFromPositions(item, [1, 2, -3], 1)).toEqual([
+      2, 0, 0, 0,
+      4, 0, 0, 0,
+      -8, 0, 0, 0,
+      0, 0, 0, 0,
+    ])
+  })
+
+  it('maps zero to one and supports non-binary source modes', () => {
+    const item: RhythmItem = {
+      id: 'octal:4 1',
+      base: 'octal',
+      groupedDigitsString: '4 1',
+      onsets: 2,
+      canonicalContour: 'UD'
+    }
+
+    expect(buildPoweredRhythmFromPositions(item, [0, -1], 1)).toEqual([1, 0, 0, 0, 0, -2])
+  })
+
+  it('expands output length by repeat count', () => {
+    const item: RhythmItem = {
+      id: 'binary:10',
+      base: 'binary',
+      groupedDigitsString: '10',
+      onsets: 1,
+      canonicalContour: 'S'
+    }
+
+    expect(buildPoweredRhythmFromPositions(item, [1, 0, -2], 3)).toEqual([2, 0, 1, 0, -4, 0])
+  })
+
+  it('rejects onset and sequence length mismatches', () => {
+    const item: RhythmItem = {
+      id: 'binary:1010',
+      base: 'binary',
+      groupedDigitsString: '1010',
+      onsets: 2,
+      canonicalContour: 'UD'
+    }
+
+    expect(() => buildPoweredRhythmFromPositions(item, [1], 1)).toThrow(/Expected 2 sequence value/)
+  })
+
+  it('rejects non-integer sequence values', () => {
+    const item: RhythmItem = {
+      id: 'binary:1010',
+      base: 'binary',
+      groupedDigitsString: '1010',
+      onsets: 2,
+      canonicalContour: 'UD'
+    }
+
+    expect(() => buildPoweredRhythmFromPositions(item, [1.5, -1], 1)).toThrow(/finite integers/)
   })
 })

@@ -332,7 +332,7 @@ export function registerMcpTools(server: ToolRegistrar): void {
   // Tool: generate_rhythm_sequence
   server.tool(
     'generate_rhythm_sequence',
-    'Generate an integer-difference sequence and bounced cumulative positions from a rhythm pattern. The number of generated items matches the rhythm onset count, optionally scaled by repeatCount.',
+    'Generate an integer-difference sequence, bounced cumulative positions, and a powered-rhythm embedding from a rhythm pattern. The number of generated items matches the rhythm onset count, optionally scaled by repeatCount.',
     {
       mode: z.enum(['binary', 'octal', 'hex']).default('hex')
         .describe('Digit encoding mode of the input rhythm pattern'),
@@ -402,6 +402,7 @@ export function registerMcpTools(server: ToolRegistrar): void {
               factorLayer: result.factorLayer,
               differences: result.differences,
               positions: result.positions,
+              poweredRhythm: result.poweredRhythm,
               phrases: result.phrases,
               start: result.start,
             }, null, 2)

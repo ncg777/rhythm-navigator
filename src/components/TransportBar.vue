@@ -10,6 +10,16 @@
       <input type="number" class="transport-input w-16" :value="bpm" @input="onBpm" min="30" max="300" />
     </label>
 
+    <div class="flex items-center gap-2 text-sm">
+      <span class="text-cyan-200/80 uppercase text-[10px] tracking-wider">Swing</span>
+      <input type="number" class="transport-input w-14" :value="swingPercent" @input="onSwing" min="0" max="100" />
+      <span class="text-cyan-100/70 text-[10px]">%</span>
+      <select class="transport-input w-20" :value="swingGrid" @change="onSwingGrid" title="Swing grid">
+        <option value="eighth">1/8</option>
+        <option value="sixteenth">1/16</option>
+      </select>
+    </div>
+
     <div class="transport-pill" title="Automatically computed loop length">
       <span aria-hidden="true">🔁</span>
       <span>{{ effectiveLoopBars }} bar<span v-if="effectiveLoopBars !== 1">s</span></span>
@@ -50,7 +60,7 @@ import { useSequencerStore } from '@/stores/sequencerStore'
 import ActionMenu from '@/components/ActionMenu.vue'
 
 const seq = useSequencerStore()
-const { bpm, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel, effectiveLoopBars } = storeToRefs(seq)
+const { bpm, swingPercent, swingGrid, isPlaying, midiEnabled, midiOutputs, midiOutputId, midiChannel, effectiveLoopBars } = storeToRefs(seq)
 
 function onToggle() {
   if (isPlaying.value) seq.stop()
@@ -61,6 +71,17 @@ function onBpm(e: Event) {
   const v = Number((e.target as HTMLInputElement).value)
   if (!Number.isFinite(v)) return
   seq.setBpm(v)
+}
+
+function onSwing(e: Event) {
+  const v = Number((e.target as HTMLInputElement).value)
+  if (!Number.isFinite(v)) return
+  seq.setSwingPercent(v)
+}
+
+function onSwingGrid(e: Event) {
+  const value = (e.target as HTMLSelectElement).value
+  seq.setSwingGrid(value === 'sixteenth' ? 'sixteenth' : 'eighth')
 }
 
 function onExportWav() { seq.exportWav() }

@@ -14,10 +14,22 @@ describe('presetLibrary', () => {
   it('parses a preset library and preserves clap and crash tracks', () => {
     const library = parsePresetLibraryJson(JSON.stringify({
       version: PRESET_LIBRARY_VERSION,
+      folders: [
+        {
+          id: 'folder-a',
+          name: ' Kits ',
+          parentId: null,
+          order: 2,
+          createdAt: 1,
+          updatedAt: 2
+        }
+      ],
       presets: [
         {
           id: 'preset-1',
           name: '  Clap Session  ',
+          folderId: 'folder-a',
+          order: 3,
           createdAt: 1,
           updatedAt: 2,
           sequencer: {
@@ -57,9 +69,39 @@ describe('presetLibrary', () => {
     }))
 
     expect(library.presets).toHaveLength(1)
+    expect(library.folders).toHaveLength(1)
+    expect(library.folders[0].name).toBe('Kits')
     expect(library.presets[0].name).toBe('Clap Session')
+    expect(library.presets[0].folderId).toBe('folder-a')
+    expect(library.presets[0].order).toBe(3)
     expect(library.presets[0].sequencer.tracks?.map(track => track.type)).toEqual(['clap', 'crash'])
     expect(library.presets[0].sequencer.bpm).toBe(128)
+    expect(library.presets[0].sequencer.swingPercent).toBe(0)
+    expect(library.presets[0].sequencer.swingGrid).toBe('eighth')
+  })
+
+  it('migrates version 1 libraries without folders', () => {
+    const library = parsePresetLibraryJson(JSON.stringify({
+      version: 1,
+      presets: [
+        {
+          id: 'legacy-1',
+          name: 'Legacy',
+          createdAt: 1,
+          updatedAt: 2,
+          sequencer: {
+            bpm: 100,
+            loopBars: 4,
+            tracks: []
+          }
+        }
+      ]
+    }))
+
+    expect(library.version).toBe(PRESET_LIBRARY_VERSION)
+    expect(library.folders).toHaveLength(0)
+    expect(library.presets[0].folderId).toBeNull()
+    expect(library.presets[0].order).toBe(0)
   })
 
   it('rejects unsupported preset library versions', () => {

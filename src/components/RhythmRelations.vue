@@ -20,6 +20,11 @@
         <div class="font-mono break-all">{{ selected.groupedDigitsString }}</div>
       </div>
 
+      <div class="glass rounded p-3">
+        <div class="text-slate-400 text-xs mb-1">Binary sequence</div>
+        <div class="font-mono break-words">{{ details.binarySequence || 'None' }}</div>
+      </div>
+
       <div class="glass rounded p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <div class="text-slate-400 text-xs">Mode</div>
@@ -244,6 +249,8 @@ import { useSequencerStore } from '@/stores/sequencerStore'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
 import { circularIntervals, isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasOrdinal, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
 import { onsetPatternFromGroupedDigits } from '@/utils/onsets'
+import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { digitsToBits } from '@/utils/rhythm'
 import { computePairwiseMetrics } from '@/utils/rhythmComparison'
 import { bitsPerBeat, computeSyncopationMetrics } from '@/utils/syncopation'
 
@@ -285,6 +292,7 @@ const details = computed(() => {
       onsets: 0,
       rests: 0,
       density: '0',
+      binarySequence: '',
       contour: '',
       shadowContour: '',
       iois: [] as number[],
@@ -306,6 +314,8 @@ const details = computed(() => {
   const { onsets, totalBits } = onsetPatternFromGroupedDigits(sel.groupedDigitsString, sel.base)
   const rests = totalBits - onsets.length
   const density = totalBits ? (onsets.length / totalBits).toFixed(4) : '0'
+  const digits = sel.digits ?? parseDigitsFromGroupedString(sel.groupedDigitsString, sel.base)
+  const binarySequence = Array.from(digitsToBits(digits, sel.base), (bit) => (bit ? '1' : '0')).join(' ')
   const tsNum = typeof sel.numerator === 'number' && sel.numerator > 0 ? sel.numerator : numerator.value
   const tsDen = typeof sel.denominator === 'number' && sel.denominator > 0 ? sel.denominator : denominator.value
   const contour = canonicalContourFromOnsets(onsets, totalBits, { circular: true, rotationInvariant: true, reflectionInvariant: true })
@@ -319,6 +329,7 @@ const details = computed(() => {
     onsets: onsets.length,
     rests,
     density,
+    binarySequence,
     tsNum,
     tsDen,
     contour,

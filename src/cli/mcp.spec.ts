@@ -53,4 +53,36 @@ describe('registerMcpTools', () => {
     expect(payload.controls.columnCount).toBe(2)
     expect(Array.isArray(payload.matrices)).toBe(true)
   })
+
+  it('returns powered rhythm embedding from generated sequence positions', async () => {
+    const tools: RegisteredTool[] = []
+
+    registerMcpTools(createRegistrar(tools) as any)
+
+    const sequenceTool = tools.find(tool => tool.name === 'generate_rhythm_sequence')
+    expect(sequenceTool).toBeDefined()
+
+    const response = await sequenceTool!.handler({
+      mode: 'hex',
+      pattern: '8 8 8 0',
+      numerator: 4,
+      denominator: 1,
+      min: -3,
+      max: 3,
+      maxAmplitude: 0,
+      repeatCount: 1,
+    })
+
+    const payload = JSON.parse(response.content[0].text)
+    const expected = new Array(16).fill(0)
+    const onsetIndices = [0, 4, 8]
+    for (let i = 0; i < onsetIndices.length; i++) {
+      const k = payload.positions[i]
+      expected[onsetIndices[i]] = k < 0 ? -(2 ** (-k)) : 2 ** k
+    }
+
+    expect(payload.method).toBe('rhythm_sequence')
+    expect(payload.positions).toHaveLength(3)
+    expect(payload.poweredRhythm).toEqual(expected)
+  })
 })

@@ -1,6 +1,6 @@
 import type { SavedPatternEntry, SavedTrack, SequencerSessionSnapshot, TrackType } from '@/stores/sequencerStore'
 import type { Mode } from '@/utils/rhythm'
-import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING } from '@/utils/sequencerDefaults'
+import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING, normalizePatternOrnamentValue } from '@/utils/sequencerDefaults'
 
 export const PRESET_LIBRARY_VERSION = 1 as const
 
@@ -56,10 +56,10 @@ function normalizeSavedPatternEntry(value: unknown): SavedPatternEntry | null {
     numerator: Math.max(1, Math.floor(asFiniteNumber(value.numerator, 4))),
     denominator: Math.max(1, Math.floor(asFiniteNumber(value.denominator, 1))),
     repeats: Math.max(1, Math.floor(asFiniteNumber(value.repeats, 1))),
-    flamCount: Math.max(0, Math.min(3, Math.floor(asFiniteNumber(value.flamCount, 0)))),
-    flamSpacing: Math.max(0.001, Math.min(0.15, asFiniteNumber(value.flamSpacing, DEFAULT_FLAM_SPACING))),
-    rollCount: Math.max(0, Math.min(8, Math.floor(asFiniteNumber(value.rollCount, 0)))),
-    rollSpacing: Math.max(0.001, Math.min(0.15, asFiniteNumber(value.rollSpacing, DEFAULT_ROLL_SPACING)))
+    flamCount: normalizePatternOrnamentValue('flamCount', asFiniteNumber(value.flamCount, 0)),
+    flamSpacing: normalizePatternOrnamentValue('flamSpacing', asFiniteNumber(value.flamSpacing, DEFAULT_FLAM_SPACING)),
+    rollCount: normalizePatternOrnamentValue('rollCount', asFiniteNumber(value.rollCount, 0)),
+    rollSpacing: normalizePatternOrnamentValue('rollSpacing', asFiniteNumber(value.rollSpacing, DEFAULT_ROLL_SPACING))
   }
 }
 

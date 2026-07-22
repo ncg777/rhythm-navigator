@@ -4,7 +4,8 @@ import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
-import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING } from '@/utils/sequencerDefaults'
+import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING, normalizePatternOrnamentValue } from '@/utils/sequencerDefaults'
+import type { PatternOrnamentKey } from '@/utils/sequencerDefaults'
 
 export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'crash' | 'perc'
 
@@ -664,7 +665,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function ornamentTimes(atQN: number, params: Pick<PatternEntry, 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing'>) {
-    // Pattern ornament values are validated when assigned or restored.
+    // Pattern ornament values are validated in updatePatternOrnaments and during deserialization.
     const times = [atQN]
     const flamCount = params.flamCount
     const flamSpacing = params.flamSpacing / (60 / bpm.value)
@@ -1285,16 +1286,12 @@ export const useSequencerStore = defineStore('sequencer', () => {
     if (isPlaying.value) rebuildSchedule()
   }
 
-  function updatePatternOrnaments(trackId: string, patternIndex: number, key: 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing', value: number) {
+  function updatePatternOrnaments(trackId: string, patternIndex: number, key: PatternOrnamentKey, value: number) {
     if (!Number.isFinite(value)) {
       console.warn('[sequencer] Ignoring non-finite pattern ornament value', { trackId, patternIndex, key, value })
       return
     }
-    const nextValue = key === 'flamCount'
-      ? Math.max(0, Math.min(3, Math.floor(value)))
-      : key === 'rollCount'
-        ? Math.max(0, Math.min(8, Math.floor(value)))
-        : Math.max(0.001, Math.min(0.15, value))
+    const nextValue = normalizePatternOrnamentValue(key, value)
     tracks.value = tracks.value.map(t => {
       if (t.id !== trackId) return t
       const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, [key]: nextValue } : e)
@@ -1790,10 +1787,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
         cycleQN
       },
       repeats: Math.max(1, Math.floor(sp.repeats ?? 1)),
-      flamCount: Math.max(0, Math.min(3, Math.floor(sp.flamCount ?? 0))),
-      flamSpacing: Math.max(0.001, Math.min(0.15, Number(sp.flamSpacing ?? DEFAULT_FLAM_SPACING))),
-      rollCount: Math.max(0, Math.min(8, Math.floor(sp.rollCount ?? 0))),
-      rollSpacing: Math.max(0.001, Math.min(0.15, Number(sp.rollSpacing ?? DEFAULT_ROLL_SPACING)))
+      flamCount: normalizePatternOrnamentValue('flamCount', Number(sp.flamCount ?? 0)),
+      flamSpacing: normalizePatternOrnamentValue('flamSpacing', Number(sp.flamSpacing ?? DEFAULT_FLAM_SPACING)),
+      rollCount: normalizePatternOrnamentValue('rollCount', Number(sp.rollCount ?? 0)),
+      rollSpacing: normalizePatternOrnamentValue('rollSpacing', Number(sp.rollSpacing ?? DEFAULT_ROLL_SPACING))
     }
   }
 

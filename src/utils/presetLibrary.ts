@@ -104,7 +104,6 @@ function normalizeSavedTrack(value: unknown, index: number): SavedTrack | null {
     : []
   return {
     id: asString(value.id, `preset-track-${index}`),
-    name: asString(value.name, type),
     type,
     volume: asFiniteNumber(value.volume, 0.8),
     pan: asFiniteNumber(value.pan, 0),

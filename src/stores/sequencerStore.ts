@@ -4,7 +4,7 @@ import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
-import { defaultMidiKeyForTrackType, trackTypeLabel, type TrackType } from '@/utils/drumSounds'
+import { defaultMidiKeyForTrackType, type TrackType } from '@/utils/drumSounds'
 
 export type { TrackType } from '@/utils/drumSounds'
 export { defaultMidiKeyForTrackType } from '@/utils/drumSounds'
@@ -30,7 +30,6 @@ export type PatternEntry = {
 
 type Track = {
   id: string
-  name: string
   type: TrackType
   rev: number
   volume: number // 0..1
@@ -55,7 +54,6 @@ export type SavedPatternEntry = {
 
 export type SavedTrack = {
   id: string
-  name: string
   type: TrackType
   volume: number
   pan: number
@@ -83,10 +81,6 @@ export type SequencerSessionSnapshot = {
   midiOutputId: string | null
   midiChannel: number
   tracks: SavedTrack[]
-}
-
-function defaultTrackName(type: TrackType): string {
-  return trackTypeLabel(type)
 }
 
 function defaultTrackParams(type: TrackType, current?: Record<string, number | string>) {
@@ -169,10 +163,9 @@ function makeTrackId() {
   return `t${Math.random().toString(36).slice(2, 8)}`
 }
 
-function createDefaultSavedTrack(type: TrackType, name?: string): SavedTrack {
+function createDefaultSavedTrack(type: TrackType): SavedTrack {
   return {
     id: makeTrackId(),
-    name: name || defaultTrackName(type),
     type,
     volume: 0.8,
     pan: 0,
@@ -195,10 +188,10 @@ function createDefaultSequencerSessionSnapshot(): SequencerSessionSnapshot {
     midiOutputId: null,
     midiChannel: 10,
     tracks: [
-      createDefaultSavedTrack('kick', 'Kick'),
-      createDefaultSavedTrack('snare', 'Snare'),
-      createDefaultSavedTrack('hat', 'Hat'),
-      createDefaultSavedTrack('cowbell', 'Cowbell')
+      createDefaultSavedTrack('kick'),
+      createDefaultSavedTrack('snare'),
+      createDefaultSavedTrack('hat'),
+      createDefaultSavedTrack('cowbell')
     ]
   }
 }
@@ -860,11 +853,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
 
 
-  function addTrack(type: TrackType = 'kick', name?: string) {
-    const saved = createDefaultSavedTrack(type, name)
+  function addTrack(type: TrackType = 'kick') {
+    const saved = createDefaultSavedTrack(type)
     const t: Track = {
       id: saved.id,
-      name: saved.name,
       type: saved.type,
       rev: 0,
       volume: saved.volume,
@@ -913,10 +905,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // initialize with 4 defaults
-  addTrack('kick', 'Kick')
-  addTrack('snare', 'Snare')
-  addTrack('hat', 'Hat')
-  addTrack('cowbell', 'Cowbell')
+  addTrack('kick')
+  addTrack('snare')
+  addTrack('hat')
+  addTrack('cowbell')
 
   // scheduled event IDs for clearing on rebuild
   let scheduledIds: number[] = []
@@ -1560,7 +1552,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   // Immutable updates for mix fields to avoid deep in-place mutations
-  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'name' | 'volume' | 'pan' | 'velocity' | 'velRandom' | 'timeScale' | 'noteLength'>>) {
+  function updateTrackFields(id: string, patch: Partial<Pick<Track, 'volume' | 'pan' | 'velocity' | 'velRandom' | 'timeScale' | 'noteLength'>>) {
     let changed = false
     tracks.value = tracks.value.map(t => {
       if (t.id !== id) return t
@@ -1977,8 +1969,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
     chunks.push(new Uint8Array([...tempoChunkHeader, ...tempoTrack]))
     // per sequencer track
     tracks.value.forEach((t, i) => {
-      const name = t.name || t.type.toUpperCase()
-      chunks.push(buildTrackChunk(name, perTrack[i]))
+      chunks.push(buildTrackChunk(t.type.toUpperCase(), perTrack[i]))
     })
 
     const bytes = new Uint8Array([...header, ...chunks.flatMap(c => Array.from(c))])
@@ -2098,7 +2089,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       midiChannel: midiChannel.value,
       tracks: tracks.value.map((t): SavedTrack => ({
         id: t.id,
-        name: t.name,
         type: t.type,
         volume: t.volume,
         pan: t.pan,
@@ -2214,7 +2204,6 @@ export const useSequencerStore = defineStore('sequencer', () => {
       }
       nextTracks.push({
         id,
-        name: st.name ?? defaultTrackName(st.type ?? 'tom'),
         type: st.type ?? 'tom',
         rev: 0,
         volume: Number(st.volume ?? 0.8),

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex flex-col">
+  <div class="min-h-screen flex flex-col lg:h-screen lg:overflow-hidden">
     <header class="sticky top-0 z-30 border-b border-cyan-300/20 bg-slate-950/85 backdrop-blur-xl">
       <div class="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 py-2 space-y-2">
         <div class="flex items-center gap-2 min-w-0">
@@ -70,9 +70,9 @@
       </div>
     </header>
 
-    <main class="flex-1">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <DrumTracks class="glass rounded-xl p-6 w-full relative z-10" />
+    <main class="flex-1 min-h-0 lg:overflow-hidden">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-3 lg:h-full">
+        <DrumTracks class="glass rounded-xl p-4 sm:p-6 w-full relative z-10 lg:h-full" />
       </div>
     </main>
 

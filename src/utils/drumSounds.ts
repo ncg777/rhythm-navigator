@@ -108,3 +108,35 @@ export function defaultMidiKeyForTrackType(type: TrackType): number {
     case 'chimes': return 84
   }
 }
+
+type TrackPresentationItem = {
+  id: string
+  type: TrackType
+}
+
+export function sortTracksByMidiKey<T extends TrackPresentationItem>(tracks: readonly T[]): T[] {
+  return tracks
+    .map((track, sourceIndex) => ({ track, sourceIndex }))
+    .sort((left, right) => {
+      const midiDifference = defaultMidiKeyForTrackType(left.track.type) - defaultMidiKeyForTrackType(right.track.type)
+      return midiDifference || left.sourceIndex - right.sourceIndex
+    })
+    .map(({ track }) => track)
+}
+
+export function automaticTrackLabels<T extends TrackPresentationItem>(tracks: readonly T[]): Map<string, string> {
+  const counts = new Map<TrackType, number>()
+  for (const track of tracks) {
+    counts.set(track.type, (counts.get(track.type) ?? 0) + 1)
+  }
+
+  const occurrences = new Map<TrackType, number>()
+  const labels = new Map<string, string>()
+  for (const track of tracks) {
+    const occurrence = (occurrences.get(track.type) ?? 0) + 1
+    occurrences.set(track.type, occurrence)
+    const label = trackTypeLabel(track.type)
+    labels.set(track.id, (counts.get(track.type) ?? 0) > 1 ? `${label} ${occurrence}` : label)
+  }
+  return labels
+}

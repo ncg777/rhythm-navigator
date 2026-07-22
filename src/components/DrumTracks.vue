@@ -3,26 +3,42 @@
     <header class="mb-3">
       <h2 class="text-lg font-semibold">Drum tracks</h2>
     </header>
-    <div class="space-y-4 sm:space-y-6 pb-2">
-      <div v-for="t in renderTracks" :key="t.id" class="rounded border border-white/10 p-3 sm:p-4">
+    <div class="track-workspace">
+      <nav class="track-master" aria-label="Drum tracks">
+        <button
+          v-for="track in orderedTracks"
+          :key="track.id"
+          type="button"
+          class="track-master-row"
+          :class="{ 'track-master-row--selected': selectedTrack?.id === track.id }"
+          :aria-current="selectedTrack?.id === track.id ? 'true' : undefined"
+          @click="selectedTrackId = track.id"
+        >
+          <span class="truncate text-left">{{ trackLabels.get(track.id) }}</span>
+          <span class="shrink-0 text-[10px] text-slate-500">{{ track.patterns.length }}p</span>
+        </button>
+      </nav>
 
-        <!-- Track header: type selector, name, remove grouped together -->
+      <div class="track-detail">
+        <div v-if="selectedTrack" v-for="t in [selectedTrack]" :key="t.id" class="rounded border border-white/10 p-3 sm:p-4">
+
+        <!-- Track header -->
         <div class="flex flex-wrap items-center gap-2">
+          <span class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-200">{{ trackLabels.get(t.id) }}</span>
           <select class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 text-sm" :value="t.type" @change="onTypeChange(t.id, ($event.target as HTMLSelectElement).value)">
             <option v-for="type in TRACK_TYPES" :key="type" :value="type">
               {{ trackTypeLabel(type) }} · GM {{ defaultMidiKeyForTrackType(type) }}
             </option>
           </select>
-          <input class="bg-slate-800 border border-white/10 rounded px-2 h-8 sm:h-9 min-w-0 flex-1 max-w-[200px] text-sm" :value="t.name" @input="onNameInput(t.id, $event)" />
           <button type="button" class="ml-auto px-2 sm:px-3 h-8 sm:h-9 text-xs rounded border border-red-500/30 hover:bg-red-500/10 shrink-0" @click.stop="removeTrack(t.id)">Remove</button>
         </div>
 
         <!-- Pattern chain -->
-        <div class="mt-3 border-t border-white/5 pt-3">
-          <div class="flex items-center gap-2 mb-2">
+        <details open class="mt-3 border-t border-white/5 pt-3">
+          <summary class="flex cursor-pointer list-none items-center gap-2 mb-2">
             <span class="text-xs text-slate-400 font-medium uppercase tracking-wide">Patterns</span>
             <span class="text-[10px] text-slate-500">({{ t.patterns.length }} pattern{{ t.patterns.length !== 1 ? 's' : '' }})</span>
-          </div>
+          </summary>
 
           <div v-if="!t.patterns.length" class="text-sm text-slate-500 italic mb-2">No patterns — pick one to start</div>
 
@@ -60,11 +76,11 @@
               chain: {{ chainCycleQN(t).toFixed(2) }} qn
             </span>
           </div>
-        </div>
+        </details>
 
         <!-- Mix controls (knobs) -->
-        <div class="mt-3 border-t border-white/5 pt-3">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Mix</div>
+        <details open class="mt-3 border-t border-white/5 pt-3">
+          <summary class="cursor-pointer list-none text-[10px] text-slate-500 uppercase tracking-wider mb-2">Mix</summary>
           <div class="flex flex-wrap gap-3">
             <Knob :modelValue="t.noteLength" @update:modelValue="v => onFieldInput2(t.id, 'noteLength', v)"
               :min="0.01" :max="1" :step="0.01" label="Length" :defaultValue="0.5" :size="48" />
@@ -79,11 +95,11 @@
             <Knob :modelValue="t.timeScale" @update:modelValue="v => onFieldInput2(t.id, 'timeScale', v)"
               :min="0.0625" :max="16" :step="0.0625" label="Time ×" :defaultValue="1" :size="48" color="#34d399" />
           </div>
-        </div>
+        </details>
 
         <!-- Instrument parameters (knobs) -->
-        <div class="mt-3 border-t border-white/5 pt-3">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">{{ t.type }} Synth</div>
+        <details open class="mt-3 border-t border-white/5 pt-3">
+          <summary class="cursor-pointer list-none text-[10px] text-slate-500 uppercase tracking-wider mb-2">Sound</summary>
           <div class="flex flex-wrap gap-3">
             <template v-if="t.type === 'kick'">
               <Knob :modelValue="(t.params.tune as number) ?? 55" @update:modelValue="v => onParam2(t.id, 'tune', v)"
@@ -222,11 +238,11 @@
                 :min="200" :max="8000" :step="10" label="Shell" :defaultValue="drumDefault(t.type, 'color')" :size="48" color="#4ade80" />
             </template>
           </div>
-        </div>
+        </details>
 
         <!-- Filter & Distortion -->
-        <div class="mt-3 border-t border-white/5 pt-3">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Filter / Drive</div>
+        <details open class="mt-3 border-t border-white/5 pt-3">
+          <summary class="cursor-pointer list-none text-[10px] text-slate-500 uppercase tracking-wider mb-2">Filter / Drive</summary>
           <div class="flex flex-wrap gap-3 items-end">
             <Knob :modelValue="((t.params.distortionInputGain ?? 0) as number)" @update:modelValue="v => onParam2(t.id, 'distortionInputGain', v)"
               :min="-60" :max="120" :step="1" label="Drive dB" :defaultValue="0" :size="48" color="#ef4444" />
@@ -265,8 +281,6 @@
             <Knob :modelValue="((t.params.filterEnvTime ?? 0.15) as number)" @update:modelValue="v => onParam2(t.id, 'filterEnvTime', v)"
               :min="0" :max="1" :step="0.01" label="Env Time" :defaultValue="0.15" :size="48" color="#ef4444" />
           </div>
-        </div>
-
         <!-- MIDI Key -->
         <div class="mt-3 border-t border-white/5 pt-3 flex items-center gap-3">
           <span class="text-[10px] text-slate-500 uppercase tracking-wider">MIDI Key</span>
@@ -276,6 +290,11 @@
             :value="t.params.midiKey || defaultMidiKey(t.type)"
             @input="onParamInput(t.id, 'midiKey', $event)"
           />
+        </div>
+        </details>
+        </div>
+        <div v-else class="rounded border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+          Add a percussion track to begin editing.
         </div>
       </div>
     </div>
@@ -295,7 +314,9 @@ import { useSequencerStore } from '@/stores/sequencerStore'
 import {
   TRACK_TYPES,
   defaultMidiKeyForTrackType,
+  automaticTrackLabels,
   isTrackType,
+  sortTracksByMidiKey,
   trackTypeLabel,
   type TrackType
 } from '@/utils/drumSounds'
@@ -340,7 +361,12 @@ function isTriangleType(type: TrackType): boolean {
 function isRideType(type: TrackType): boolean {
   return type === 'ride' || type === 'rideBell' || type === 'ride2'
 }
-const renderTracks = computed(() => tracks.value.map(t => t))
+const selectedTrackId = ref<string | null>(null)
+const orderedTracks = computed(() => sortTracksByMidiKey(tracks.value))
+const trackLabels = computed(() => automaticTrackLabels(orderedTracks.value))
+const selectedTrack = computed(() => {
+  return orderedTracks.value.find((track) => track.id === selectedTrackId.value) ?? orderedTracks.value[0] ?? null
+})
 
 const rstore = useRhythmStore()
 
@@ -351,11 +377,6 @@ function chainCycleQN(t: any): number {
 
 function onTypeChange(id: string, type: string) {
   if (isTrackType(type)) seq.setTrackType(id, type)
-}
-
-function onNameInput(id: string, e: Event) {
-  const v = (e.target as HTMLInputElement).value
-  seq.updateTrackFields(id, { name: v })
 }
 
 function onFieldInput(id: string, key: 'volume'|'pan'|'velocity'|'velRandom'|'noteLength', e: Event) {
@@ -417,8 +438,15 @@ function onMovePattern(trackId: string, from: number, to: number) {
   seq.movePatternInTrack(trackId, from, to)
 }
 
-function addTrack() { seq.addTrack('cowbell') }
-function removeTrack(id: string) { seq.removeTrack(id) }
+function addTrack() {
+  seq.addTrack('cowbell')
+  selectedTrackId.value = tracks.value.at(-1)?.id ?? null
+}
+
+function removeTrack(id: string) {
+  seq.removeTrack(id)
+  if (selectedTrackId.value === id) selectedTrackId.value = null
+}
 
 // Rhythm picker modal logic
 const pickerOpen = ref(false)
@@ -438,4 +466,91 @@ function defaultMidiKey(type: string): number {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.track-workspace {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.track-master {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.track-master-row {
+  display: flex;
+  min-width: 8.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+}
+
+.track-master-row:hover,
+.track-master-row--selected {
+  border-color: rgba(103, 232, 249, 0.6);
+  background: rgba(8, 145, 178, 0.14);
+  color: #ecfeff;
+}
+
+.track-detail {
+  min-width: 0;
+}
+
+details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+details > summary::after {
+  content: '+';
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+details[open] > summary::after {
+  content: '−';
+}
+
+:deep(.knob-wrap) {
+  width: 44px !important;
+}
+
+:deep(.knob-svg) {
+  width: 40px;
+  height: 40px;
+}
+
+@media (min-width: 1024px) {
+  .track-workspace {
+    grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+    height: calc(100% - 2.25rem);
+    min-height: 0;
+  }
+
+  .track-master {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    padding-bottom: 0;
+  }
+
+  .track-master-row {
+    min-width: 0;
+  }
+
+  .track-detail {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+}
+</style>

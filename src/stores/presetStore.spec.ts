@@ -27,7 +27,6 @@ const DEFAULT_SESSION = {
   tracks: [
     {
       id: 'track-1',
-      name: 'Kick',
       type: 'kick',
       volume: 0.8,
       pan: 0,

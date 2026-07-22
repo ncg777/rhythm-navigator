@@ -1148,11 +1148,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
       // seconds-based schedule needs rebuild when BPM changes
       rebuildSchedule()
     }
+  }
 
-    function setSwing(v: number) {
-      swing.value = Math.max(0, Math.min(100, Math.round(Number(v) || 50)))
-      if (isPlaying.value) rebuildSchedule()
-    }
+  function setSwing(v: number) {
+    swing.value = Math.max(0, Math.min(100, Math.round(Number(v) || 50)))
+    if (isPlaying.value) rebuildSchedule()
   }
 
   function setLoopBars(v: number) {
@@ -1714,11 +1714,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function exportProject() {
     const snapshot = captureSessionState()
-    const data = {
-      bpm: snapshot.bpm,
-      loopBars: snapshot.loopBars,
-      tracks: snapshot.tracks
-    }
+    const data = snapshot
     const name = `rhythm-navigator_bpm${bpm.value}_bars${resolveLoopBars()}_${formatTimestamp()}.json`
     downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), name)
   }

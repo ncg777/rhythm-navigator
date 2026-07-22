@@ -54,7 +54,11 @@ function normalizeSavedPatternEntry(value: unknown): SavedPatternEntry | null {
     digits: value.digits.map((digit) => Math.max(0, Math.floor(asFiniteNumber(digit, 0)))),
     numerator: Math.max(1, Math.floor(asFiniteNumber(value.numerator, 4))),
     denominator: Math.max(1, Math.floor(asFiniteNumber(value.denominator, 1))),
-    repeats: Math.max(1, Math.floor(asFiniteNumber(value.repeats, 1)))
+    repeats: Math.max(1, Math.floor(asFiniteNumber(value.repeats, 1))),
+    flamCount: Math.max(0, Math.min(3, Math.floor(asFiniteNumber(value.flamCount, 0)))),
+    flamSpacing: Math.max(0.001, asFiniteNumber(value.flamSpacing, 0.03)),
+    rollCount: Math.max(0, Math.min(8, Math.floor(asFiniteNumber(value.rollCount, 0)))),
+    rollSpacing: Math.max(0.001, asFiniteNumber(value.rollSpacing, 0.04))
   }
 }
 

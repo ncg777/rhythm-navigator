@@ -38,10 +38,6 @@
               </label>
               <Knob :modelValue="Number(t.params.pulseWidth ?? 0.5)" @update:modelValue="v => onParam2(t.id, 'pulseWidth', v)" :min="0.05" :max="0.95" :step="0.01" label="Pulse" :defaultValue="0.5" :size="48" />
               <Knob :modelValue="Number(t.params.phase ?? 0)" @update:modelValue="v => onParam2(t.id, 'phase', v)" :min="0" :max="360" :step="1" label="Phase" :defaultValue="0" :size="48" />
-              <Knob :modelValue="Number(t.params.flamCount ?? 0)" @update:modelValue="v => onParam2(t.id, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="48" />
-              <Knob :modelValue="Number(t.params.flamSpacing ?? 0.03)" @update:modelValue="v => onParam2(t.id, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="48" />
-              <Knob :modelValue="Number(t.params.rollCount ?? 0)" @update:modelValue="v => onParam2(t.id, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="48" />
-              <Knob :modelValue="Number(t.params.rollSpacing ?? 0.04)" @update:modelValue="v => onParam2(t.id, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="48" />
             </div>
           </div>
 
@@ -55,6 +51,12 @@
                 <span class="text-slate-400 mr-1">{{ entry.pattern.numerator }}/{{ entry.pattern.denominator }}</span>
                 <span class="text-slate-300 font-mono">{{ entry.pattern.groupedDigitsString }}</span>
               </span>
+              <div class="flex flex-wrap gap-2 items-end">
+                <Knob :modelValue="entry.flamCount" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="42" />
+                <Knob :modelValue="entry.flamSpacing" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="42" />
+                <Knob :modelValue="entry.rollCount" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="42" />
+                <Knob :modelValue="entry.rollSpacing" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="42" />
+              </div>
               <!-- Repeat controls -->
               <div class="flex items-center gap-1 shrink-0">
                 <span class="text-slate-500 text-[10px]">×</span>
@@ -348,6 +350,10 @@ function onRepeatDec(trackId: string, index: number) {
   const t = tracks.value.find((x: Track) => x.id === trackId)
   if (!t || !t.patterns[index]) return
   seq.setPatternRepeats(trackId, index, Math.max(1, t.patterns[index].repeats - 1))
+}
+
+function onPatternOrnament2(trackId: string, index: number, key: 'flamCount'|'flamSpacing'|'rollCount'|'rollSpacing', v: number) {
+  seq.updatePatternOrnaments(trackId, index, key, v)
 }
 
 function onMovePattern(trackId: string, from: number, to: number) {

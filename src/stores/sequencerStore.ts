@@ -664,11 +664,11 @@ export const useSequencerStore = defineStore('sequencer', () => {
 
   function ornamentTimes(atQN: number, params: Pick<PatternEntry, 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing'>) {
     const times = [atQN]
-    const flamCount = Math.max(0, Math.min(3, Math.floor(Number(params.flamCount ?? 0))))
-    const flamSpacing = Math.max(0.001, Number(params.flamSpacing ?? 0.03)) / (60 / bpm.value)
+    const flamCount = params.flamCount
+    const flamSpacing = params.flamSpacing / (60 / bpm.value)
     for (let i = flamCount; i > 0; i--) times.unshift(atQN - flamSpacing * i)
-    const rollCount = Math.max(0, Math.min(8, Math.floor(Number(params.rollCount ?? 0))))
-    const rollSpacing = Math.max(0.001, Number(params.rollSpacing ?? 0.04)) / (60 / bpm.value)
+    const rollCount = params.rollCount
+    const rollSpacing = params.rollSpacing / (60 / bpm.value)
     for (let i = 1; i <= rollCount; i++) times.push(atQN + rollSpacing * i)
     return times
   }
@@ -1284,9 +1284,15 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function updatePatternOrnaments(trackId: string, patternIndex: number, key: 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing', value: number) {
+    if (!Number.isFinite(value)) return
+    const nextValue = key === 'flamCount'
+      ? Math.max(0, Math.min(3, Math.floor(value)))
+      : key === 'rollCount'
+        ? Math.max(0, Math.min(8, Math.floor(value)))
+        : Math.max(0.001, value)
     tracks.value = tracks.value.map(t => {
       if (t.id !== trackId) return t
-      const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, [key]: value } : e)
+      const patterns = t.patterns.map((e, i) => i === patternIndex ? { ...e, [key]: nextValue } : e)
       return { ...t, patterns, rev: t.rev + 1 }
     })
     version.value++

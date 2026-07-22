@@ -52,10 +52,10 @@
                 <span class="text-slate-300 font-mono">{{ entry.pattern.groupedDigitsString }}</span>
               </span>
               <div class="flex flex-wrap gap-2 items-end">
-                <Knob :modelValue="entry.flamCount" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="42" />
-                <Knob :modelValue="entry.flamSpacing" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="42" />
-                <Knob :modelValue="entry.rollCount" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="42" />
-                <Knob :modelValue="entry.rollSpacing" @update:modelValue="v => onPatternOrnament2(t.id, pi, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="42" />
+                <Knob :modelValue="entry.flamCount" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'flamCount', v)" :min="0" :max="3" :step="1" label="Flams" :defaultValue="0" :size="42" />
+                <Knob :modelValue="entry.flamSpacing" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'flamSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Flam ms" :defaultValue="0.03" :size="42" />
+                <Knob :modelValue="entry.rollCount" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'rollCount', v)" :min="0" :max="8" :step="1" label="Rolls" :defaultValue="0" :size="42" />
+                <Knob :modelValue="entry.rollSpacing" @update:modelValue="v => onPatternOrnamentChange(t.id, pi, 'rollSpacing', v)" :min="0.005" :max="0.15" :step="0.005" label="Roll ms" :defaultValue="0.04" :size="42" />
               </div>
               <!-- Repeat controls -->
               <div class="flex items-center gap-1 shrink-0">
@@ -352,7 +352,7 @@ function onRepeatDec(trackId: string, index: number) {
   seq.setPatternRepeats(trackId, index, Math.max(1, t.patterns[index].repeats - 1))
 }
 
-function onPatternOrnament2(trackId: string, index: number, key: 'flamCount'|'flamSpacing'|'rollCount'|'rollSpacing', v: number) {
+function onPatternOrnamentChange(trackId: string, index: number, key: 'flamCount'|'flamSpacing'|'rollCount'|'rollSpacing', v: number) {
   seq.updatePatternOrnaments(trackId, index, key, v)
 }
 

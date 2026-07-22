@@ -45,6 +45,17 @@
     >
       <table class="dt-table">
         <thead class="dt-thead">
+          <tr v-if="hasColumnGroups">
+            <th
+              v-for="group in columnGroups"
+              :key="group.key"
+              class="dt-th-group"
+              :class="{ 'dt-th-group--labelled': group.label }"
+              :colspan="group.columns.length"
+            >
+              {{ group.label }}
+            </th>
+          </tr>
           <tr>
             <th
               v-for="col in visibleColumns"
@@ -62,7 +73,18 @@
               </div>
               <!-- Column filter -->
               <div v-if="col.filterable !== false" class="dt-th-filter">
+                <select
+                  v-if="col.filterType === 'boolean'"
+                  v-model="columnFilters[col.key]"
+                  class="dt-filter-input dt-filter-select"
+                  @click.stop
+                >
+                  <option value="">Any</option>
+                  <option value="true">Pass</option>
+                  <option value="false">Fail</option>
+                </select>
                 <input
+                  v-else
                   v-model="columnFilters[col.key]"
                   type="text"
                   :placeholder="'Filter…'"
@@ -143,8 +165,12 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, type PropType } from 
 export type ColumnDef = {
   key: string
   label: string
+  /** Label shared by consecutive columns in a grouped table header. */
+  group?: string
   sortable?: boolean
   filterable?: boolean
+  /** Uses an exact Any/Pass/Fail filter instead of substring matching. */
+  filterType?: 'boolean'
   width?: string
   cellClass?: string
   /** Extract a raw value from the row for sorting/filtering. Defaults to row[key]. */
@@ -156,6 +182,7 @@ export type ColumnDef = {
 }
 
 type SortLevel = { key: string; dir: 'asc' | 'desc' }
+type ColumnGroup = { key: string; label: string; columns: ColumnDef[] }
 
 const props = defineProps({
   columns: { type: Array as PropType<ColumnDef[]>, required: true },
@@ -179,6 +206,20 @@ const sortLevels = ref<SortLevel[]>([])
 
 // ─── Helpers ────────────────────────────────────────────────────
 const visibleColumns = computed(() => props.columns)
+const columnGroups = computed<ColumnGroup[]>(() => {
+  const groups: ColumnGroup[] = []
+  for (const col of visibleColumns.value) {
+    const label = col.group ?? ''
+    const previous = groups[groups.length - 1]
+    if (label && previous?.label === label) {
+      previous.columns.push(col)
+    } else {
+      groups.push({ key: `${label}:${col.key}`, label, columns: [col] })
+    }
+  }
+  return groups
+})
+const hasColumnGroups = computed(() => columnGroups.value.some(group => group.label !== ''))
 const totalRows = computed(() => props.rows.length)
 
 function columnByKey(k: string) { return props.columns.find(c => c.key === k) }
@@ -216,6 +257,7 @@ const filteredRows = computed(() => {
     if (!fv) continue
     data = data.filter(row => {
       const v = getCellValue(row, col)
+      if (col.filterType === 'boolean') return String(v).toLowerCase() === fv
       return v !== null && v !== undefined && String(v).toLowerCase().includes(fv)
     })
   }
@@ -510,6 +552,18 @@ defineExpose({ processedRows })
   user-select: none;
   vertical-align: top;
 }
+.dt-th-group {
+  background: rgba(14, 116, 144, 0.16);
+  border-bottom: 1px solid var(--dt-border-strong);
+  color: var(--dt-text-dim);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.625rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+.dt-th-group--labelled { color: #67e8f9; }
 .dt-th--sortable { cursor: pointer; }
 .dt-th--sortable:hover .dt-th-label { color: var(--dt-accent); }
 .dt-th--sorted .dt-th-label { color: var(--dt-accent); }
@@ -557,6 +611,7 @@ defineExpose({ processedRows })
   border-color: var(--dt-accent);
 }
 .dt-filter-input::placeholder { color: var(--dt-text-dim); }
+.dt-filter-select { cursor: pointer; }
 
 /* ─── Rows ───────────────────────────────────────────────────── */
 .dt-row {

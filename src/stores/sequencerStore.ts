@@ -4,6 +4,7 @@ import * as Tone from 'tone'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
 import { bitsPerDigitForMode } from '@/utils/rhythm'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
+import { DEFAULT_FLAM_SPACING, DEFAULT_ROLL_SPACING } from '@/utils/sequencerDefaults'
 
 export type TrackType = 'kick' | 'snare' | 'clap' | 'hat' | 'crash' | 'perc'
 
@@ -128,9 +129,9 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
     pulseWidth: current?.pulseWidth ?? 0.5,
     phase: current?.phase ?? 0,
     flamCount: current?.flamCount ?? 0,
-    flamSpacing: current?.flamSpacing ?? 0.03,
+    flamSpacing: current?.flamSpacing ?? DEFAULT_FLAM_SPACING,
     rollCount: current?.rollCount ?? 0,
-    rollSpacing: current?.rollSpacing ?? 0.04
+    rollSpacing: current?.rollSpacing ?? DEFAULT_ROLL_SPACING
   }
   switch (type) {
     case 'kick':
@@ -1255,7 +1256,7 @@ export const useSequencerStore = defineStore('sequencer', () => {
       cycleQN
     }
   // Append pattern to the patterns list
-  const entry: PatternEntry = { pattern, repeats: 1, flamCount: 0, flamSpacing: 0.03, rollCount: 0, rollSpacing: 0.04 }
+  const entry: PatternEntry = { pattern, repeats: 1, flamCount: 0, flamSpacing: DEFAULT_FLAM_SPACING, rollCount: 0, rollSpacing: DEFAULT_ROLL_SPACING }
   tracks.value = tracks.value.map((t, i) => i === idx ? { ...t, patterns: [...t.patterns, entry], rev: t.rev + 1 } : t)
   version.value++
     if (isPlaying.value) rebuildSchedule()
@@ -1285,7 +1286,10 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function updatePatternOrnaments(trackId: string, patternIndex: number, key: 'flamCount' | 'flamSpacing' | 'rollCount' | 'rollSpacing', value: number) {
-    if (!Number.isFinite(value)) return
+    if (!Number.isFinite(value)) {
+      console.warn('[sequencer] Ignoring non-finite pattern ornament value', { trackId, patternIndex, key, value })
+      return
+    }
     const nextValue = key === 'flamCount'
       ? Math.max(0, Math.min(3, Math.floor(value)))
       : key === 'rollCount'
@@ -1787,9 +1791,9 @@ export const useSequencerStore = defineStore('sequencer', () => {
       },
       repeats: Math.max(1, Math.floor(sp.repeats ?? 1)),
       flamCount: Math.max(0, Math.min(3, Math.floor(sp.flamCount ?? 0))),
-      flamSpacing: Math.max(0.001, Math.min(0.15, Number(sp.flamSpacing ?? 0.03))),
+      flamSpacing: Math.max(0.001, Math.min(0.15, Number(sp.flamSpacing ?? DEFAULT_FLAM_SPACING))),
       rollCount: Math.max(0, Math.min(8, Math.floor(sp.rollCount ?? 0))),
-      rollSpacing: Math.max(0.001, Math.min(0.15, Number(sp.rollSpacing ?? 0.04)))
+      rollSpacing: Math.max(0.001, Math.min(0.15, Number(sp.rollSpacing ?? DEFAULT_ROLL_SPACING)))
     }
   }
 

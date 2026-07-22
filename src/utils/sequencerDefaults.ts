@@ -1,0 +1,2 @@
+export const DEFAULT_FLAM_SPACING = 0.03
+export const DEFAULT_ROLL_SPACING = 0.04

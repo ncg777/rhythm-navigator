@@ -30,7 +30,7 @@
                     <div class="menu-status-sub">State: {{ dirtyStateLabel }}</div>
                   </div>
                   <button class="menu-btn" @click="presetBrowserOpen = true; close()">🗂 Open preset browser</button>
-                  <button class="menu-btn" @click="onCreateDefaultPreset(close)">➕ New default preset</button>
+                  <button class="menu-btn" @click="openCreateDefaultPresetDialog(close)">➕ New default preset</button>
                   <button class="menu-btn" :disabled="!canSaveActive" @click="presetStore.saveActivePreset(); close()">💾 Save active preset</button>
                   <button class="menu-btn" :disabled="!canRestoreActive" @click="presetStore.restoreActivePreset(); close()">↩ Restore active preset</button>
                   <label class="menu-label">
@@ -107,6 +107,23 @@
       <PresetManagerPanel />
     </Modal>
 
+    <NewPresetDialog
+      :open="newPresetDialogOpen"
+      :initial-name="newPresetName"
+      :is-dirty="isDirty"
+      @close="newPresetDialogOpen = false"
+      @create="onCreateDefaultPresetFromDialog"
+      @discard-and-create="onDiscardAndCreatePresetFromDialog"
+      @save-and-create="onSaveAndCreatePresetFromDialog"
+    />
+
+    <UnsavedChangesDialog
+      :open="dirtyGuardDialogOpen"
+      @cancel="cancelPendingPresetLoad"
+      @discard="continuePendingPresetLoad"
+      @save="saveAndContinuePendingPresetLoad"
+    />
+
     <footer class="border-t border-cyan-300/20">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 text-xs text-cyan-100/70">
         Built with Vue 3 + TypeScript · PWA enabled
@@ -127,6 +144,8 @@ import ConvolutionModal from '@/components/ConvolutionModal.vue'
 import SequenceGeneratorModal from '@/components/SequenceGeneratorModal.vue'
 import PresetManagerPanel from '@/components/PresetManagerPanel.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
+import NewPresetDialog from '@/components/NewPresetDialog.vue'
+import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
 import { storeToRefs } from 'pinia'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { computed, ref } from 'vue'
@@ -144,6 +163,9 @@ const { items } = storeToRefs(r)
 const { presets, activePresetId, activePresetName, dirtyState, isDirty, canSaveActive, canRestoreActive } = storeToRefs(presetStore)
 const newPresetName = ref('')
 const presetBrowserOpen = ref(false)
+const newPresetDialogOpen = ref(false)
+const dirtyGuardDialogOpen = ref(false)
+const pendingPresetLoadId = ref<string | null>(null)
 
 const dirtyStateLabel = computed(() => (dirtyState.value === 'modified' ? 'Modified' : dirtyState.value === 'clean' ? 'Clean' : 'Unsaved'))
 const presetStateClass = computed(() => {
@@ -160,24 +182,28 @@ const sequenceOpen = ref(false)
 const libraryInput = ref<HTMLInputElement | null>(null)
 const sessionInput = ref<HTMLInputElement | null>(null)
 
-function runDirtyGuard(action: () => void) {
-  if (!isDirty.value) {
-    action()
-    return
-  }
-  const answer = window.prompt('Current preset is modified. Type "save", "discard", or "cancel".', 'save')
-  if (!answer || answer.toLowerCase() === 'cancel') return
-  if (answer.toLowerCase() === 'save' && !presetStore.saveActivePreset()) return
-  if (answer.toLowerCase() !== 'save' && answer.toLowerCase() !== 'discard') return
-  action()
+function openCreateDefaultPresetDialog(close: () => void) {
+  newPresetDialogOpen.value = true
+  close()
 }
 
-function onCreateDefaultPreset(close: () => void) {
-  runDirtyGuard(() => {
-    const preset = presetStore.createPresetFromDefaults(newPresetName.value)
-    newPresetName.value = preset.name
-    close()
-  })
+function createDefaultPreset(name: string) {
+  const preset = presetStore.createPresetFromDefaults(name)
+  newPresetName.value = preset.name
+  newPresetDialogOpen.value = false
+}
+
+function onCreateDefaultPresetFromDialog(name: string) {
+  createDefaultPreset(name)
+}
+
+function onDiscardAndCreatePresetFromDialog(name: string) {
+  createDefaultPreset(name)
+}
+
+function onSaveAndCreatePresetFromDialog(name: string) {
+  if (!presetStore.saveActivePreset()) return
+  createDefaultPreset(name)
 }
 
 function onSaveAsCurrent(close: () => void) {
@@ -191,10 +217,31 @@ function onLoadPreset(id: string, close: () => void) {
     close()
     return
   }
-  runDirtyGuard(() => {
+  close()
+  if (!isDirty.value) {
     presetStore.loadPreset(id)
-    close()
-  })
+    return
+  }
+  pendingPresetLoadId.value = id
+  dirtyGuardDialogOpen.value = true
+}
+
+function continuePendingPresetLoad() {
+  if (pendingPresetLoadId.value) {
+    presetStore.loadPreset(pendingPresetLoadId.value)
+  }
+  pendingPresetLoadId.value = null
+  dirtyGuardDialogOpen.value = false
+}
+
+function saveAndContinuePendingPresetLoad() {
+  if (!presetStore.saveActivePreset()) return
+  continuePendingPresetLoad()
+}
+
+function cancelPendingPresetLoad() {
+  pendingPresetLoadId.value = null
+  dirtyGuardDialogOpen.value = false
 }
 
 function onImportLibrary(event: Event) {

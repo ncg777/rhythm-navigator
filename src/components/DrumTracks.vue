@@ -270,14 +270,14 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { useSequencerStore } from '@/stores/sequencerStore'
+import { useSequencerStore, type Track } from '@/stores/sequencerStore'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 import Knob from '@/components/Knob.vue'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
-const renderTracks = computed(() => tracks.value.map((t: any) => t))
+const renderTracks = computed(() => tracks.value.map((t: Track) => t))
 
 const rstore = useRhythmStore()
 
@@ -339,13 +339,13 @@ function onRepeatInput(trackId: string, index: number, e: Event) {
 }
 
 function onRepeatInc(trackId: string, index: number) {
-  const t = tracks.value.find((x: any) => x.id === trackId)
+  const t = tracks.value.find((x: Track) => x.id === trackId)
   if (!t || !t.patterns[index]) return
   seq.setPatternRepeats(trackId, index, t.patterns[index].repeats + 1)
 }
 
 function onRepeatDec(trackId: string, index: number) {
-  const t = tracks.value.find((x: any) => x.id === trackId)
+  const t = tracks.value.find((x: Track) => x.id === trackId)
   if (!t || !t.patterns[index]) return
   seq.setPatternRepeats(trackId, index, Math.max(1, t.patterns[index].repeats - 1))
 }

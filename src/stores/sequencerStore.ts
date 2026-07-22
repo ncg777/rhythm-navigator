@@ -25,7 +25,7 @@ export type PatternEntry = {
   repeats: number // >= 1
 }
 
-type Track = {
+export type Track = {
   id: string
   name: string
   type: TrackType
@@ -649,7 +649,8 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function swingOffsetQN(atQN: number) {
-    const eighth = Math.floor(atQN / 0.5 + 1e-6)
+    const SWING_GRID_EPSILON = 1e-6
+    const eighth = Math.floor(atQN / 0.5 + SWING_GRID_EPSILON)
     return eighth % 2 === 1 ? ((Math.max(0, Math.min(100, swing.value)) - 50) / 50) * 0.25 : 0
   }
 

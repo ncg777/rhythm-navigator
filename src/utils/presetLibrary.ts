@@ -137,7 +137,7 @@ export function parsePresetLibraryJson(json: string): SessionPresetLibrary {
     return {
       id: asString(value.id, `preset-${index + 1}`),
       name: normalizePresetName(asString(value.name, `Preset ${index + 1}`)),
-      folder: asString(value.folder, ''),
+      folder: typeof value.folder === 'string' ? value.folder : undefined,
       createdAt: Math.floor(asFiniteNumber(value.createdAt, now)),
       updatedAt: Math.floor(asFiniteNumber(value.updatedAt, now)),
       sequencer: normalizeSequencerSnapshot(value.sequencer)

@@ -124,10 +124,14 @@
       @save="saveAndContinuePendingPresetLoad"
     />
 
-    <footer class="border-t border-cyan-300/20">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 text-xs text-cyan-100/70">
-        Built with Vue 3 + TypeScript · PWA enabled
-      </div>
+    <footer class="fixed bottom-0 left-1/2 z-30 -translate-x-1/2 border-t border-cyan-300/20 text-center App-footer">
+      <a
+        href="https://paypal.me/ncg7777"
+        target="_blank"
+        rel="noreferrer"
+      >
+        ❤️ Support Rhythm Navigator
+      </a>
     </footer>
   </div>
 </template>

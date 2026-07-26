@@ -123,7 +123,7 @@
       @discard="continuePendingPresetLoad"
       @save="saveAndContinuePendingPresetLoad"
     />
-
+    <!--
     <footer class="fixed bottom-0 left-1/2 z-30 -translate-x-1/2 border-t border-cyan-300/20 text-center App-footer">
       <a
         href="https://paypal.me/ncg7777"
@@ -133,6 +133,7 @@
         ❤️ Support Rhythm Navigator
       </a>
     </footer>
+    -->
   </div>
 </template>
 

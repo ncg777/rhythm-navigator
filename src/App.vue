@@ -43,6 +43,7 @@
                   <button class="menu-btn" @click="sessionInput?.click()">📂 Load session JSON</button>
                   <button class="menu-btn" @click="presetStore.exportLibrary(); close()">📤 Export preset library</button>
                   <button class="menu-btn" @click="libraryInput?.click()">📥 Import preset library</button>
+                  <!--
                   <div class="menu-divider"></div>
                   <div v-if="!presets.length" class="menu-empty">No saved presets.</div>
                   <div v-else class="menu-scroll">
@@ -56,6 +57,7 @@
                       </div>
                     </div>
                   </div>
+                -->
                 </div>
                 <input ref="libraryInput" type="file" accept="application/json" class="hidden" @change="onImportLibrary" />
                 <input ref="sessionInput" type="file" accept="application/json" class="hidden" @change="onImportSession" />

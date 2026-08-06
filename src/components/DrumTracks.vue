@@ -113,16 +113,20 @@
             <template v-if="t.type === 'kick'">
               <Knob :modelValue="(t.params.tune as number) ?? 55" @update:modelValue="v => onParam2(t.id, 'tune', v)"
                 :min="30" :max="120" :step="1" label="Tune" :defaultValue="55" :size="48" color="#f472b6" />
-              <Knob :modelValue="(t.params.click as number) ?? 0.5" @update:modelValue="v => onParam2(t.id, 'click', v)"
-                :min="0" :max="1" :step="0.01" label="Click" :defaultValue="0.5" :size="48" color="#f472b6" />
               <Knob :modelValue="(t.params.sweep as number) ?? 4" @update:modelValue="v => onParam2(t.id, 'sweep', v)"
-                :min="0.5" :max="8" :step="0.1" label="Sweep" :defaultValue="4" :size="48" color="#f472b6" />
-              <Knob :modelValue="(t.params.sweepTime as number) ?? 0.04" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
-                :min="0.005" :max="0.2" :step="0.001" label="Swp Time" :defaultValue="0.04" :size="48" color="#f472b6" />
-              <Knob :modelValue="(t.params.decay as number) ?? 0.4" @update:modelValue="v => onParam2(t.id, 'decay', v)"
-                :min="0.05" :max="2" :step="0.01" label="Decay" :defaultValue="0.4" :size="48" color="#f472b6" />
-              <Knob :modelValue="(t.params.sub as number) ?? 0.6" @update:modelValue="v => onParam2(t.id, 'sub', v)"
-                :min="0" :max="1" :step="0.01" label="Sub" :defaultValue="0.6" :size="48" color="#f472b6" />
+                :min="0" :max="8" :step="0.1" label="Sweep" :defaultValue="4" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.sweepTime as number) ?? 0.05" @update:modelValue="v => onParam2(t.id, 'sweepTime', v)"
+                :min="0.005" :max="0.4" :step="0.001" label="Pitch Dur" :defaultValue="0.05" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.pitchShape as number) ?? 3" @update:modelValue="v => onParam2(t.id, 'pitchShape', v)"
+                :min="0.2" :max="8" :step="0.05" label="Pitch Shp" :defaultValue="3" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.decay as number) ?? 0.45" @update:modelValue="v => onParam2(t.id, 'decay', v)"
+                :min="0.05" :max="2" :step="0.01" label="Decay" :defaultValue="0.45" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.ampShape as number) ?? 2" @update:modelValue="v => onParam2(t.id, 'ampShape', v)"
+                :min="0.2" :max="8" :step="0.05" label="Amp Shp" :defaultValue="2" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.drive as number) ?? 0.35" @update:modelValue="v => onParam2(t.id, 'drive', v)"
+                :min="0" :max="1" :step="0.01" label="Drive" :defaultValue="0.35" :size="48" color="#f472b6" />
+              <Knob :modelValue="(t.params.wavePower as number) ?? 2.5" @update:modelValue="v => onParam2(t.id, 'wavePower', v)"
+                :min="0.2" :max="8" :step="0.05" label="Wave Pow" :defaultValue="2.5" :size="48" color="#f472b6" />
             </template>
             <template v-else-if="t.type === 'snare'">
               <Knob :modelValue="(t.params.tune as number) ?? 185" @update:modelValue="v => onParam2(t.id, 'tune', v)"

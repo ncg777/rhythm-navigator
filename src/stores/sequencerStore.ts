@@ -97,7 +97,17 @@ function defaultTrackParams(type: TrackType, current?: Record<string, number | s
   }
   switch (type) {
     case 'kick':
-      return { ...shared, tune: 55, click: 0.5, sweep: 4, sweepTime: 0.04, decay: 0.4, sub: 0.6 }
+      return {
+        ...shared,
+        tune: 55,
+        sweep: 4,
+        sweepTime: 0.05,
+        pitchShape: 3,
+        decay: 0.45,
+        ampShape: 2,
+        drive: 0.35,
+        wavePower: 2.5,
+      }
     case 'snare':
       return { ...shared, tune: 185, toneDecay: 0.12, noiseType: 'white', noiseDecay: 0.2, snap: 0.7, mix: 0.5 }
     case 'clap':
@@ -217,6 +227,60 @@ function firstGroupLength(grouped: string): number {
   return first.length || 1
 }
 
+/** Power-law soft clip: y = sign(x) * |d·x| / (1 + |d·x|^n)^(1/n) */
+function powerWaveShaperSample(x: number, drive: number, power: number): number {
+  const d = 1 + Math.max(0, drive) * 12
+  const n = Math.max(0.15, Math.min(16, power))
+  const v = x * d
+  const a = Math.abs(v)
+  if (a < 1e-12) return 0
+  return Math.sign(v) * (a / Math.pow(1 + Math.pow(a, n), 1 / n))
+}
+
+function buildPowerWaveShaperCurve(drive: number, power: number, size = 2048): Float32Array {
+  const curve = new Float32Array(size)
+  const denom = size - 1
+  for (let i = 0; i < size; i++) {
+    const x = (i / denom) * 2 - 1
+    curve[i] = powerWaveShaperSample(x, drive, power)
+  }
+  return curve
+}
+
+/**
+ * Piecewise-linear approximation of a power-shaped ramp.
+ * shape = 1 → linear; shape > 1 → faster initial move toward `to`; shape < 1 → slower start.
+ * When `reset` is false, continues from a previously scheduled value without canceling.
+ */
+function schedulePowerCurve(
+  param: any,
+  time: number,
+  from: number,
+  to: number,
+  duration: number,
+  shape: number,
+  segments = 24,
+  reset = true
+) {
+  const dur = Math.max(0.001, duration)
+  const exp = Math.max(0.05, Math.min(12, shape))
+  const steps = Math.max(4, Math.min(64, segments | 0))
+  try {
+    if (reset) {
+      param.cancelScheduledValues?.(time)
+      param.setValueAtTime?.(from, time)
+    } else {
+      param.setValueAtTime?.(from, time)
+    }
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      const eased = 1 - Math.pow(1 - t, exp)
+      const v = from + (to - from) * eased
+      param.linearRampToValueAtTime?.(v, time + dur * t)
+    }
+  } catch {}
+}
+
 function makeInstrument(type: TrackType, params: Record<string, number | string> = {}) {
   // Shared signal chain: voice(s) → inputGain → distortion → filter → postVca
   const preDb = Math.max(-60, Math.min(120, Number(params.distortionInputGain ?? 0)))
@@ -260,49 +324,79 @@ function makeInstrument(type: TrackType, params: Record<string, number | string>
   }
 
   switch (type) {
-    // ===================== KICK (808/909 hybrid) =====================
+    // ===================== KICK (osc + power waveshaper) =====================
     case 'kick': {
       const tune = Number(params.tune ?? 55)
-      const clickLevel = Math.max(0, Math.min(1, Number(params.click ?? 0.5)))
-      const sweepOct = Number(params.sweep ?? 4)
-      const sweepTime = Number(params.sweepTime ?? 0.04)
-      const bodyDecay = Number(params.decay ?? 0.4)
-      const subLevel = Math.max(0, Math.min(1, Number(params.sub ?? 0.6)))
+      const sweepOct = Math.max(0, Number(params.sweep ?? 4))
+      const sweepTime = Math.max(0.001, Number(params.sweepTime ?? 0.05))
+      const pitchShape = Math.max(0.05, Number(params.pitchShape ?? 3))
+      const bodyDecay = Math.max(0.01, Number(params.decay ?? 0.45))
+      const ampShape = Math.max(0.05, Number(params.ampShape ?? 2))
+      const drive = Math.max(0, Math.min(1, Number(params.drive ?? 0.35)))
+      const wavePower = Math.max(0.15, Number(params.wavePower ?? 2.5))
 
-      // Body: MembraneSynth — pitched sweep + sub
-      const body = markRaw(new Tone.MembraneSynth({
-        octaves: sweepOct,
-        pitchDecay: sweepTime,
-        envelope: {
-          attack: 0.003,
-          decay: bodyDecay,
-          sustain: subLevel,
-          release: Math.min(bodyDecay * 0.4, 0.15)
-        }
+      const osc = markRaw(new Tone.Oscillator({
+        type: 'sine',
+        frequency: tune,
       }))
-      // Click transient: short sine burst at higher pitch
-      const click = markRaw(new Tone.Synth({
-        oscillator: { type: 'sine' } as any,
-        envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.01 }
-      }))
-      const clickGain = markRaw(new Tone.Gain(clickLevel))
-      body.connect(inputGain)
-      click.connect(clickGain)
-      clickGain.connect(inputGain)
+      const shaper = markRaw(new Tone.WaveShaper(buildPowerWaveShaperCurve(drive, wavePower), 2048))
+      try { (shaper as any).oversample = '2x' } catch {}
+      const ampEnv = markRaw(new Tone.Gain(0))
 
-      const live = { tune, clickLevel }
+      osc.connect(shaper)
+      shaper.connect(ampEnv)
+      ampEnv.connect(inputGain)
+      try { osc.start() } catch {}
+
+      const live = {
+        tune,
+        sweepOct,
+        sweepTime,
+        pitchShape,
+        bodyDecay,
+        ampShape,
+        drive,
+        wavePower,
+      }
+
+      const applyWaveShaper = () => {
+        try {
+          shaper.curve = buildPowerWaveShaperCurve(live.drive, live.wavePower)
+        } catch {}
+      }
+
       return {
-        node: postVca, filter, voice: body, voice2: click, clickGain,
-        preGain: inputGain, hitVca: postVca, live,
+        node: postVca,
+        filter,
+        voice: osc,
+        waveShaper: shaper,
+        ampEnv,
+        preGain: inputGain,
+        hitVca: postVca,
+        live,
+        applyWaveShaper,
         trigger: (time: number, vel: number, duration?: number) => {
-          const naturalDur = sweepTime + bodyDecay + 0.15
-          const dur = Math.max(naturalDur, duration ?? 0.4)
-          schedVelEnv(time, vel, naturalDur + 0.02)
-          body.triggerAttackRelease(live.tune, dur, time, vel)
-          if (live.clickLevel > 0.01) {
-            click.triggerAttackRelease(live.tune * 4, 0.03, time, vel * live.clickLevel)
-          }
-        }
+          const pitchDur = Math.max(0.001, live.sweepTime)
+          const ampDur = Math.max(0.01, duration ?? live.bodyDecay, live.bodyDecay)
+          const attack = 0.0015
+          const peak = Math.max(0, Math.min(1, vel))
+          const startHz = Math.max(1, live.tune * Math.pow(2, live.sweepOct))
+          const endHz = Math.max(1, live.tune)
+
+          schedVelEnv(time, peak, ampDur + 0.02)
+
+          // Pitch envelope: high → tune with power shape
+          schedulePowerCurve((osc as any).frequency, time, startHz, endHz, pitchDur, live.pitchShape)
+
+          // Amplitude envelope: short attack, power-shaped decay to silence
+          try {
+            const g: any = (ampEnv as any).gain
+            g.cancelScheduledValues?.(time)
+            g.setValueAtTime?.(0, time)
+            g.linearRampToValueAtTime?.(peak, time + attack)
+            schedulePowerCurve(g, time + attack, peak, 0, ampDur, live.ampShape, 24, false)
+          } catch {}
+        },
       }
     }
     // ===================== SNARE (dual-layer: tone + noise) =====================
@@ -1006,9 +1100,12 @@ export const useSequencerStore = defineStore('sequencer', () => {
   }
 
   function disposeInstrument(inst: any) {
+    try { inst?.voice?.stop?.() } catch {}
     try { inst?.voice?.dispose?.() } catch {}
     try { inst?.voice2?.dispose?.() } catch {}
     try { inst?.voice3?.dispose?.() } catch {}
+    try { inst?.waveShaper?.dispose?.() } catch {}
+    try { inst?.ampEnv?.dispose?.() } catch {}
     try { inst?.clickGain?.dispose?.() } catch {}
     try { inst?.toneFilter?.dispose?.() } catch {}
     try { inst?.toneGain?.dispose?.() } catch {}
@@ -1048,27 +1145,32 @@ export const useSequencerStore = defineStore('sequencer', () => {
       const voice: any = (nb.inst as any)?.voice
       try {
         switch (t.type) {
-          case 'kick':
-            if (voice && typeof voice.set === 'function') {
-              voice.set({
-                octaves: Number((t.params as any)?.sweep ?? 4),
-                pitchDecay: Number((t.params as any)?.sweepTime ?? 0.04),
-                envelope: {
-                  attack: 0.003,
-                  decay: Number((t.params as any)?.decay ?? 0.4),
-                  sustain: Math.max(0, Math.min(1, Number((t.params as any)?.sub ?? 0.6))),
-                  release: Math.min(Number((t.params as any)?.decay ?? 0.4) * 0.4, 0.15)
-                }
-              })
+          case 'kick': {
+            const p = t.params as any
+            const li = (nb.inst as any)?.live
+            if (li) {
+              li.tune = Number(p?.tune ?? 55)
+              li.sweepOct = Math.max(0, Number(p?.sweep ?? 4))
+              li.sweepTime = Math.max(0.001, Number(p?.sweepTime ?? 0.05))
+              li.pitchShape = Math.max(0.05, Number(p?.pitchShape ?? 3))
+              li.bodyDecay = Math.max(0.01, Number(p?.decay ?? 0.45))
+              li.ampShape = Math.max(0.05, Number(p?.ampShape ?? 2))
+              const nextDrive = Math.max(0, Math.min(1, Number(p?.drive ?? 0.35)))
+              const nextPower = Math.max(0.15, Number(p?.wavePower ?? 2.5))
+              const shaperDirty = nextDrive !== li.drive || nextPower !== li.wavePower
+              li.drive = nextDrive
+              li.wavePower = nextPower
+              if (shaperDirty) {
+                try { (nb.inst as any)?.applyWaveShaper?.() } catch {}
+              }
             }
-            // Update click transient level
+            // Park oscillator at base tune between hits (active envelopes override on trigger)
             try {
-              const cg: any = (nb.inst as any)?.clickGain?.gain
-              if (cg) smoothSetParam(cg, Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))))
+              const freq = (voice as any)?.frequency
+              if (freq) smoothSetParam(freq, Number(p?.tune ?? 55), 0.05)
             } catch {}
-            // Update live params used by trigger closure
-            try { const li = (nb.inst as any)?.live; if (li) { li.tune = Number((t.params as any)?.tune ?? 55); li.clickLevel = Math.max(0, Math.min(1, Number((t.params as any)?.click ?? 0.5))) } } catch {}
             break
+          }
           case 'snare': {
             const nt = String((t.params as any)?.noiseType ?? 'white')
             const baseNt = (['white', 'pink', 'brown'].includes(nt) ? nt : 'white')

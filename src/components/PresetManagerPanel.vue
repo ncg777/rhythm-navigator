@@ -19,8 +19,9 @@
       <button class="toolbtn" title="Export library" aria-label="Export library" @click="presetStore.exportLibrary()">
         <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
       </button>
-      <label class="toolbtn cursor-pointer" title="Import library" aria-label="Import library">
+      <label class="toolbtn cursor-pointer" title="Import library">
         <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M12 21V9M7 12l5-5 5 5M5 3h14" /></svg>
+        <span class="sr-only">Import library</span>
         <input type="file" accept="application/json" class="hidden" @change="onImportLibrary" />
       </label>
     </div>

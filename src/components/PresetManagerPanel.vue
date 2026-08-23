@@ -8,21 +8,19 @@
 
     <div class="flex flex-wrap items-center gap-1">
       <button class="toolbtn" title="New preset from defaults" @click="newPresetDialogOpen = true">＋</button>
-      <button class="toolbtn" title="Save active preset" :disabled="!canSaveActive" @click="presetStore.saveActivePreset()">
-        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M5 4h11l3 3v13H5z" /><path d="M8 4v6h8V4M8 20v-6h8v6" /></svg>
-      </button>
+      <button class="toolbtn" title="Save active preset" :disabled="!canSaveActive" @click="presetStore.saveActivePreset()">💾</button>
       <button class="toolbtn" title="Save session as a new preset" @click="onSaveAs">
         <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M6 3h9l4 4v14H6z" /><path d="M9 3v6h6M9 17h6" /></svg>
       </button>
       <button class="toolbtn" title="Restore active preset" :disabled="!canRestoreActive" @click="presetStore.restoreActivePreset()">↺</button>
       <span class="w-px h-5 bg-white/10 mx-1"></span>
-      <button class="toolbtn" title="New folder in current folder" @click="onCreateFolder">
-        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M3 6h7l2 2h9v11H3z" /><path d="M15 12v6M12 15h6" /></svg>
-      </button>
+      <button class="toolbtn" title="New folder in current folder" @click="onCreateFolder">📁＋</button>
       <span class="w-px h-5 bg-white/10 mx-1"></span>
-      <button class="toolbtn" title="Export library" @click="presetStore.exportLibrary()">⭳</button>
+      <button class="toolbtn" title="Export library" @click="presetStore.exportLibrary()">
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+      </button>
       <label class="toolbtn cursor-pointer" title="Import library">
-        ⭱
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current stroke-2"><path d="M12 21V9M7 12l5-5 5 5M5 3h14" /></svg>
         <input type="file" accept="application/json" class="hidden" @change="onImportLibrary" />
       </label>
     </div>

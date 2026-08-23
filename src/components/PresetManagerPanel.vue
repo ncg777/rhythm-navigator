@@ -36,7 +36,7 @@
       >
         <span class="w-4 text-center text-slate-500">🏠</span>
         <span class="flex-1 truncate">Root</span>
-        <span class="text-[10px] text-slate-500">{{ presets.length }}</span>
+        <span class="text-[10px] text-slate-500">{{ rootPresetCount }}</span>
       </div>
 
       <template v-for="row in treeRows" :key="`${row.kind}:${row.id}`">
@@ -94,7 +94,7 @@
             @change="onMoveRow(row, $event)"
           >
             <option :value="ROOT_FOLDER_OPTION">Move to…</option>
-            <option value="__root_target__">Root</option>
+            <option :value="ROOT_MOVE_TARGET">Root</option>
             <option v-for="folder in moveTargetsFor(row)" :key="folder.id" :value="folder.id">
               {{ folderPathLabel(folder.id) }}
             </option>
@@ -182,6 +182,7 @@ const dirtyStateClass = computed(() => {
   return 'border-slate-500/60 text-slate-300'
 })
 const selectedFolderLabel = computed(() => (selectedFolderId.value ? folderPathLabel(selectedFolderId.value) : 'Root'))
+const rootPresetCount = computed(() => presetStore.presetsInFolder(null).length)
 
 const treeRows = computed<TreeRow[]>(() => {
   const rows: TreeRow[] = []
@@ -331,8 +332,10 @@ function onRenameFolder(id: string, fallback: string) {
 }
 
 function onDeleteFolder(id: string) {
+  const name = folderMap.value.get(id)?.name ?? 'this folder'
+  if (!window.confirm(`Delete folder "${name}"?`)) return
   const recursive = window.confirm(
-    'Delete this folder AND all of its sub-folders and presets?\n\nOK = delete everything, Cancel = keep contents and move them to the parent folder.'
+    'Also delete every sub-folder and preset inside it?\n\nOK = delete everything, Cancel = move the contents to the parent folder.'
   )
   presetStore.deleteFolder(id, recursive ? 'recursive' : 'reparent')
   menuRowKey.value = null

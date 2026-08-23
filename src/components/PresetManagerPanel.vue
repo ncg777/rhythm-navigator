@@ -1,198 +1,116 @@
 <template>
-  <div class="space-y-4">
-    <div class="rounded-lg border border-white/10 bg-slate-900/50 p-3 flex flex-wrap items-center gap-2 text-xs">
-      <span class="uppercase tracking-wide text-slate-400">Current preset</span>
-      <span class="font-semibold text-slate-100">{{ activePresetName }}</span>
-      <span
-        class="px-2 py-0.5 rounded border uppercase tracking-wide"
-        :class="dirtyStateClass"
+  <div class="flex flex-col gap-2 text-sm">
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span class="font-semibold text-slate-100 truncate max-w-[12rem]" :title="activePresetName">{{ activePresetName }}</span>
+      <span class="px-1.5 py-0.5 rounded border uppercase tracking-wide text-[10px]" :class="dirtyStateClass">{{ dirtyStateLabel }}</span>
+      <span class="text-slate-500 truncate">in {{ selectedFolderLabel }}</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1">
+      <button class="toolbtn" title="New preset from defaults" @click="newPresetDialogOpen = true">＋</button>
+      <button class="toolbtn" title="Save active preset" :disabled="!canSaveActive" @click="presetStore.saveActivePreset()">💾</button>
+      <button class="toolbtn" title="Save session as a new preset" @click="onSaveAs">🗎</button>
+      <button class="toolbtn" title="Restore active preset" :disabled="!canRestoreActive" @click="presetStore.restoreActivePreset()">↺</button>
+      <span class="w-px h-5 bg-white/10 mx-1"></span>
+      <button class="toolbtn" title="New folder in current folder" @click="onCreateFolder">📁＋</button>
+      <span class="w-px h-5 bg-white/10 mx-1"></span>
+      <button class="toolbtn" title="Export library" @click="presetStore.exportLibrary()">⭳</button>
+      <label class="toolbtn cursor-pointer" title="Import library">
+        ⭱
+        <input type="file" accept="application/json" class="hidden" @change="onImportLibrary" />
+      </label>
+    </div>
+
+    <div class="rounded-lg border border-white/10 bg-slate-900/40 overflow-y-auto max-h-[55vh] lg:max-h-[60vh]">
+      <div
+        class="explorer-row"
+        :class="[
+          selectedFolderId === null ? 'bg-brand-500/10 text-brand-100' : '',
+          isDropTarget(null) ? 'ring-1 ring-cyan-300/70' : ''
+        ]"
+        @click="presetStore.setSelectedFolder(null)"
+        @dragenter.prevent="onFolderDragEnter(null)"
+        @dragover.prevent="onFolderDragOver(null, $event)"
+        @dragleave="onFolderDragLeave(null)"
+        @drop.prevent="onFolderDrop(null, $event)"
       >
-        {{ dirtyStateLabel }}
-      </span>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-      <div class="rounded-lg border border-white/10 p-3 space-y-2">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Save current session as new preset</label>
-        <div class="flex flex-col sm:flex-row gap-2">
-          <input
-            v-model="presetName"
-            type="text"
-            class="flex-1 bg-slate-800 border border-white/10 rounded px-3 py-2"
-            placeholder="Named preset"
-            @keydown.enter.prevent="onSaveAsCurrent"
-          />
-          <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="onSaveAsCurrent">Save As</button>
-          <button class="px-3 py-2 rounded border border-brand-500/40 hover:bg-brand-500/10" @click="onNewDefault">New default</button>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" :disabled="!canSaveActive" @click="presetStore.saveActivePreset()">Save active</button>
-          <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" :disabled="!canRestoreActive" @click="presetStore.restoreActivePreset()">Restore active</button>
-        </div>
+        <span class="w-4 text-center text-slate-500">🏠</span>
+        <span class="flex-1 truncate">Root</span>
+        <span class="text-[10px] text-slate-500">{{ presets.length }}</span>
       </div>
 
-      <div class="rounded-lg border border-white/10 p-3 space-y-2">
-        <label class="block text-xs uppercase tracking-wide text-slate-400">Folders and library</label>
-        <div class="flex flex-col sm:flex-row gap-2">
-          <input
-            v-model="folderName"
-            type="text"
-            class="flex-1 bg-slate-800 border border-white/10 rounded px-3 py-2"
-            placeholder="New folder name"
-            @keydown.enter.prevent="onCreateFolder"
-          />
-          <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="onCreateFolder">Create folder</button>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="presetStore.exportLibrary()">Export library</button>
-          <label class="px-3 py-2 rounded border border-white/10 hover:bg-white/5 cursor-pointer">
-            Import library
-            <input type="file" accept="application/json" class="hidden" @change="onImportLibrary" />
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-[minmax(14rem,18rem)_1fr] gap-4">
-      <aside class="rounded-lg border border-white/10 bg-slate-900/35 p-3 space-y-2">
-        <button
-          class="w-full text-left px-2 py-1 rounded border"
+      <template v-for="row in treeRows" :key="`${row.kind}:${row.id}`">
+        <div
+          class="explorer-row"
           :class="[
-            selectedFolderId === null ? 'border-brand-400/60 bg-brand-500/10' : 'border-white/10 hover:bg-white/5',
-            isPresetDropTarget(null) ? 'border-cyan-300/70 bg-cyan-500/15' : ''
+            row.kind === 'folder' && selectedFolderId === row.id ? 'bg-brand-500/10 text-brand-100' : '',
+            row.kind === 'preset' && row.id === activePresetId ? 'bg-brand-500/15 text-brand-100' : '',
+            row.kind === 'folder' && isDropTarget(row.id) ? 'ring-1 ring-cyan-300/70' : '',
+            row.kind === 'preset' && draggedPresetId === row.id ? 'opacity-55' : ''
           ]"
-          @click="presetStore.setSelectedFolder(null)"
-          @dragenter.prevent="onFolderDragEnter(null)"
-          @dragover.prevent="onFolderDragOver(null, $event)"
-          @dragleave="onFolderDragLeave(null)"
-          @drop.prevent="onFolderDrop(null, $event)"
-        >
-          Root
-        </button>
-        <div v-for="row in folderRows" :key="row.folder.id" class="space-y-1" :style="{ paddingLeft: `${row.depth * 12}px` }">
-          <div class="flex items-center gap-1">
-            <button
-              v-if="row.hasChildren"
-              class="px-1 text-xs text-slate-400 hover:text-slate-200"
-              @click="presetStore.toggleFolderExpanded(row.folder.id)"
-              :title="row.expanded ? 'Collapse folder' : 'Expand folder'"
-            >
-              {{ row.expanded ? '▾' : '▸' }}
-            </button>
-            <span v-else class="px-1 text-xs text-slate-600">•</span>
-            <button
-              class="flex-1 text-left px-2 py-1 rounded border"
-              :class="[
-                selectedFolderId === row.folder.id ? 'border-brand-400/60 bg-brand-500/10' : 'border-white/10 hover:bg-white/5',
-                isPresetDropTarget(row.folder.id) ? 'border-cyan-300/70 bg-cyan-500/15' : ''
-              ]"
-              @click="presetStore.setSelectedFolder(row.folder.id)"
-              @dragenter.prevent="onFolderDragEnter(row.folder.id)"
-              @dragover.prevent="onFolderDragOver(row.folder.id, $event)"
-              @dragleave="onFolderDragLeave(row.folder.id)"
-              @drop.prevent="onFolderDrop(row.folder.id, $event)"
-            >
-              {{ row.folder.name }}
-            </button>
-            <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5 text-xs" @click="onRenameFolder(row.folder.id, row.folder.name)">Rename</button>
-            <button class="px-2 py-1 rounded border border-white/10 hover:bg-white/5 text-xs" @click="openMoveFolder(row.folder.id, row.folder.parentId)">Move</button>
-            <button class="px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10 text-xs" @click="openDeleteFolder(row.folder.id)">Delete</button>
-          </div>
-
-          <div
-            v-if="folderMoveEditorId === row.folder.id"
-            class="ml-6 rounded-md border border-white/10 bg-slate-900/60 p-2 space-y-2"
-          >
-            <label class="block text-[11px] uppercase tracking-wide text-slate-400">Move folder to</label>
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-              <select v-model="folderMoveTargetId" class="flex-1 bg-slate-800 border border-white/10 rounded px-2 py-2 text-xs">
-                <option :value="ROOT_FOLDER_OPTION">Root</option>
-                <option v-for="folder in folderMoveTargets" :key="folder.id" :value="folder.id">
-                  {{ folderPathLabel(folder.id) }}
-                </option>
-              </select>
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5 text-xs" @click="confirmMoveFolder">Move</button>
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5 text-xs" @click="cancelMoveFolder">Cancel</button>
-            </div>
-          </div>
-
-          <div
-            v-if="folderDeleteEditorId === row.folder.id"
-            class="ml-6 rounded-md border border-red-500/30 bg-red-500/5 p-2 space-y-2"
-          >
-            <label class="block text-[11px] uppercase tracking-wide text-red-200">Delete folder strategy</label>
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-              <select v-model="folderDeleteStrategy" class="flex-1 bg-slate-800 border border-white/10 rounded px-2 py-2 text-xs">
-                <option value="reparent">Reparent children and presets to parent folder</option>
-                <option value="recursive">Delete folder and all descendant folders and presets</option>
-              </select>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-2">
-              <button class="px-3 py-2 rounded border border-red-500/40 hover:bg-red-500/10 text-xs" @click="confirmDeleteFolder">Confirm delete</button>
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5 text-xs" @click="cancelDeleteFolder">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <section class="space-y-3">
-        <div class="text-xs text-slate-500">
-          Showing {{ selectedFolderId ? folderNameById(selectedFolderId) : 'Root' }} · {{ visiblePresets.length }} preset(s)
-        </div>
-        <div class="text-[11px] text-slate-500">
-          Drag a preset card onto a folder (or Root) in the left panel to move it.
-        </div>
-
-        <div v-if="!visiblePresets.length" class="rounded-lg border border-dashed border-white/10 p-5 text-sm text-slate-500">
-          No presets in this folder.
-        </div>
-
-        <article
-          v-for="preset in visiblePresets"
-          :key="preset.id"
-          class="rounded-lg border p-3 cursor-grab"
-          :class="[
-            preset.id === activePresetId ? 'border-brand-500/60 bg-brand-500/10' : 'border-white/10 bg-slate-900/40',
-            draggedPresetId === preset.id ? 'opacity-55 ring-1 ring-cyan-300/70' : ''
-          ]"
-          draggable="true"
-          @dragstart="onPresetDragStart(preset.id, $event)"
+          :style="{ paddingLeft: `${8 + row.depth * 14}px` }"
+          :draggable="row.kind === 'preset'"
+          @click="onRowClick(row)"
+          @dragstart="row.kind === 'preset' ? onPresetDragStart(row.id, $event) : undefined"
           @dragend="onPresetDragEnd"
+          @dragenter.prevent="row.kind === 'folder' ? onFolderDragEnter(row.id) : undefined"
+          @dragover.prevent="row.kind === 'folder' ? onFolderDragOver(row.id, $event) : undefined"
+          @dragleave="row.kind === 'folder' ? onFolderDragLeave(row.id) : undefined"
+          @drop.prevent="row.kind === 'folder' ? onFolderDrop(row.id, $event) : undefined"
         >
-          <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div class="flex-1 min-w-0 space-y-2">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-semibold text-slate-100">{{ preset.name }}</span>
-                <span v-if="preset.id === activePresetId" class="text-[10px] uppercase tracking-wide text-brand-300">Active</span>
-                <span v-if="preset.id === activePresetId && isDirty" class="text-[10px] uppercase tracking-wide text-amber-300">Modified</span>
-              </div>
-              <div class="text-xs text-slate-500 flex flex-wrap gap-3">
-                <span>{{ preset.sequencer.tracks?.length ?? 0 }} track(s)</span>
-                <span>{{ patternCountFor(preset) }} pattern(s)</span>
-                <span>Updated {{ formatDate(preset.updatedAt) }}</span>
-                <span v-if="preset.folderId">Folder: {{ folderPathLabel(preset.folderId) }}</span>
-              </div>
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
-                  :value="draftFor(preset.id, preset.name)"
-                  type="text"
-                  class="flex-1 bg-slate-800 border border-white/10 rounded px-3 py-2"
-                  @input="setDraft(preset.id, $event)"
-                  @keydown.enter.prevent="onRename(preset.id, preset.name)"
-                />
-                <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5 transition" @click="onRename(preset.id, preset.name)">Rename</button>
-              </div>
-            </div>
-            <div class="flex flex-wrap items-center gap-2 shrink-0">
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="onLoadPreset(preset.id)">Load</button>
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="presetStore.overwritePreset(preset.id)">Save</button>
-              <button class="px-3 py-2 rounded border border-white/10 hover:bg-white/5" @click="presetStore.duplicatePreset(preset.id)">Duplicate</button>
-              <button class="px-3 py-2 rounded border border-red-500/30 hover:bg-red-500/10" @click="presetStore.deletePreset(preset.id)">Delete</button>
-            </div>
-          </div>
-        </article>
-      </section>
+          <span v-if="row.kind === 'folder'" class="w-4 text-center text-slate-400">{{ row.expandable ? (row.expanded ? '▾' : '▸') : '·' }}</span>
+          <span v-else class="w-4 text-center text-slate-600">·</span>
+          <span class="w-4 text-center">{{ row.kind === 'folder' ? '📁' : '🎵' }}</span>
+          <span class="flex-1 truncate" :title="row.name">{{ row.name }}</span>
+          <span v-if="row.kind === 'preset' && row.id === activePresetId && isDirty" class="text-[10px] text-amber-300">•</span>
+          <button
+            class="px-1.5 text-slate-400 hover:text-slate-100"
+            :title="menuRowKey === rowKey(row) ? 'Hide actions' : 'Show actions'"
+            @click.stop="toggleRowMenu(row)"
+          >
+            ⋯
+          </button>
+        </div>
+
+        <div
+          v-if="menuRowKey === rowKey(row)"
+          class="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-white/5 bg-slate-950/50"
+          :style="{ paddingLeft: `${20 + row.depth * 14}px` }"
+        >
+          <template v-if="row.kind === 'preset'">
+            <button class="rowbtn" @click="onLoadPreset(row.id)">Load</button>
+            <button class="rowbtn" @click="presetStore.overwritePreset(row.id)">Save here</button>
+            <button class="rowbtn" @click="onRenamePreset(row.id, row.name)">Rename</button>
+            <button class="rowbtn" @click="presetStore.duplicatePreset(row.id)">Duplicate</button>
+            <button class="rowbtn danger" @click="onDeletePreset(row.id, row.name)">Delete</button>
+          </template>
+          <template v-else>
+            <button class="rowbtn" @click="onRenameFolder(row.id, row.name)">Rename</button>
+            <button class="rowbtn danger" @click="onDeleteFolder(row.id)">Delete</button>
+          </template>
+          <select
+            class="bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-xs"
+            :value="ROOT_FOLDER_OPTION"
+            @change="onMoveRow(row, $event)"
+          >
+            <option :value="ROOT_FOLDER_OPTION">Move to…</option>
+            <option value="__root_target__">Root</option>
+            <option v-for="folder in moveTargetsFor(row)" :key="folder.id" :value="folder.id">
+              {{ folderPathLabel(folder.id) }}
+            </option>
+          </select>
+          <span v-if="row.kind === 'preset'" class="text-[10px] text-slate-500">
+            {{ presetMetaLabel(row.id) }}
+          </span>
+        </div>
+      </template>
+
+      <div v-if="!treeRows.length" class="px-3 py-4 text-xs text-slate-500">Library is empty. Use ＋ or 🗎 to create a preset.</div>
     </div>
+
+    <p class="text-[10px] text-slate-500">
+      Tap a preset to load it, a folder to open it, and ⋯ for actions. On desktop you can also drag presets onto folders.
+    </p>
 
     <NewPresetDialog
       :open="newPresetDialogOpen"
@@ -219,12 +137,14 @@ import { storeToRefs } from 'pinia'
 import { usePresetStore } from '@/stores/presetStore'
 import NewPresetDialog from '@/components/NewPresetDialog.vue'
 import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
-import type { PresetFolder, SessionPreset } from '@/utils/presetLibrary'
+import type { PresetFolder } from '@/utils/presetLibrary'
 
-type FolderRow = {
-  folder: PresetFolder
+type TreeRow = {
+  kind: 'folder' | 'preset'
+  id: string
+  name: string
   depth: number
-  hasChildren: boolean
+  expandable: boolean
   expanded: boolean
 }
 
@@ -242,73 +162,88 @@ const {
   canRestoreActive
 } = storeToRefs(presetStore)
 
+const ROOT_FOLDER_OPTION = '__move_placeholder__'
+const ROOT_MOVE_TARGET = '__root_target__'
+const ROOT_PRESET_DROP_TARGET = '__preset-drop-root__'
+
 const presetName = ref('')
-const folderName = ref('')
-const renameDrafts = ref<Record<string, string>>({})
-const ROOT_FOLDER_OPTION = '__root__'
-const folderMoveEditorId = ref<string | null>(null)
-const folderMoveTargetId = ref<string>(ROOT_FOLDER_OPTION)
-const folderDeleteEditorId = ref<string | null>(null)
-const folderDeleteStrategy = ref<'recursive' | 'reparent'>('reparent')
 const newPresetDialogOpen = ref(false)
 const dirtyGuardDialogOpen = ref(false)
 const pendingPresetLoadId = ref<string | null>(null)
+const menuRowKey = ref<string | null>(null)
 const draggedPresetId = ref<string | null>(null)
-const ROOT_PRESET_DROP_TARGET = '__preset-drop-root__'
 const dropTargetFolderKey = ref<string | null>(null)
 
 const folderMap = computed(() => new Map(folders.value.map((folder) => [folder.id, folder])))
-const visiblePresets = computed(() => presetStore.presetsInFolder(selectedFolderId.value))
 const dirtyStateLabel = computed(() => (dirtyState.value === 'modified' ? 'Modified' : dirtyState.value === 'clean' ? 'Clean' : 'Unsaved'))
 const dirtyStateClass = computed(() => {
   if (dirtyState.value === 'modified') return 'border-amber-400/50 text-amber-300'
   if (dirtyState.value === 'clean') return 'border-emerald-400/50 text-emerald-300'
   return 'border-slate-500/60 text-slate-300'
 })
+const selectedFolderLabel = computed(() => (selectedFolderId.value ? folderPathLabel(selectedFolderId.value) : 'Root'))
 
-const folderRows = computed<FolderRow[]>(() => {
-  const rows: FolderRow[] = []
-  const buildRows = (parentId: string | null, depth: number) => {
-    const children = presetStore.foldersInParent(parentId)
-    for (const child of children) {
-      const hasChildren = presetStore.foldersInParent(child.id).length > 0
-      const expanded = expandedFolderIds.value.includes(child.id)
-      rows.push({ folder: child, depth, hasChildren, expanded })
-      if (hasChildren && expanded) {
-        buildRows(child.id, depth + 1)
-      }
+const treeRows = computed<TreeRow[]>(() => {
+  const rows: TreeRow[] = []
+  const buildLevel = (parentId: string | null, depth: number) => {
+    for (const folder of presetStore.foldersInParent(parentId)) {
+      const childFolders = presetStore.foldersInParent(folder.id)
+      const childPresets = presetStore.presetsInFolder(folder.id)
+      const expandable = childFolders.length > 0 || childPresets.length > 0
+      const expanded = expandedFolderIds.value.includes(folder.id)
+      rows.push({ kind: 'folder', id: folder.id, name: folder.name, depth, expandable, expanded })
+      if (expandable && expanded) buildLevel(folder.id, depth + 1)
+    }
+    for (const preset of presetStore.presetsInFolder(parentId)) {
+      rows.push({ kind: 'preset', id: preset.id, name: preset.name, depth, expandable: false, expanded: false })
     }
   }
-  buildRows(null, 0)
+  buildLevel(null, 0)
   return rows
 })
 
-const folderMoveTargets = computed(() => {
-  if (!folderMoveEditorId.value) return []
-  const sourceFolderId = folderMoveEditorId.value
-  return folders.value
-    .filter((folder) => !isFolderInSubtree(sourceFolderId, folder.id))
-    .sort((left, right) => folderPathLabel(left.id).localeCompare(folderPathLabel(right.id)))
-})
-
-function draftFor(id: string, fallback: string) {
-  return renameDrafts.value[id] ?? fallback
+function rowKey(row: TreeRow) {
+  return `${row.kind}:${row.id}`
 }
 
-function setDraft(id: string, event: Event) {
-  renameDrafts.value = {
-    ...renameDrafts.value,
-    [id]: (event.target as HTMLInputElement).value
+function toggleRowMenu(row: TreeRow) {
+  menuRowKey.value = menuRowKey.value === rowKey(row) ? null : rowKey(row)
+}
+
+function onRowClick(row: TreeRow) {
+  if (row.kind === 'folder') {
+    presetStore.setSelectedFolder(row.id)
+    if (row.expandable) presetStore.toggleFolderExpanded(row.id)
+    return
   }
+  onLoadPreset(row.id)
 }
 
-function onSaveAsCurrent() {
-  const preset = presetStore.saveCurrentAsPreset(presetName.value)
+function moveTargetsFor(row: TreeRow) {
+  return folders.value
+    .filter((folder) => (row.kind === 'preset' ? true : !isFolderInSubtree(row.id, folder.id)))
+    .sort((left, right) => folderPathLabel(left.id).localeCompare(folderPathLabel(right.id)))
+}
+
+function onMoveRow(row: TreeRow, event: Event) {
+  const select = event.target as HTMLSelectElement
+  const value = select.value
+  select.value = ROOT_FOLDER_OPTION
+  if (value === ROOT_FOLDER_OPTION) return
+  const targetId = value === ROOT_MOVE_TARGET ? null : value
+  if (row.kind === 'preset') {
+    presetStore.movePresetToFolder(row.id, targetId)
+  } else {
+    presetStore.moveFolder(row.id, targetId)
+  }
+  menuRowKey.value = null
+}
+
+function onSaveAs() {
+  const value = window.prompt('Save session as new preset', presetName.value || activePresetName.value)
+  if (value == null) return
+  const preset = presetStore.saveCurrentAsPreset(value)
   presetName.value = preset.name
-}
-
-function onNewDefault() {
-  newPresetDialogOpen.value = true
 }
 
 function createDefaultPreset(name: string) {
@@ -330,14 +265,16 @@ function onSaveAndCreatePresetFromDialog(name: string) {
   createDefaultPreset(name)
 }
 
-function onRename(id: string, fallback: string) {
-  const value = draftFor(id, fallback)
-  if (presetStore.renamePreset(id, value)) {
-    renameDrafts.value = {
-      ...renameDrafts.value,
-      [id]: value.trim() || fallback
-    }
-  }
+function onRenamePreset(id: string, fallback: string) {
+  const value = window.prompt('Rename preset', fallback)
+  if (value == null) return
+  presetStore.renamePreset(id, value)
+}
+
+function onDeletePreset(id: string, name: string) {
+  if (!window.confirm(`Delete preset "${name}"?`)) return
+  presetStore.deletePreset(id)
+  menuRowKey.value = null
 }
 
 function onLoadPreset(id: string) {
@@ -374,17 +311,16 @@ function onImportLibrary(event: Event) {
   if (!file) return
   const reader = new FileReader()
   reader.onload = () => {
-    const text = String(reader.result || '')
-    presetStore.importLibrary(text)
-    renameDrafts.value = Object.fromEntries(presets.value.map((preset) => [preset.id, preset.name]))
+    presetStore.importLibrary(String(reader.result || ''))
   }
   reader.readAsText(file)
   input.value = ''
 }
 
 function onCreateFolder() {
-  const folder = presetStore.createFolder(folderName.value)
-  folderName.value = ''
+  const value = window.prompt('New folder name', 'New folder')
+  if (value == null) return
+  const folder = presetStore.createFolder(value)
   presetStore.setSelectedFolder(folder.id)
 }
 
@@ -394,45 +330,12 @@ function onRenameFolder(id: string, fallback: string) {
   presetStore.renameFolder(id, value)
 }
 
-function openMoveFolder(id: string, currentParentId: string | null) {
-  folderMoveEditorId.value = id
-  folderMoveTargetId.value = currentParentId ?? ROOT_FOLDER_OPTION
-  folderDeleteEditorId.value = null
-}
-
-function cancelMoveFolder() {
-  folderMoveEditorId.value = null
-  folderMoveTargetId.value = ROOT_FOLDER_OPTION
-}
-
-function confirmMoveFolder() {
-  if (!folderMoveEditorId.value) return
-  const targetId = folderMoveTargetId.value === ROOT_FOLDER_OPTION ? null : folderMoveTargetId.value
-  if (presetStore.moveFolder(folderMoveEditorId.value, targetId)) {
-    cancelMoveFolder()
-  }
-}
-
-function openDeleteFolder(id: string) {
-  folderDeleteEditorId.value = id
-  folderDeleteStrategy.value = 'reparent'
-  folderMoveEditorId.value = null
-}
-
-function cancelDeleteFolder() {
-  folderDeleteEditorId.value = null
-  folderDeleteStrategy.value = 'reparent'
-}
-
-function confirmDeleteFolder() {
-  if (!folderDeleteEditorId.value) return
-  if (presetStore.deleteFolder(folderDeleteEditorId.value, folderDeleteStrategy.value)) {
-    cancelDeleteFolder()
-  }
-}
-
-function folderNameById(id: string) {
-  return folderMap.value.get(id)?.name ?? 'Unknown folder'
+function onDeleteFolder(id: string) {
+  const recursive = window.confirm(
+    'Delete this folder AND all of its sub-folders and presets?\n\nOK = delete everything, Cancel = keep contents and move them to the parent folder.'
+  )
+  presetStore.deleteFolder(id, recursive ? 'recursive' : 'reparent')
+  menuRowKey.value = null
 }
 
 function isFolderInSubtree(folderId: string, candidateId: string) {
@@ -454,17 +357,16 @@ function folderPathLabel(folderId: string) {
   return labels.join(' / ') || 'Root'
 }
 
-function patternCountFor(preset: SessionPreset) {
-  return (preset.sequencer.tracks ?? []).reduce((total, track) => total + (track.patterns?.length ?? 0), 0)
+function presetMetaLabel(id: string) {
+  const preset = presets.value.find((entry) => entry.id === id)
+  if (!preset) return ''
+  const tracks = preset.sequencer.tracks ?? []
+  const patterns = tracks.reduce((total, track) => total + (track.patterns?.length ?? 0), 0)
+  return `${tracks.length} track(s) · ${patterns} pattern(s) · ${new Date(preset.updatedAt).toLocaleString()}`
 }
 
-function formatDate(value: number) {
-  return new Date(value).toLocaleString()
-}
-
-function isPresetDropTarget(folderId: string | null) {
-  const key = folderId ?? ROOT_PRESET_DROP_TARGET
-  return dropTargetFolderKey.value === key
+function isDropTarget(folderId: string | null) {
+  return dropTargetFolderKey.value === (folderId ?? ROOT_PRESET_DROP_TARGET)
 }
 
 function canDropPresetToFolder(folderId: string | null) {
@@ -501,8 +403,7 @@ function onFolderDragOver(folderId: string | null, event: DragEvent) {
 }
 
 function onFolderDragLeave(folderId: string | null) {
-  const key = folderId ?? ROOT_PRESET_DROP_TARGET
-  if (dropTargetFolderKey.value === key) {
+  if (dropTargetFolderKey.value === (folderId ?? ROOT_PRESET_DROP_TARGET)) {
     dropTargetFolderKey.value = null
   }
 }
@@ -518,4 +419,57 @@ function onFolderDrop(folderId: string | null, event: DragEvent) {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.explorer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.8125rem;
+  line-height: 1.1rem;
+  user-select: none;
+}
+
+.explorer-row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.toolbtn {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8125rem;
+  line-height: 1.1rem;
+}
+
+.toolbtn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.toolbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rowbtn {
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.6875rem;
+}
+
+.rowbtn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.rowbtn.danger {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.rowbtn.danger:hover {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+</style>

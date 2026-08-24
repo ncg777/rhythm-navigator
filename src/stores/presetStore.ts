@@ -264,6 +264,7 @@ export const usePresetStore = defineStore('presets', () => {
     sequencer.applySessionState(preset.sequencer)
     activePresetId.value = preset.id
     setBaselineFromCurrentSession()
+    persistUiState()
     ui.pushToast(`Loaded preset "${preset.name}".`, 'success')
     return true
   }

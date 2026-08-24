@@ -173,4 +173,33 @@ describe('presetStore dirty baseline', () => {
     expect(reloaded.isDirty).toBe(false)
     expect(reloaded.dirtyState).toBe('clean')
   })
+
+  it('reloads the last loaded preset without discarding live edits', () => {
+    const store = usePresetStore()
+    const saved = store.saveCurrentAsPreset('Saved session')
+
+    currentSession.value = {
+      ...deepClone(currentSession.value),
+      bpm: 98
+    }
+    const loaded = store.saveCurrentAsPreset('Loaded session')
+    store.loadPreset(saved.id)
+
+    currentSession.value = {
+      ...deepClone(currentSession.value),
+      bpm: 142
+    }
+    sequencerMock.applySessionState.mockClear()
+
+    setActivePinia(createPinia())
+    const reloaded = usePresetStore()
+    reloaded.initPersistence()
+
+    expect(reloaded.activePresetId).toBe(saved.id)
+    expect(reloaded.activePresetId).not.toBe(loaded.id)
+    expect(sequencerMock.applySessionState).not.toHaveBeenCalled()
+    expect(currentSession.value.bpm).toBe(142)
+    expect(reloaded.isDirty).toBe(true)
+    expect(reloaded.dirtyState).toBe('modified')
+  })
 })

@@ -1,8 +1,46 @@
 <template>
-  <section class="relative">
+  <section class="drum-tracks relative">
     <header class="mb-3">
       <h2 class="text-lg font-semibold">Drum tracks</h2>
     </header>
+    <details open class="combined-sequence mb-3">
+      <summary class="cursor-pointer list-none px-3 py-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-slate-300">Combined sequence</span>
+        <span class="text-[10px] text-slate-500">{{ combinedSequence.masks.length }} steps</span>
+      </summary>
+      <div class="border-t border-white/10 p-3">
+        <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">
+          <span v-for="(label, index) in combinedLaneLabels" :key="index">
+            bit {{ index }}: {{ label }}
+          </span>
+        </div>
+        <textarea
+          ref="sequenceOutput"
+          class="combined-sequence-output"
+          :value="combinedSequence.sequence"
+          readonly
+          spellcheck="false"
+          aria-label="Combined decimal drum sequence"
+          placeholder="Assign a pattern to a track to build the sequence"
+        ></textarea>
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+          <span>GateRunner: velocity bits 1 · denominator {{ combinedSequence.denominator }}</span>
+          <span>· {{ combinedSequence.loopQuarterNotes }} qn</span>
+          <button
+            type="button"
+            class="ml-auto h-7 rounded border border-cyan-300/30 px-2 text-xs text-cyan-200 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="!combinedSequence.sequence"
+            title="Copy combined sequence"
+            @click="copyCombinedSequence"
+          >
+            {{ sequenceCopyStatus || 'Copy' }}
+          </button>
+        </div>
+        <p v-if="combinedSequence.denominator > 16" class="mt-2 text-[10px] text-amber-300">
+          This timing grid exceeds GateRunner's maximum denominator of 16.
+        </p>
+      </div>
+    </details>
     <div class="track-workspace">
       <nav class="track-master" aria-label="Drum tracks">
         <button
@@ -332,6 +370,7 @@ import {
 import { useRhythmStore } from '@/stores/rhythmStore'
 import RhythmPickerModal from '@/components/RhythmPickerModal.vue'
 import Knob from '@/components/Knob.vue'
+import { buildCombinedDrumSequence } from '@/utils/combinedDrumSequence'
 
 const seq = useSequencerStore()
 const { tracks, version } = storeToRefs(seq)
@@ -373,11 +412,33 @@ function isRideType(type: TrackType): boolean {
 const selectedTrackId = ref<string | null>(null)
 const orderedTracks = computed(() => sortTracksByMidiKey(tracks.value))
 const trackLabels = computed(() => automaticTrackLabels(orderedTracks.value))
+const combinedSequence = computed(() => buildCombinedDrumSequence(orderedTracks.value))
+const combinedLaneLabels = computed(() => orderedTracks.value.map((track) => trackLabels.value.get(track.id) ?? trackTypeLabel(track.type)))
+const sequenceOutput = ref<HTMLTextAreaElement | null>(null)
+const sequenceCopyStatus = ref('')
 const selectedTrack = computed(() => {
   return orderedTracks.value.find((track) => track.id === selectedTrackId.value) ?? orderedTracks.value[0] ?? null
 })
 
 const rstore = useRhythmStore()
+
+async function copyCombinedSequence() {
+  if (!combinedSequence.value.sequence) return
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(combinedSequence.value.sequence)
+    } else {
+      sequenceOutput.value?.select()
+      if (!document.execCommand('copy')) throw new Error('Copy failed')
+    }
+    sequenceCopyStatus.value = 'Copied'
+  } catch {
+    sequenceCopyStatus.value = 'Copy failed'
+  }
+  window.setTimeout(() => {
+    sequenceCopyStatus.value = ''
+  }, 1600)
+}
 
 function chainCycleQN(t: any): number {
   const ts = t.timeScale || 1
@@ -481,6 +542,27 @@ function defaultMidiKey(type: string): number {
   gap: 0.75rem;
 }
 
+.combined-sequence {
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 0.25rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.combined-sequence-output {
+  display: block;
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+  background: rgba(2, 6, 23, 0.75);
+  padding: 0.5rem;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .track-master {
   display: flex;
   gap: 0.5rem;
@@ -555,9 +637,15 @@ details[open] > summary::after {
 }
 
 @media (min-width: 1024px) {
+  .drum-tracks {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
   .track-workspace {
+    flex: 1;
     grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
-    height: calc(100% - 2.25rem);
     min-height: 0;
   }
 

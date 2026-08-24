@@ -198,6 +198,7 @@ export const usePresetStore = defineStore('presets', () => {
     presets.value = [preset, ...presets.value]
     activePresetId.value = preset.id
     activePresetBaseline.value = snapshotFingerprint(snapshot)
+    sequencer.saveToStorage()
     persist()
     ui.pushToast(`Saved preset "${preset.name}".`, 'success')
     return preset
@@ -220,6 +221,7 @@ export const usePresetStore = defineStore('presets', () => {
     activePresetId.value = preset.id
     sequencer.applySessionState(snapshot)
     activePresetBaseline.value = snapshotFingerprint(snapshot)
+    sequencer.saveToStorage()
     persist()
     ui.pushToast(`Created default preset "${preset.name}".`, 'success')
     return preset
@@ -240,6 +242,7 @@ export const usePresetStore = defineStore('presets', () => {
     presets.value = presets.value.map((entry, entryIndex) => (entryIndex === index ? updated : entry))
     activePresetId.value = updated.id
     activePresetBaseline.value = snapshotFingerprint(snapshot)
+    sequencer.saveToStorage()
     persist()
     ui.pushToast(`Overwrote preset "${updated.name}".`, 'success')
     return true
@@ -254,6 +257,7 @@ export const usePresetStore = defineStore('presets', () => {
     if (!activePreset.value) return false
     sequencer.applySessionState(activePreset.value.sequencer)
     setBaselineFromCurrentSession()
+    sequencer.saveToStorage()
     ui.pushToast(`Restored preset "${activePreset.value.name}".`, 'info')
     return true
   }
@@ -264,6 +268,7 @@ export const usePresetStore = defineStore('presets', () => {
     sequencer.applySessionState(preset.sequencer)
     activePresetId.value = preset.id
     setBaselineFromCurrentSession()
+    sequencer.saveToStorage()
     persistUiState()
     ui.pushToast(`Loaded preset "${preset.name}".`, 'success')
     return true

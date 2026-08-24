@@ -44,13 +44,20 @@ const DEFAULT_SESSION = {
 }
 
 const currentSession = ref(normalizeAppliedSnapshot(DEFAULT_SESSION))
+const persistedSession = ref(normalizeAppliedSnapshot(DEFAULT_SESSION))
 
 const sequencerMock = {
   captureSessionState: vi.fn(() => deepClone(currentSession.value)),
   applySessionState: vi.fn((snapshot: any) => {
     currentSession.value = normalizeAppliedSnapshot(snapshot)
   }),
-  createDefaultSessionSnapshot: vi.fn(() => normalizeAppliedSnapshot(DEFAULT_SESSION))
+  createDefaultSessionSnapshot: vi.fn(() => normalizeAppliedSnapshot(DEFAULT_SESSION)),
+  loadFromStorage: vi.fn(() => {
+    currentSession.value = normalizeAppliedSnapshot(persistedSession.value)
+  }),
+  saveToStorage: vi.fn(() => {
+    persistedSession.value = deepClone(currentSession.value)
+  })
 }
 
 const uiMock = {
@@ -115,9 +122,12 @@ describe('presetStore dirty baseline', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     currentSession.value = normalizeAppliedSnapshot(DEFAULT_SESSION)
+    persistedSession.value = normalizeAppliedSnapshot(DEFAULT_SESSION)
     sequencerMock.captureSessionState.mockClear()
     sequencerMock.applySessionState.mockClear()
     sequencerMock.createDefaultSessionSnapshot.mockClear()
+    sequencerMock.loadFromStorage.mockClear()
+    sequencerMock.saveToStorage.mockClear()
     uiMock.pushToast.mockClear()
     Object.defineProperty(globalThis, 'localStorage', {
       value: new LocalStorageMock(),
@@ -160,15 +170,21 @@ describe('presetStore dirty baseline', () => {
 
   it('stays clean after save and persistence reload', () => {
     const store = usePresetStore()
+    currentSession.value = {
+      ...deepClone(currentSession.value),
+      bpm: 132
+    }
     const saved = store.saveCurrentAsPreset('Saved session')
 
     expect(saved.name).toBe('Saved session')
     expect(store.dirtyState).toBe('clean')
 
     setActivePinia(createPinia())
+    sequencerMock.loadFromStorage()
     const reloaded = usePresetStore()
     reloaded.initPersistence()
 
+    expect(currentSession.value.bpm).toBe(132)
     expect(reloaded.activePresetId).toBe(saved.id)
     expect(reloaded.isDirty).toBe(false)
     expect(reloaded.dirtyState).toBe('clean')

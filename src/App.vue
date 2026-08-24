@@ -13,10 +13,10 @@
             <ActionMenu label="Tools" icon="🧰" title="Generators and views" align="right">
               <template #default="{ close }">
                 <div class="menu-stack">
+                  <button class="menu-btn" @click="settingsOpen = true; close()" title="Open generator and filters">⚙️ Generator & filters</button>
                   <button class="menu-btn" @click="rhythmsOpen = true; close()" title="Open generated rhythms table view">📊 Table view</button>
                   <button class="menu-btn" @click="pulsationsOpen = true; close()" title="Open pulsations builder">♩ Pulsations</button>
                   <button class="menu-btn" @click="sequenceOpen = true; close()" title="Open rhythm-driven sequence generator">🧬 Sequence generator</button>
-                  <button class="menu-btn" @click="settingsOpen = true; close()" title="Open generator and filters">⚙️ Generator & filters</button>
                   <button class="menu-btn" @click="convolutionOpen = true; close()" title="Open XOR convolver">✳️ XOR convolver</button>
                 </div>
               </template>

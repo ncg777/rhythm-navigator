@@ -80,6 +80,7 @@ describe('presetLibrary', () => {
     expect(library.presets[0].sequencer.swingPercent).toBe(0)
     expect(library.presets[0].sequencer.swingGrid).toBe('eighth')
     expect(library.presets[0].sequencer.tracks?.[0]).not.toHaveProperty('name')
+    expect(library.presets[0].sequencer.tracks?.[0]).not.toHaveProperty('pattern')
   })
 
   it('migrates version 1 libraries without folders', () => {

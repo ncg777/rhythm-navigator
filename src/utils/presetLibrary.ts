@@ -102,7 +102,7 @@ function normalizeSavedTrack(value: unknown, index: number): SavedTrack | null {
   const patterns = Array.isArray(value.patterns)
     ? value.patterns.map(normalizeSavedPatternEntry).filter((entry): entry is SavedPatternEntry => !!entry)
     : []
-  return {
+  const track: SavedTrack = {
     id: asString(value.id, `preset-track-${index}`),
     type,
     volume: asFiniteNumber(value.volume, 0.8),
@@ -112,9 +112,11 @@ function normalizeSavedTrack(value: unknown, index: number): SavedTrack | null {
     timeScale: asFiniteNumber(value.timeScale, 1),
     noteLength: asFiniteNumber(value.noteLength, 0.5),
     params: normalizeParams(value.params),
-    patterns,
-    pattern: normalizeLegacyPattern(value.pattern)
+    patterns
   }
+  const legacyPattern = normalizeLegacyPattern(value.pattern)
+  if (legacyPattern) track.pattern = legacyPattern
+  return track
 }
 
 function normalizeSequencerSnapshot(value: unknown): Partial<SequencerSessionSnapshot> {

@@ -24,6 +24,9 @@ const DEFAULT_SESSION = {
   loopBars: 4,
   swingPercent: 0,
   swingGrid: 'eighth',
+  midiEnabled: false,
+  midiOutputId: null,
+  midiChannel: 10,
   tracks: [
     {
       id: 'track-1',
@@ -153,5 +156,21 @@ describe('presetStore dirty baseline', () => {
     expect(restored).toBe(true)
     expect(store.isDirty).toBe(false)
     expect(store.dirtyState).toBe('clean')
+  })
+
+  it('stays clean after save and persistence reload', () => {
+    const store = usePresetStore()
+    const saved = store.saveCurrentAsPreset('Saved session')
+
+    expect(saved.name).toBe('Saved session')
+    expect(store.dirtyState).toBe('clean')
+
+    setActivePinia(createPinia())
+    const reloaded = usePresetStore()
+    reloaded.initPersistence()
+
+    expect(reloaded.activePresetId).toBe(saved.id)
+    expect(reloaded.isDirty).toBe(false)
+    expect(reloaded.dirtyState).toBe('clean')
   })
 })

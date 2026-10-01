@@ -17,7 +17,6 @@ import {
   isLowEntropy,
   hasNoGaps,
   relativelyFlat,
-  hasOrdinal,
   isDuplePartitioned
 } from './predicates'
 
@@ -163,10 +162,6 @@ function evaluateLeaf(
       return hasNoGaps(onsets, totalBits)
     case 'relativelyFlat':
       return relativelyFlat(onsets, totalBits)
-    case 'ordinal': {
-      const n = node.params?.n ?? 4
-      return n >= 2 ? hasOrdinal(onsets, totalBits, n) : true
-    }
     case 'duplePartitioned':
       return isDuplePartitioned(onsets, totalBits)
     default:
@@ -289,12 +284,6 @@ function explainLeaf(
       result = relativelyFlat(onsets, totalBits)
       summary = `Non-zero interval vector bins should stay near the mean; vector ${formatNumberList(vector)}.`
       break
-    case 'ordinal': {
-      const n = node.params?.n ?? 4
-      result = n >= 2 ? hasOrdinal(onsets, totalBits, n) : true
-      summary = `Checks reversed bit blocks of size ${n}.`
-      break
-    }
     case 'duplePartitioned':
       result = isDuplePartitioned(onsets, totalBits)
       summary = `Composition intervals: ${formatNumberList(intervals)}.`

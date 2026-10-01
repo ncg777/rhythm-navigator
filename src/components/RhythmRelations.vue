@@ -213,12 +213,6 @@
               {{ details.predicates.relativelyFlat ? 'Yes' : 'No' }}
             </div>
           </div>
-          <div>
-            <div class="text-slate-400 text-[10px] uppercase">Ordinal(n)</div>
-            <div class="font-mono text-sm" :class="details.predicates.ordinal ? 'text-emerald-300' : 'text-slate-400'">
-              {{ details.predicates.ordinal ? 'Yes' : 'No' }}
-            </div>
-          </div>
         </div>
         <div class="mt-2 text-xs text-slate-500">
           Predicates show results for the selected rhythm. Use the <em>Generator &amp; Filters</em> panel to build filter expressions.
@@ -247,7 +241,7 @@ import RhythmCircleView from '@/components/RhythmCircleView.vue'
 import { useRhythmStore } from '@/stores/rhythmStore'
 import { useSequencerStore } from '@/stores/sequencerStore'
 import { canonicalContourFromOnsets, shadowContourFromOnsets } from '@/utils/contour'
-import { circularIntervals, isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasOrdinal, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
+import { circularIntervals, isLowEntropy, hasNoGaps, hasOddIntervalsOddity, hasROP23, isMaximallyEven, noAntipodalPairs, relativelyFlat } from '@/utils/predicates'
 import { onsetPatternFromGroupedDigits } from '@/utils/onsets'
 import { parseDigitsFromGroupedString } from '@/utils/relations'
 import { digitsToBits } from '@/utils/rhythm'
@@ -306,7 +300,6 @@ const details = computed(() => {
         lowEntropy: false,
         noGaps: false,
         relativelyFlat: false,
-        ordinal: false,
       }
     }
   }
@@ -345,7 +338,6 @@ const details = computed(() => {
       lowEntropy: isLowEntropy(onsets, totalBits),
       noGaps: hasNoGaps(onsets, totalBits),
       relativelyFlat: relativelyFlat(onsets, totalBits),
-      ordinal: hasOrdinal(onsets, totalBits, 4),
     }
   }
 })

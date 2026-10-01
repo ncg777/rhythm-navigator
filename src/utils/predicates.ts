@@ -350,67 +350,6 @@ export function relativelyFlat(onsets: number[], L: number): boolean {
 }
 
 /**
- * Factors of n (positive divisors).
- */
-export function factors(n: number): number[] {
-  const out: number[] = []
-  for (let i = 1; i * i <= n; i++) {
-    if (n % i === 0) {
-      out.push(i)
-      if (i * i !== n) out.push(n / i)
-    }
-  }
-  return out.sort((a, b) => a - b)
-}
-
-/**
- * Ordinal(n): L must be a multiple of n. Reverse the bitstring, split into blocks of size n,
- * every block must be one of the allowed "words" built from factors of n as in the Java code.
- */
-const ordinalWordsCache = new Map<number, Set<string>>()
-
-function buildOrdinalWords(n: number): Set<string> {
-  const set = new Set<string>()
-  const zero = '0'.repeat(n)
-  set.add(zero)
-  for (const f of factors(n)) {
-    const k = Math.floor(n / f)
-    for (let i = 1; i <= k; i++) {
-      const b = new Array(n).fill(0)
-      const brev = new Array(n).fill(0)
-      for (let j = 0; j < i; j++) {
-        b[j * f] = 1
-        const pos = n - (j + 1) * f
-        if (pos >= 0 && pos < n) brev[pos] = 1
-      }
-      set.add(b.join(''))
-      set.add(brev.join(''))
-    }
-  }
-  return set
-}
-
-export function hasOrdinal(onsets: number[], L: number, n: number): boolean {
-  if (n < 2) return false
-  if (L % n !== 0) return false
-  let words = ordinalWordsCache.get(n)
-  if (!words) {
-    words = buildOrdinalWords(n)
-    ordinalWordsCache.set(n, words)
-  }
-  // build bitstring of length L
-  const bits = new Array(L).fill('0')
-  for (const p of onsets) if (p >= 0 && p < L) bits[p] = '1'
-  const rev = bits.slice().reverse().join('')
-  const blocks = L / n
-  for (let i = 0; i < blocks; i++) {
-    const sub = rev.slice(i * n, (i + 1) * n)
-    if (!words.has(sub)) return false
-  }
-  return true
-}
-
-/**
  * Helper: check if n is a power of two (n > 0 and n & (n-1) === 0).
  */
 function isPowerOfTwo(n: number): boolean {

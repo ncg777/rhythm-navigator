@@ -37,7 +37,6 @@ Generator and library
 	- Low entropy (bounded IOI-entropy)
 	- No gaps (contiguous non-zero interval-vector bins)
 	- Relatively flat (counts near the mean)
-	- Ordinal(n) blocks
 - Agglutination engine to build longer strings from compatible parts
 - **Rhythm matrix generator** — constructive stochastic R×C matrix sampler:
 	- Each cell is a rhythm segment using the current mode/numerator/denominator settings.
@@ -174,7 +173,7 @@ npx rhythm-navigator mcp
 | `--max-attempts <n>` | *(sample only)* Maximum random trials | `1000000` |
 | `--pretty` | Pretty-print JSON output | off |
 
-Available predicate IDs: `isomorphic`, `maximallyEven`, `rop23`, `odd-intervals`, `no-antipodes`, `lowEntropy`, `noGaps`, `relativelyFlat`, `ordinal`.
+Available predicate IDs: `isomorphic`, `maximallyEven`, `rop23`, `odd-intervals`, `no-antipodes`, `lowEntropy`, `noGaps`, `relativelyFlat`, `duplePartitioned`.
 
 ## MCP Server (VS Code / Copilot Chat integration)
 

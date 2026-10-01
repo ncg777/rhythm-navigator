@@ -62,7 +62,6 @@ function removeChild(i: number) {
 function addPredicate() {
   if (!addSelection.value) return
   const leaf: PredicateLeaf = { type: 'predicate', id: addSelection.value }
-  if (leaf.id === 'ordinal') leaf.params = { n: 4 }
   emitUpdate([...props.node.children, leaf])
   addSelection.value = ''
 }
@@ -74,11 +73,6 @@ function addGroup() {
     children: []
   }
   emitUpdate([...props.node.children, child])
-}
-
-function updateOrdinalN(i: number, raw: number) {
-  const old = props.node.children[i] as PredicateLeaf
-  updateChild(i, { ...old, params: { ...old.params, n: Math.max(2, raw || 2) } })
 }
 
 function label(id: PredicateId) { return PREDICATE_LABELS[id] }
@@ -133,18 +127,6 @@ const railClass = computed(() =>
         <!-- Leaf predicate -->
         <div v-else class="flex items-center gap-2 py-0.5 group/leaf">
           <span class="text-sm text-slate-300">{{ label((child as PredicateLeaf).id) }}</span>
-
-          <!-- Ordinal: inline n parameter -->
-          <template v-if="(child as PredicateLeaf).id === 'ordinal'">
-            <span class="text-[10px] text-slate-500">n =</span>
-            <input
-              type="number"
-              :value="(child as PredicateLeaf).params?.n ?? 4"
-              @input="updateOrdinalN(i, ($event.target as HTMLInputElement).valueAsNumber)"
-              min="2"
-              class="w-14 bg-slate-800 border border-white/10 rounded px-1.5 py-0.5 text-xs"
-            />
-          </template>
 
           <button
             class="ml-auto text-slate-500 hover:text-red-400 text-xs opacity-0 group-hover/leaf:opacity-100 transition-opacity leading-none"

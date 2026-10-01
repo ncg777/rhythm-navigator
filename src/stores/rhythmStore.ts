@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { useComparisonStore } from '@/stores/comparisonStore'
 import { useUiStore } from '@/stores/uiStore'
 import type { Mode, RhythmItem } from '@/utils/rhythm'
-import type { PredicateGroup } from '@/types/predicateExpression'
-import { defaultPredicateExpression } from '@/types/predicateExpression'
+import type { PredicateGroup, PredicateNode } from '@/types/predicateExpression'
+import { ALL_PREDICATE_IDS, defaultPredicateExpression } from '@/types/predicateExpression'
 import { sequenceMatrixColumns, extractMatrixRhythmItems } from '@/utils/matrixSampler'
 
 export type GenerationMethod = 'enumerate' | 'sample'
@@ -36,7 +36,17 @@ export type RhythmSessionSnapshot = {
 }
 
 function clonePredicateExpression(expression: PredicateGroup): PredicateGroup {
-  return JSON.parse(JSON.stringify(expression)) as PredicateGroup
+  return {
+    type: expression.type,
+    children: expression.children.flatMap<PredicateNode>((child) => {
+      if (child.type === 'predicate') {
+        return ALL_PREDICATE_IDS.includes(child.id) ? [{ type: 'predicate', id: child.id }] : []
+      }
+      const group = clonePredicateExpression(child)
+      // Remove groups emptied by retired filters; preserve intentional empty groups.
+      return group.children.length > 0 || child.children.length === 0 ? [group] : []
+    })
+  }
 }
 
 export const useRhythmStore = defineStore('rhythm', {
